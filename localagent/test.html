@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Rx3000 Agent v17 Final</title>
+<style>
+body{font-family:Arial;padding:20px;background:#f1f5f9}
+.card{background:#fff;border:2px solid #1e3a8a;padding:20px;max-width:720px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+button{height:48px;padding:0 20px;margin:6px;font-weight:bold;cursor:pointer;border:2px solid #1e3a8a;background:#1e3a8a;color:#fff;border-radius:8px}
+.log{background:#0f172a;color:#22c55e;padding:12px;height:380px;overflow:auto;font-size:13px;white-space:pre-wrap;border-radius:8px;margin-top:12px}
+code{background:#e2e8f0;padding:2px 6px;border-radius:4px}
+</style></head><body>
+<div class="card">
+<h1 style="background:#1e3a8a;color:#fff;padding:12px;margin:-20px -20px 16px -20px;border-radius:12px 12px 0 0">Rx3000 LocalAgent v17 - Final 正式版</h1>
+<div>WS: ws://localhost:18888 | HTTP: http://localhost:18889/mac | <span id="st">CONNECTING</span></div>
+<div style="margin-top:12px;background:#f8fafc;padding:10px;border-radius:8px;border:1px solid #e2e8f0">
+<b>前端呼叫範例 (給你的 Rx3000 登入頁)：</b><br>
+<code>fetch('http://localhost:18889/mac').then(r=>r.json()).then(d=> console.log(d.macs))</code>
+</div>
+<div style="margin-top:12px">
+<button id="btnMac">取得 MAC (HTTP API /mac)</button>
+<button id="btnDll" style="background:#16a34a;border-color:#16a34a">取得 MAC (WebSocket)</button>
+</div>
+<div id="log" class="log">等待連線 v17...
+</div>
+</div>
+<script>
+var logEl=document.getElementById('log');
+function log(t){logEl.textContent+=t+"\n"; logEl.scrollTop=logEl.scrollHeight;}
+var ws;
+function connect(){
+  ws=new WebSocket('ws://localhost:18888');
+  ws.onopen=function(){document.getElementById('st').textContent='CONNECTED OK (32-bit PS)'; document.getElementById('st').style.color='green'; log('✅ v17 已連線，PowerShell: '+ 'SysWOW64 32-bit 自動');};
+  ws.onclose=function(){document.getElementById('st').textContent='DISCONNECTED'; setTimeout(connect,2000);};
+  ws.onmessage=function(e){log('>> '+e.data); try{var j=JSON.parse(e.data); if(j.macs) log('MACs: '+j.macs.join(', '));}catch{}};
+}
+connect();
+document.getElementById('btnMac').addEventListener('click', async function(){
+  log('fetch http://localhost:18889/mac ...');
+  try{
+    const r=await fetch('http://localhost:18889/mac'); const j=await r.json();
+    log('HTTP RESULT: '+JSON.stringify(j,null,2));
+  }catch(e){log('HTTP Error: '+e);}
+});
+document.getElementById('btnDll').addEventListener('click', function(){
+  log('WS GET_MAC ...'); ws.send(JSON.stringify({action:'GET_MAC'}));
+});
+</script>
+</body></html>

@@ -1,0 +1,6 @@
+@Wx3000.Backend_HostAddress = http://localhost:5007
+
+GET {{Wx3000.Backend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

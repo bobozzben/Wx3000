@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@import "ag-grid-community/styles/ag-grid.css";
+@import "ag-grid-community/styles/ag-theme-alpine.css";
+
+@layer base {
+  body {
+    background-color: #f3f4f6;
+    color: #1f2937;
+    font-family: Consolas, Monaco, "Courier New", monospace;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Custom AG Grid FoxPro Styling Overrides */
+.ag-theme-alpine.foxpro-grid {
+  --ag-font-family: Consolas, Monaco, "Courier New", monospace;
+  --ag-font-size: 16px;
+  --ag-grid-size: 6px;
+  --ag-row-height: 38px;
+  --ag-header-height: 38px;
+  --ag-header-background-color: #1e3a8a;
+  --ag-header-foreground-color: #ffffff;
+  --ag-odd-row-background-color: #ffffff;
+  --ag-even-row-background-color: #f9fafb;
+  --ag-row-hover-color: #fef08a;
+  --ag-cell-horizontal-border: 1px solid #e5e7eb;
+}
+
+/* Header style override */
+.ag-theme-alpine.foxpro-grid .ag-header-cell {
+  background-color: #1e3a8a !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.ag-theme-alpine.foxpro-grid .ag-header-cell-text {
+  color: #ffffff !important;
+}
+
+/* Selected / Focused Cell 2px Yellow Border */
+.ag-theme-alpine.foxpro-grid .ag-cell-focus,
+.ag-theme-alpine.foxpro-grid .ag-cell-inline-editing {
+  border: 2px solid #eab308 !important;
+  background-color: #fef9c3 !important;
+  color: #000000 !important;
+  outline: none !important;
+}
+
+/* Make inputs inside editing cell occupy full area with direct overwrite style */
+.ag-theme-alpine.foxpro-grid input.ag-cell-edit-input {
+  font-family: Consolas, Monaco, monospace !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  background-color: #fef9c3 !important;
+  color: #000000 !important;
+  padding: 0 4px !important;
+}
