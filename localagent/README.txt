@@ -1,11 +1,11 @@
-Rx3000 v19 - 不外流發佈版說明
+Wx3000 v19 - 不外流發佈版說明
 
 3種保護等級:
 
 Level1 pkg打包EXE (推薦)
   npm install
   build_exe.bat
-  得到 dist/Rx3000Agent.exe (原始碼看不到)
+  得到 dist/Wx3000Agent.exe (原始碼看不到)
 
 Level2 混淆+pkg
   先用 javascript-obfuscator 混淆再 pkg

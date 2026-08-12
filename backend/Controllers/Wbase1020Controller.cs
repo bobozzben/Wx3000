@@ -65,7 +65,7 @@ namespace Wx3000.Backend.Controllers
             {
                 var kw = keyword.Trim().ToLower();
                 queryable = queryable.Where(c =>
-                    c.CpaCode.ToLower().Contains(kw) ||
+                    (c.CpaCode != null && c.CpaCode.ToLower().Contains(kw)) ||
                     (c.CpaName != null && c.CpaName.ToLower().Contains(kw)) ||
                     (c.OfficeName != null && c.OfficeName.ToLower().Contains(kw)) ||
                     (c.LicenseNo != null && c.LicenseNo.ToLower().Contains(kw)) ||

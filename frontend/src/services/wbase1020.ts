@@ -1,15 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/wbase1020`
-  : 'http://localhost:5007/api/wbase1020';
-
-const getApiUrl = () => {
-  if (typeof window !== 'undefined' && window.location.origin) {
-    return '/api/wbase1020';
-  }
-  return API_BASE;
-};
+const API_BASE = '/api/wbase1020';
 
 export interface CpaItem {
   cpaCode: string;
@@ -40,32 +31,32 @@ export interface CpaPrintFilter {
 }
 
 export const getCpaList = async (keyword?: string): Promise<CpaItem[]> => {
-  const res = await axios.get<CpaItem[]>(getApiUrl(), {
+  const res = await axios.get<CpaItem[]>(API_BASE, {
     params: { keyword: keyword || '' },
   });
-  return res.data;
+  return Array.isArray(res.data) ? res.data : [];
 };
 
 export const getCpaDetail = async (code: string): Promise<CpaItem> => {
-  const res = await axios.get<CpaItem>(`${getApiUrl()}/${encodeURIComponent(code)}`);
+  const res = await axios.get<CpaItem>(`${API_BASE}/${encodeURIComponent(code)}`);
   return res.data;
 };
 
 export const createCpa = async (input: CpaFormInput): Promise<CpaItem> => {
-  const res = await axios.post<CpaItem>(getApiUrl(), input);
+  const res = await axios.post<CpaItem>(API_BASE, input);
   return res.data;
 };
 
 export const updateCpa = async (code: string, input: CpaFormInput): Promise<CpaItem> => {
-  const res = await axios.put<CpaItem>(`${getApiUrl()}/${encodeURIComponent(code)}`, input);
+  const res = await axios.put<CpaItem>(`${API_BASE}/${encodeURIComponent(code)}`, input);
   return res.data;
 };
 
 export const deleteCpa = async (code: string): Promise<void> => {
-  await axios.delete(`${getApiUrl()}/${encodeURIComponent(code)}`);
+  await axios.delete(`${API_BASE}/${encodeURIComponent(code)}`);
 };
 
 export const printCpaList = async (filter: CpaPrintFilter): Promise<CpaItem[]> => {
-  const res = await axios.post<CpaItem[]>(`${getApiUrl()}/print`, filter);
+  const res = await axios.post<CpaItem[]>(`${API_BASE}/print`, filter);
   return res.data;
 };

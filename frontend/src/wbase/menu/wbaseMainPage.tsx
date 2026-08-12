@@ -6,6 +6,7 @@ import type { MenuItem } from './menuConfig';
 import { useMenuKeyboard } from './useMenuKeyboard';
 import { Wbase1020Page } from '../wbase1020';
 import { Wbase1030Page } from '../wbase1030';
+import { Wbase1050Page } from '../wbase1050';
 import { ArrowLeft, LayoutGrid, Sun, Moon } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 
@@ -19,6 +20,8 @@ export const WbaseMainPage: React.FC = () => {
       setActiveModule('wbase1020');
     } else if (item.code === 'wbase1030') {
       setActiveModule('wbase1030');
+    } else if (item.code === 'wbase1050') {
+      setActiveModule('wbase1050');
     } else if (item.code === 'A00') {
       // 結束離開
       if (window.confirm('確定要離開系統嗎？')) {
@@ -120,7 +123,11 @@ export const WbaseMainPage: React.FC = () => {
               <span>事務所資料</span>
               <span className={isDark ? 'text-slate-700' : 'text-sky-400'}>/</span>
               <span className={`font-bold ${isDark ? 'text-white' : 'text-blue-950'}`}>
-                {is1020 ? '會計師/記帳士資料' : '員工資料'}
+                {activeModule === 'wbase1020'
+                  ? '會計師/記帳士資料'
+                  : activeModule === 'wbase1050'
+                  ? '稅務人員資料'
+                  : '員工資料'}
               </span>
               <span className={`text-xs ml-1 ${isDark ? 'text-slate-600' : 'text-sky-700'}`}>
                 ({activeModule})
@@ -156,6 +163,8 @@ export const WbaseMainPage: React.FC = () => {
         <div className="flex-1">
           {activeModule === 'wbase1020' ? (
             <Wbase1020Page onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase1050' ? (
+            <Wbase1050Page onBackToMenu={() => setActiveModule(null)} />
           ) : (
             <Wbase1030Page onBackToMenu={() => setActiveModule(null)} />
           )}

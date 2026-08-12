@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useWbase1030 } from './useWbase1030';
 import { Wbase1030Print } from './wbase1030Print';
-import { Wbase1030Grid } from './Wbase1030Grid';
+import { Wbase1030Form } from './Wbase1030Form';
 import type { EmpItem } from '../../services/wbase1030';
 import { updateEmp } from '../../services/wbase1030';
 import {
@@ -132,7 +132,7 @@ export const Wbase1030Page: React.FC<Wbase1030PageProps> = ({ onBackToMenu }) =>
 
       {/* Main 15-Row FoxPro Pure React Grid Container */}
       <div className="flex-1 mb-3">
-        <Wbase1030Grid
+        <Wbase1030Form
           rows={list}
           onRowsChange={handleRowsChange}
           onSaveRow={handleSaveRow}

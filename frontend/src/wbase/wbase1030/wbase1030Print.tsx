@@ -4,7 +4,8 @@ import { Printer, X, FileText } from 'lucide-react';
 import type { EmpPrintFilter } from '../../services/wbase1030';
 
 export const Wbase1030Print: React.FC = () => {
-  const { isPrintOpen, closePrint, fetchPrintData, printData } = useWbase1030();
+  const { isPrintOpen, closePrint, fetchPrintData, printData, triggerReportDll, loading } =
+    useWbase1030();
 
   const [filter, setFilter] = useState<EmpPrintFilter>({
     codeStart: '',
@@ -20,7 +21,23 @@ export const Wbase1030Print: React.FC = () => {
     setHasSearched(true);
   };
 
-  const handlePrintTrigger = () => {
+  const handlePrintTrigger = async () => {
+    // 呼叫 LocalAgent 的 waccrep3101_b 報表 URL (http://localhost:18889/report)
+    const success = await triggerReportDll({
+      dllPath: 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
+      hs_chk: 0.125,
+      top_mag: 0.0,
+      left_mag: 0.0,
+      PrtIndex: 0,
+      IsPrint: 1,
+      path: '',
+    });
+    if (success) {
+      closePrint();
+    }
+  };
+
+  const handleWebPrint = () => {
     window.print();
   };
 
@@ -143,12 +160,20 @@ export const Wbase1030Print: React.FC = () => {
               取消
             </button>
             <button
-              onClick={handlePrintTrigger}
+              onClick={handleWebPrint}
               disabled={printData.length === 0}
+              className="flex items-center space-x-1 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-gray-200 font-bold rounded text-sm border border-slate-600 transition disabled:opacity-50"
+            >
+              <Printer className="w-4 h-4" />
+              <span>網頁直接列印</span>
+            </button>
+            <button
+              onClick={handlePrintTrigger}
+              disabled={loading}
               className="flex items-center space-x-1 px-6 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-black font-extrabold rounded text-sm shadow transition disabled:opacity-50"
             >
               <FileText className="w-4 h-4" />
-              <span>確認列印</span>
+              <span>{loading ? '傳送中...' : '呼叫 DLL 報表 (waccrep3101_b)'}</span>
             </button>
           </div>
         </div>

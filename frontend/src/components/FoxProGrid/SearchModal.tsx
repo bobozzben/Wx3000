@@ -137,7 +137,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                           ? 'bg-yellow-300 text-black font-bold border-2 border-yellow-600'
                           : idx % 2 === 0
                             ? 'bg-white'
-                            : 'bg-gray-50'
+                            : 'bg-[#ffecd9]'
                         }`}
                     >
                       <td className="p-2 border font-bold text-blue-900">{item.code}</td>

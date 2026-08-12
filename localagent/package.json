@@ -1,5 +1,5 @@
 {
-  "name": "rx3000-localagent",
+  "name": "Wx3000-localagent",
   "version": "19.2",
   "main": "agent.js",
   "dependencies": {

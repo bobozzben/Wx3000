@@ -1,0 +1,185 @@
+import React, { useState } from 'react';
+import { useWbase1050 } from './useWbase1050';
+import { Printer, X, FileText } from 'lucide-react';
+import type { TaxOfficerPrintFilter } from '../../services/wbase1050';
+
+export const Wbase1050Print: React.FC = () => {
+  const { isPrintOpen, closePrint, fetchPrintData, printData, triggerReportDll, loading } =
+    useWbase1050();
+
+  const [filter, setFilter] = useState<TaxOfficerPrintFilter>({
+    codeStart: '',
+    codeEnd: '',
+  });
+  const [hasSearched, setHasSearched] = useState(false);
+
+  if (!isPrintOpen) return null;
+
+  const handleQuery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await fetchPrintData(filter);
+    setHasSearched(true);
+  };
+
+  const handlePrintTrigger = async () => {
+    // 呼叫 LocalAgent 的 waccrep3105_b 報表 URL (http://localhost:18889/report)
+    const success = await triggerReportDll({
+      dllPath: 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
+      hs_chk: 0.125,
+      top_mag: 0.0,
+      left_mag: 0.0,
+      PrtIndex: 0,
+      IsPrint: 1,
+      path: '',
+    });
+    if (success) {
+      closePrint();
+    }
+  };
+
+  const handleWebPrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 font-mono">
+      <div className="bg-slate-900 border-4 border-blue-600 rounded-lg p-6 max-w-4xl w-full text-white shadow-2xl flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-slate-700">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-yellow-400 text-black rounded font-bold">
+              <Printer className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-yellow-300">稅務人員資料清冊列印 [F7/F8]</h2>
+              <p className="text-xs text-gray-300">選擇列印範圍區間並進行預覽</p>
+            </div>
+          </div>
+          <button
+            onClick={closePrint}
+            className="p-1 rounded hover:bg-slate-800 text-gray-300 hover:text-white"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Filter Area */}
+        <form onSubmit={handleQuery} className="py-4 border-b border-slate-800 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div>
+            <label className="block text-xs text-yellow-400 font-bold mb-1">起始稅務人員編號：</label>
+            <input
+              type="text"
+              value={filter.codeStart}
+              onChange={(e) => setFilter({ ...filter, codeStart: e.target.value })}
+              placeholder="例如: T001 (留空代表從頭)"
+              className="w-full bg-slate-950 border border-blue-500 px-3 py-1.5 rounded text-sm text-white focus:outline-none focus:border-yellow-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-yellow-400 font-bold mb-1">結束稅務人員編號：</label>
+            <input
+              type="text"
+              value={filter.codeEnd}
+              onChange={(e) => setFilter({ ...filter, codeEnd: e.target.value })}
+              placeholder="例如: T999 (留空代表至尾)"
+              className="w-full bg-slate-950 border border-blue-500 px-3 py-1.5 rounded text-sm text-white focus:outline-none focus:border-yellow-400"
+            />
+          </div>
+
+          <div className="flex space-x-2">
+            <button
+              type="submit"
+              className="flex-1 bg-blue-800 hover:bg-blue-700 text-white font-bold py-1.5 rounded border border-blue-600 text-sm transition"
+            >
+              搜尋清冊資料
+            </button>
+          </div>
+        </form>
+
+        {/* Print Preview Content */}
+        <div className="flex-1 overflow-y-auto py-4 font-mono">
+          {!hasSearched ? (
+            <div className="p-12 text-center text-gray-400 font-bold">
+              請輸入區間條件後按「搜尋清冊資料」進行列印預覽
+            </div>
+          ) : printData.length === 0 ? (
+            <div className="p-12 text-center text-red-400 font-bold">
+              ⚠️ 該區間內查無稅務人員資料
+            </div>
+          ) : (
+            <div className="bg-white text-black p-6 rounded shadow max-w-3xl mx-auto print:max-w-none print:shadow-none">
+              <div className="text-center mb-6 pb-2 border-b-2 border-black">
+                <h1 className="text-2xl font-black tracking-widest">基本稅務人員清冊總表</h1>
+                <p className="text-xs text-gray-600 mt-1">
+                  列印日期: {new Date().toLocaleDateString('zh-TW')}
+                </p>
+              </div>
+
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-black bg-gray-100">
+                    <th className="p-2 font-bold">編號</th>
+                    <th className="p-2 font-bold">姓名</th>
+                    <th className="p-2 font-bold">國稅局/稽徵所</th>
+                    <th className="p-2 font-bold">單位</th>
+                    <th className="p-2 font-bold">電話</th>
+                    <th className="p-2 font-bold">分機</th>
+                    <th className="p-2 font-bold">手機</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {printData.map((row) => (
+                    <tr key={row.taxCode} className="border-b border-gray-300">
+                      <td className="p-2 font-bold">{row.taxCode}</td>
+                      <td className="p-2 font-semibold">{row.taxName}</td>
+                      <td className="p-2">{row.taxBureau || '-'}</td>
+                      <td className="p-2">{row.unit || '-'}</td>
+                      <td className="p-2">{row.tel || '-'}</td>
+                      <td className="p-2">{row.ext || '-'}</td>
+                      <td className="p-2">{row.mobile || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="mt-6 pt-2 border-t border-black flex justify-between text-xs text-gray-700">
+                <span>總計筆數: {printData.length} 筆</span>
+                <span>頁碼: 1 / 1</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="pt-4 border-t border-slate-700 flex justify-between items-center">
+          <span className="text-xs text-gray-400">[Esc] 關閉預覽</span>
+          <div className="flex space-x-3">
+            <button
+              onClick={closePrint}
+              className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded text-sm transition"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleWebPrint}
+              disabled={printData.length === 0}
+              className="flex items-center space-x-1 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-gray-200 font-bold rounded text-sm border border-slate-600 transition disabled:opacity-50"
+            >
+              <Printer className="w-4 h-4" />
+              <span>網頁直接列印</span>
+            </button>
+            <button
+              onClick={handlePrintTrigger}
+              disabled={loading}
+              className="flex items-center space-x-1 px-6 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-black font-extrabold rounded text-sm shadow transition disabled:opacity-50"
+            >
+              <FileText className="w-4 h-4" />
+              <span>{loading ? '傳送中...' : '呼叫 DLL 報表 (waccrep3101_b)'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

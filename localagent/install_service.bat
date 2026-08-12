@@ -1,3 +1,3 @@
-sc create Rx3000Agent binPath= "\"%~dp0Rx3000Agent.exe\"" start= auto
-sc start Rx3000Agent
+sc create Wx3000Agent binPath= "\"%~dp0Wx3000Agent.exe\"" start= auto
+sc start Wx3000Agent
 pause

@@ -23,8 +23,8 @@
   --ag-header-height: 38px;
   --ag-header-background-color: #1e3a8a;
   --ag-header-foreground-color: #ffffff;
-  --ag-odd-row-background-color: #ffffff;
-  --ag-even-row-background-color: #f9fafb;
+  --ag-odd-row-background-color: rgb(255, 255, 255);
+  --ag-even-row-background-color: rgb(255, 236, 217);
   --ag-row-hover-color: #fef08a;
   --ag-cell-horizontal-border: 1px solid #e5e7eb;
 }

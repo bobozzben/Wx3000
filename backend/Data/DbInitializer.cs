@@ -77,15 +77,18 @@ namespace Wx3000.Backend.Data
                             ""guid"" character varying(50),
                             CONSTRAINT ""PK_基本會計師"" PRIMARY KEY (""編號"")
                         );
-                        CREATE TABLE IF NOT EXISTS ""e3000__comm"".""建檔人員"" (
+                        CREATE TABLE IF NOT EXISTS ""e3000__comm"".""基本稅務人員"" (
                             ""編號"" character varying(20) NOT NULL,
                             ""姓名"" character varying(50) NOT NULL,
-                            ""部門"" character varying(50),
+                            ""稅局"" character varying(50),
+                            ""單位"" character varying(50),
                             ""電話"" character varying(30),
+                            ""分機"" character varying(20),
+                            ""傳真"" character varying(30),
                             ""手機"" character varying(30),
-                            ""地址"" character varying(100),
+                            ""EMAIL"" character varying(100),
                             ""備註"" character varying(200),
-                            CONSTRAINT ""PK_建檔人員"" PRIMARY KEY (""編號"")
+                            CONSTRAINT ""PK_基本稅務人員"" PRIMARY KEY (""編號"")
                         );
                     ");
                 }
@@ -156,6 +159,26 @@ namespace Wx3000.Backend.Data
             {
                 // Table created via raw sql if not mapped
             }
+
+            try
+            {
+                if (!context.TaxOfficerMasters.Any())
+                {
+                    var taxOfficers = new List<TaxOfficerMaster>
+                    {
+                        new TaxOfficerMaster { TaxCode = "T001", TaxName = "張稅務", TaxBureau = "台北國稅局", Unit = "營所稅股", Tel = "02-23113711", Ext = "1201", Mobile = "0911-123456", Email = "tax_chang@ntbt.gov.tw", Memo = "營利事業所得稅審查" },
+                        new TaxOfficerMaster { TaxCode = "T002", TaxName = "李稽徵", TaxBureau = "財政部北區國稅局", Unit = "營業稅股", Tel = "03-3396789", Ext = "1405", Mobile = "0922-234567", Email = "tax_lee@ntbna.gov.tw", Memo = "營業稅申購與查核" },
+                        new TaxOfficerMaster { TaxCode = "T003", TaxName = "王審查", TaxBureau = "財政部中區國稅局", Unit = "綜所稅股", Tel = "04-23051111", Ext = "1608", Mobile = "0933-345678", Email = "tax_wang@ntbca.gov.tw", Memo = "綜合所得稅暨扣繳諮詢" }
+                    };
+                    context.TaxOfficerMasters.AddRange(taxOfficers);
+                }
+            }
+            catch
+            {
+                // Table created via raw sql if not mapped
+            }
+
+            context.SaveChanges();
 
             context.SaveChanges();
         }

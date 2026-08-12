@@ -1,37 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useWbase1020 } from './useWbase1020';
-import { Wbase1020Form } from './wbase1020Form';
 import { Wbase1020Print } from './wbase1020Print';
-import { FoxProGridV2 } from '../../components/FoxProGrid';
-import type { ColumnDefV2 } from '../../components/FoxProGrid/FoxProGridV2';
-import { updateCpa } from '../../services/wbase1020';
+import { Wbase1020Form } from './Wbase1020Form';
 import type { CpaItem } from '../../services/wbase1020';
-import type { SearchItem } from '../../components/FoxProGrid/SearchModal';
+import { updateCpa } from '../../services/wbase1020';
 import {
-  UserPlus,
-  Edit,
-  Trash2,
-  Printer,
-  RefreshCw,
+  Users,
   Search,
   CheckCircle,
   AlertCircle,
-  Users,
+  Printer,
+  RefreshCw,
+  Trash2,
 } from 'lucide-react';
 
 interface Wbase1020PageProps {
   onBackToMenu?: () => void;
 }
-
-const CPA_COLUMNS: ColumnDefV2<CpaItem>[] = [
-  { key: 'cpaCode', label: '代號', isPrimaryKey: true, width: '110px', className: 'text-yellow-400 font-bold' },
-  { key: 'cpaName', label: '會計師姓名', width: '150px', className: 'font-bold' },
-  { key: 'licenseNo', label: '證照字號', width: '200px' },
-  { key: 'officeName', label: '事務所名稱', width: '220px' },
-  { key: 'tel', label: '電話', width: '140px' },
-  { key: 'address', label: '通訊地址', width: '280px' },
-  { key: 'memo', label: '備註', width: '1fr' },
-];
 
 export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) => {
   const {
@@ -40,8 +25,6 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
     searchKeyword,
     setSearchKeyword,
     fetchList,
-    openAddForm,
-    openEditForm,
     openDeleteConfirm,
     isDeleteConfirmOpen,
     closeDeleteConfirm,
@@ -92,17 +75,6 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
     }
   };
 
-  const createEmptyRow = (): CpaItem => ({
-    cpaCode: '',
-    cpaName: '',
-    licenseNo: '',
-    officeName: '',
-    tel: '',
-    fax: '',
-    address: '',
-    memo: '',
-  });
-
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     fetchList(searchKeyword);
@@ -117,21 +89,6 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
         onBackToMenu();
       }
     }
-  };
-
-  const handleF3Search = async (query: string): Promise<SearchItem[]> => {
-    return list
-      .filter(
-        (x) =>
-          x.cpaCode.toLowerCase().includes(query.toLowerCase()) ||
-          x.cpaName.toLowerCase().includes(query.toLowerCase()) ||
-          x.officeName.toLowerCase().includes(query.toLowerCase())
-      )
-      .map((x) => ({
-        code: x.cpaCode,
-        name: x.cpaName,
-        spec: x.officeName,
-      }));
   };
 
   return (
@@ -175,20 +132,15 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
 
       {/* Main FoxProGridV2 View */}
       <div className="flex-1 mb-3">
-        <FoxProGridV2<CpaItem>
+        <Wbase1020Form
           rows={list}
-          columns={CPA_COLUMNS}
-          createEmptyRow={createEmptyRow}
           onRowsChange={handleGridRowsChange}
           onSaveRow={handleSaveRow}
           onOpenPrint={openPrint}
           onShowSummary={handleShowSummary}
-          onF3Search={handleF3Search}
-          f3SearchTitle="會計師開窗搜尋 [F3]"
-          getRowKey={(row, idx) => row.cpaCode || idx}
           statusBarInfo={
-            selectedItem
-              ? `已選取: [${selectedItem.cpaCode}] ${selectedItem.cpaName}`
+            selectedItem && selectedItem.cpaCode
+              ? `已選取: [${selectedItem.cpaCode}] ${selectedItem.cpaName || ''}`
               : '提示：[Enter]下一格 [↑↓]換列/底端新增 [F3]開窗 [F7]列印 [ESC]存檔'
           }
         />
@@ -198,21 +150,19 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
       <div className="bg-white border-2 border-blue-900 rounded-lg p-3 flex flex-wrap items-center justify-between shadow-md gap-3">
         <div className="flex items-center space-x-2 text-xs font-bold text-gray-700">
           <span className="bg-blue-950 text-yellow-300 px-2 py-1 rounded">
-            快捷鍵指示：
+            熱鍵提示：
           </span>
           <span>[Enter] 編輯/下一欄</span>
           <span>•</span>
           <span>[↓] 新增列</span>
           <span>•</span>
-          <span>[F2] 彈出表單</span>
+          <span>[F2] 編輯</span>
           <span>•</span>
           <span>[F3] 開窗搜尋</span>
           <span>•</span>
-          <span>[F4] 刪除</span>
-          <span>•</span>
           <span>[F7] 列印</span>
           <span>•</span>
-          <span>[ESC] 存檔並自動返回</span>
+          <span>[ESC] 存檔並自動返回主畫面</span>
         </div>
 
         <div className="flex flex-wrap space-x-2">
@@ -223,7 +173,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
             className="flex items-center space-x-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold px-3 py-1.5 rounded border border-gray-400 text-sm transition"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>整理</span>
+            <span>重新整理</span>
           </button>
 
           <button
@@ -242,32 +192,10 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
             className="flex items-center space-x-1 bg-red-700 hover:bg-red-800 text-white font-bold px-4 py-1.5 rounded border border-red-900 text-sm shadow transition disabled:opacity-50"
           >
             <Trash2 className="w-4 h-4" />
-            <span>[F4] 刪除</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openEditForm()}
-            disabled={!selectedItem}
-            className="flex items-center space-x-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-4 py-1.5 rounded border border-emerald-900 text-sm shadow transition disabled:opacity-50"
-          >
-            <Edit className="w-4 h-4 text-yellow-300" />
-            <span>[F2] 彈出表單</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={openAddForm}
-            className="flex items-center space-x-1 bg-blue-900 hover:bg-blue-800 text-white font-bold px-5 py-1.5 rounded border-2 border-yellow-400 text-sm shadow-lg transition"
-          >
-            <UserPlus className="w-4 h-4 text-yellow-400" />
-            <span>新增會計師</span>
+            <span>刪除項目</span>
           </button>
         </div>
       </div>
-
-      {/* Edit & Add Dialog */}
-      <Wbase1020Form />
 
       {/* Print Preview & Filter Dialog */}
       <Wbase1020Print />

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Compiler Value="C:\fpcupdeluxe4\fpc\bin\x86_64-win64\fpc.exe" Date="1556840750"/>
+  <Params Value="-MObjFPC -Scghi -O1 -gw3 -gl -WG -l -vewnhibq -FiF:\ADSProject\Wx3000\report\wbase\lib\x86_64-win64 -FuF:\ADSProject\Wx3000\report\wbase\ -FuC:\fpcupdeluxe4\lazarus\lcl\units\x86_64-win64\win32 -FuC:\fpcupdeluxe4\lazarus\lcl\units\x86_64-win64 -FuC:\fpcupdeluxe4\lazarus\components\freetype\lib\x86_64-win64 -FuC:\fpcupdeluxe4\lazarus\components\lazutils\lib\x86_64-win64 -FuC:\fpcupdeluxe4\lazarus\packager\units\x86_64-win64 -FUF:\ADSProject\Wx3000\report\wbase\lib\x86_64-win64\ -FEF:\ADSProject\Wx3000\report\wbase\ -oF:\ADSProject\Wx3000\report\wbase\wbase_test_dll.exe -dLCL -dLCLwin32 wbase_test_dll.lpr"/>
+</CONFIG>

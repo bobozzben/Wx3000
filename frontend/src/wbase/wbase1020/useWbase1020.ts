@@ -76,9 +76,10 @@ export const useWbase1020 = create<Wbase1020State>((set, get) => ({
     set({ loading: true });
     try {
       const data = await getCpaList(keyword);
+      const safeData = Array.isArray(data) ? data : [];
       set({
-        list: data,
-        selectedItem: data.length > 0 ? data[0] : null,
+        list: safeData,
+        selectedItem: safeData.length > 0 ? safeData[0] : null,
         loading: false,
       });
     } catch (err: any) {

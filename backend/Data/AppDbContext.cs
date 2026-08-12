@@ -13,6 +13,7 @@ namespace Wx3000.Backend.Data
         public DbSet<PurchaseLine> PurchaseLines => Set<PurchaseLine>();
         public DbSet<CpaMaster> CpaMasters => Set<CpaMaster>();
         public DbSet<EmpMaster> EmpMasters => Set<EmpMaster>();
+        public DbSet<TaxOfficerMaster> TaxOfficerMasters => Set<TaxOfficerMaster>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

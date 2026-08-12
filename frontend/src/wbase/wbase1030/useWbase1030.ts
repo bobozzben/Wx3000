@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import type { EmpItem, EmpPrintFilter } from '../../services/wbase1030';
+import type { EmpItem, EmpPrintFilter, Waccrep3101bParams } from '../../services/wbase1030';
 import {
   getEmpList,
   deleteEmp,
   printEmpList,
+  callWaccrep3101b,
 } from '../../services/wbase1030';
 
 interface Wbase1030State {
@@ -27,6 +28,7 @@ interface Wbase1030State {
   openPrint: () => void;
   closePrint: () => void;
   fetchPrintData: (filter: EmpPrintFilter) => Promise<EmpItem[]>;
+  triggerReportDll: (params?: Waccrep3101bParams) => Promise<boolean>;
   clearActionMessage: () => void;
 }
 
@@ -112,5 +114,35 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
     }
   },
 
+  triggerReportDll: async (params) => {
+    set({ loading: true });
+    try {
+      const res = await callWaccrep3101b(params);
+      set({
+        loading: false,
+        actionMessage: {
+          type: 'success',
+          text: `🖨️ 成功呼叫 DLL 報表 (waccrep3101_b)！傳回碼: ${res.result}`,
+        },
+      });
+      return true;
+    } catch (err: any) {
+      console.error('Call waccrep3101_b error:', err);
+      const msg =
+        err?.response?.data?.error ||
+        err?.message ||
+        '無法連線至 LocalAgent (http://localhost:18889/report)';
+      set({
+        loading: false,
+        actionMessage: {
+          type: 'error',
+          text: `❌ 呼叫 DLL 報表失敗: ${msg}`,
+        },
+      });
+      return false;
+    }
+  },
+
   clearActionMessage: () => set({ actionMessage: null }),
 }));
+

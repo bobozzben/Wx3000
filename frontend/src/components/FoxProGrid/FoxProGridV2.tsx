@@ -404,7 +404,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
               <div
                 key={rowKey}
                 className={`flex border-b border-gray-200 h-[38px] items-center text-sm transition-colors ${
-                  isEven ? 'bg-[#f9fafb]' : 'bg-white'
+                  isEven ? 'bg-[#ffecd9]' : 'bg-white'
                 } ${isRowSelected ? 'bg-blue-100/60' : ''}`}
               >
                 {/* Index Cell */}
