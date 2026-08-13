@@ -37,41 +37,41 @@ export const WbaseStatusBar: React.FC = () => {
       className={`text-xs px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 select-none transition-colors duration-300 ${
         isDark
           ? 'bg-slate-950 border-t border-slate-700/50 text-slate-400'
-          : 'bg-sky-100 border-t border-sky-300 text-blue-950 font-medium'
+          : 'bg-white border-t border-slate-200/80 text-slate-600 font-medium shadow-xs'
       }`}
     >
       {/* Left: User & Company */}
       <div className="flex items-center space-x-3">
         <div
-          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded border transition-colors duration-300 ${
+          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition-colors duration-200 ${
             isDark
               ? 'bg-slate-800/80 border-slate-700/50'
-              : 'bg-sky-200/70 border-sky-300'
+              : 'bg-slate-100 border-slate-200/80'
           }`}
         >
           <User className="w-3 h-3 text-indigo-500" />
-          <span className={`font-bold ${isDark ? 'text-slate-300' : 'text-blue-950'}`}>
+          <span className={`font-bold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
             {currentUser}
           </span>
         </div>
         <div
-          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded border transition-colors duration-300 ${
+          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition-colors duration-200 ${
             isDark
               ? 'bg-slate-800/80 border-slate-700/50'
-              : 'bg-sky-200/70 border-sky-300'
+              : 'bg-slate-100 border-slate-200/80'
           }`}
         >
           <Building className="w-3 h-3 text-emerald-600" />
-          <span className={isDark ? 'text-slate-400' : 'text-blue-900'}>{companyName}</span>
+          <span className={isDark ? 'text-slate-400' : 'text-slate-700'}>{companyName}</span>
         </div>
       </div>
 
       {/* Center: Keyboard hints */}
       <div
-        className={`flex items-center space-x-1.5 px-3 py-1 rounded-full border transition-colors duration-300 ${
+        className={`flex items-center space-x-1.5 px-3 py-1 rounded-full border transition-colors duration-200 ${
           isDark
             ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25'
-            : 'bg-blue-600 text-white border-blue-700 font-bold shadow-sm'
+            : 'bg-indigo-600 text-white border-indigo-700 font-semibold shadow-xs'
         }`}
       >
         <Keyboard className="w-3 h-3" />
@@ -80,7 +80,7 @@ export const WbaseStatusBar: React.FC = () => {
 
       {/* Right: Date & Time */}
       <div className="flex items-center space-x-1.5">
-        <Calendar className={`w-3 h-3 ${isDark ? 'text-slate-500' : 'text-blue-700'}`} />
+        <Calendar className={`w-3 h-3 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
         <span className="font-mono tabular-nums">{nowText}</span>
       </div>
     </footer>

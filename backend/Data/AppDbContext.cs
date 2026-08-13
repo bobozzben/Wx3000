@@ -14,6 +14,7 @@ namespace Wx3000.Backend.Data
         public DbSet<CpaMaster> CpaMasters => Set<CpaMaster>();
         public DbSet<EmpMaster> EmpMasters => Set<EmpMaster>();
         public DbSet<TaxOfficerMaster> TaxOfficerMasters => Set<TaxOfficerMaster>();
+        public DbSet<CompanyMaster> CompanyMasters => Set<CompanyMaster>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

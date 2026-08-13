@@ -9,17 +9,18 @@
         <Filename Value="wbaseRP.lpr"/>
         <IsPartOfProject Value="True"/>
         <CursorPos X="61" Y="31"/>
-        <UsageCount Value="70"/>
+        <UsageCount Value="109"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="wbase_repunit1.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="wbase_Repunit1"/>
+        <IsVisibleTab Value="True"/>
         <EditorIndex Value="1"/>
         <TopLine Value="88"/>
-        <CursorPos X="81" Y="138"/>
-        <UsageCount Value="32"/>
+        <CursorPos X="75" Y="107"/>
+        <UsageCount Value="71"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
@@ -28,10 +29,9 @@
         <ComponentName Value="frmfrxRpt1"/>
         <HasResources Value="True"/>
         <ResourceBaseClass Value="Form"/>
-        <IsVisibleTab Value="True"/>
         <EditorIndex Value="3"/>
-        <CursorPos X="67" Y="13"/>
-        <UsageCount Value="32"/>
+        <CursorPos X="25" Y="22"/>
+        <UsageCount Value="71"/>
         <Loaded Value="True"/>
         <LoadedDesigner Value="True"/>
       </Unit>
@@ -44,7 +44,7 @@
         <EditorIndex Value="2"/>
         <TopLine Value="279"/>
         <CursorPos Y="239"/>
-        <UsageCount Value="32"/>
+        <UsageCount Value="71"/>
         <Loaded Value="True"/>
         <LoadedDesigner Value="True"/>
       </Unit>
@@ -54,7 +54,7 @@
         <EditorIndex Value="-1"/>
         <TopLine Value="1724"/>
         <CursorPos X="45" Y="1740"/>
-        <UsageCount Value="9"/>
+        <UsageCount Value="5"/>
       </Unit>
     </Units>
     <JumpHistory HistoryIndex="29">
