@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { useWbase1050 } from './useWbase1050';
+import { useWbase1060 } from './useWbase1060';
 import { Printer, X, FileText } from 'lucide-react';
-import type { TaxOfficerPrintFilter } from '../../services/wbase1050';
+import type { FeeItemPrintFilter } from '../../services/wbase1060';
 import { useTheme } from '../menu/ThemeContext';
 
-export const Wbase1050Print: React.FC = () => {
+export const Wbase1060Print: React.FC = () => {
   const { isDark } = useTheme();
-  const { isPrintOpen, closePrint, fetchPrintData, printData, triggerReportDll, loading } =
-    useWbase1050();
+  const { isPrintOpen, closePrint, fetchPrintDataList, printData, triggerReport, loading } =
+    useWbase1060();
 
-  const [filter, setFilter] = useState<TaxOfficerPrintFilter>({
+  const [filter, setFilter] = useState<FeeItemPrintFilter>({
     codeStart: '',
     codeEnd: '',
   });
@@ -19,13 +19,12 @@ export const Wbase1050Print: React.FC = () => {
 
   const handleQuery = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetchPrintData(filter);
+    await fetchPrintDataList(filter);
     setHasSearched(true);
   };
 
   const handlePrintTrigger = async () => {
-    // 呼叫 LocalAgent 的 waccrep3105_b 報表 URL (http://localhost:18889/report)
-    const success = await triggerReportDll({
+    const success = await triggerReport({
       dllPath: 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
       hs_chk: 0.125,
       top_mag: 0.0,
@@ -62,7 +61,7 @@ export const Wbase1050Print: React.FC = () => {
             </div>
             <div>
               <h2 className={`text-xl font-bold ${isDark ? 'text-yellow-300' : 'text-blue-900'}`}>
-                稅務人員資料清冊列印 [F7/F8]
+                基本收費項目清冊列印 [F7/F8]
               </h2>
               <p className={`text-xs ${isDark ? 'text-gray-300' : 'text-slate-500'}`}>
                 選擇列印範圍區間並進行預覽
@@ -86,13 +85,13 @@ export const Wbase1050Print: React.FC = () => {
         >
           <div>
             <label className={`block text-xs font-bold mb-1 ${isDark ? 'text-yellow-400' : 'text-blue-900'}`}>
-              起始稅務人員編號：
+              起始項目代號：
             </label>
             <input
               type="text"
               value={filter.codeStart}
               onChange={(e) => setFilter({ ...filter, codeStart: e.target.value })}
-              placeholder="例如: T001 (留空代表從頭)"
+              placeholder="例如: 01 (留空代表從頭)"
               className={`w-full px-3 py-1.5 rounded text-sm focus:outline-none border ${
                 isDark
                   ? 'bg-slate-950 border-blue-500 text-white focus:border-yellow-400'
@@ -103,13 +102,13 @@ export const Wbase1050Print: React.FC = () => {
 
           <div>
             <label className={`block text-xs font-bold mb-1 ${isDark ? 'text-yellow-400' : 'text-blue-900'}`}>
-              結束稅務人員編號：
+              結束項目代號：
             </label>
             <input
               type="text"
               value={filter.codeEnd}
               onChange={(e) => setFilter({ ...filter, codeEnd: e.target.value })}
-              placeholder="例如: T999 (留空代表至尾)"
+              placeholder="例如: 99 (留空代表至尾)"
               className={`w-full px-3 py-1.5 rounded text-sm focus:outline-none border ${
                 isDark
                   ? 'bg-slate-950 border-blue-500 text-white focus:border-yellow-400'
@@ -136,12 +135,12 @@ export const Wbase1050Print: React.FC = () => {
             </div>
           ) : printData.length === 0 ? (
             <div className="p-12 text-center text-red-400 font-bold">
-              ⚠️ 該區間內查無稅務人員資料
+              ⚠️ 該區間內查無收費項目資料
             </div>
           ) : (
             <div className="bg-white text-black p-6 rounded shadow max-w-3xl mx-auto print:max-w-none print:shadow-none">
               <div className="text-center mb-6 pb-2 border-b-2 border-black">
-                <h1 className="text-2xl font-black tracking-widest">基本稅務人員清冊總表</h1>
+                <h1 className="text-2xl font-black tracking-widest">基本收費項目清冊總表</h1>
                 <p className="text-xs text-gray-600 mt-1">
                   列印日期: {new Date().toLocaleDateString('zh-TW')}
                 </p>
@@ -150,25 +149,19 @@ export const Wbase1050Print: React.FC = () => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b-2 border-black bg-gray-100">
-                    <th className="p-2 font-bold">編號</th>
-                    <th className="p-2 font-bold">姓名</th>
-                    <th className="p-2 font-bold">國稅局/稽徵所</th>
-                    <th className="p-2 font-bold">單位</th>
-                    <th className="p-2 font-bold">電話</th>
-                    <th className="p-2 font-bold">分機</th>
-                    <th className="p-2 font-bold">手機</th>
+                    <th className="p-2 font-bold w-1/4">項目代號</th>
+                    <th className="p-2 font-bold w-1/2">項目名稱</th>
+                    <th className="p-2 font-bold text-right w-1/4">收費金額</th>
                   </tr>
                 </thead>
                 <tbody>
                   {printData.map((row) => (
-                    <tr key={row.taxCode} className="border-b border-gray-300">
-                      <td className="p-2 font-bold">{row.taxCode}</td>
-                      <td className="p-2 font-semibold">{row.taxName}</td>
-                      <td className="p-2">{row.taxBureau || '-'}</td>
-                      <td className="p-2">{row.unit || '-'}</td>
-                      <td className="p-2">{row.tel || '-'}</td>
-                      <td className="p-2">{row.ext || '-'}</td>
-                      <td className="p-2">{row.mobile || '-'}</td>
+                    <tr key={row.feeCode} className="border-b border-gray-300">
+                      <td className="p-2 font-bold">{row.feeCode}</td>
+                      <td className="p-2 font-semibold">{row.feeName}</td>
+                      <td className="p-2 text-right font-mono">
+                        NT$ {Number(row.price || 0).toLocaleString('zh-TW', { minimumFractionDigits: 2 })}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -216,7 +209,7 @@ export const Wbase1050Print: React.FC = () => {
               className="flex items-center space-x-1 px-6 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-black font-extrabold rounded text-sm shadow transition disabled:opacity-50"
             >
               <FileText className="w-4 h-4" />
-              <span>{loading ? '傳送中...' : '呼叫 DLL 報表 (waccrep3101_b)'}</span>
+              <span>{loading ? '傳送中...' : '呼叫 DLL 報表 (waccrep3106_b)'}</span>
             </button>
           </div>
         </div>

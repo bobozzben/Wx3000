@@ -98,3 +98,6 @@ export const callWaccrep3105b = async (
   );
   return response.data;
 };
+
+export type Waccrep3106bParams = Waccrep3105bParams;
+export const callWaccrep3106b = callWaccrep3105b;

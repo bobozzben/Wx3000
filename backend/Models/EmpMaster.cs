@@ -12,7 +12,6 @@ namespace Wx3000.Backend.Models
         [StringLength(20)]
         public string EmpCode { get; set; } = string.Empty;
 
-        [Required]
         [Column("建檔人員名稱")]
         [StringLength(50)]
         public string EmpName { get; set; } = string.Empty;

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useWbase1020 } from './useWbase1020';
 import { Printer, X, Download, Eye } from 'lucide-react';
 import type { CpaItem } from '../../services/wbase1020';
+import { useTheme } from '../menu/ThemeContext';
 
 export const Wbase1020Print: React.FC = () => {
+  const { isDark } = useTheme();
   const { isPrintOpen, closePrint, fetchPrintData } = useWbase1020();
   const [cpaCodeStart, setCpaCodeStart] = useState('');
   const [cpaCodeEnd, setCpaCodeEnd] = useState('');
@@ -61,9 +63,17 @@ export const Wbase1020Print: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 font-mono">
-      <div className="bg-slate-900 border-4 border-blue-600 rounded-lg shadow-2xl w-full max-w-4xl text-white overflow-hidden flex flex-col max-h-[90vh]">
+      <div
+        className={`border-4 rounded-lg shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] transition-colors ${
+          isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-blue-900 text-slate-800'
+        }`}
+      >
         {/* Header */}
-        <div className="bg-blue-950 px-6 py-3 border-b-2 border-yellow-400 flex items-center justify-between print:hidden">
+        <div
+          className={`px-6 py-3 border-b-2 border-yellow-400 flex items-center justify-between print:hidden transition-colors ${
+            isDark ? 'bg-slate-950 text-white' : 'bg-blue-900 text-white'
+          }`}
+        >
           <div className="flex items-center space-x-2">
             <Printer className="w-6 h-6 text-yellow-400" />
             <h3 className="text-xl font-bold tracking-wide text-yellow-300">
@@ -72,30 +82,42 @@ export const Wbase1020Print: React.FC = () => {
           </div>
           <button
             onClick={closePrint}
-            className="text-gray-400 hover:text-white transition p-1 rounded hover:bg-blue-900"
+            className="text-gray-400 hover:text-white transition p-1 rounded hover:bg-slate-800"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Filter Controls Bar */}
-        <div className="bg-slate-800 p-4 border-b border-gray-700 flex flex-wrap items-center justify-between gap-4 print:hidden">
+        <div
+          className={`p-4 border-b flex flex-wrap items-center justify-between gap-4 print:hidden transition-colors ${
+            isDark ? 'bg-slate-800 border-gray-700' : 'bg-slate-100 border-slate-300'
+          }`}
+        >
           <div className="flex items-center space-x-3 text-sm">
-            <span className="font-bold text-yellow-300">會計師代號區間：</span>
+            <span className={`font-bold ${isDark ? 'text-yellow-300' : 'text-blue-900'}`}>會計師代號區間：</span>
             <input
               type="text"
               placeholder="起始代號 (如: C001)"
               value={cpaCodeStart}
               onChange={(e) => setCpaCodeStart(e.target.value.toUpperCase())}
-              className="bg-slate-900 border border-gray-600 px-3 py-1.5 rounded text-white font-mono w-40 focus:border-yellow-400 focus:outline-none"
+              className={`px-3 py-1.5 rounded font-mono w-40 focus:outline-none border ${
+                isDark
+                  ? 'bg-slate-900 border-gray-600 text-white focus:border-yellow-400'
+                  : 'bg-white border-slate-300 text-slate-800 focus:border-blue-500'
+              }`}
             />
-            <span className="text-gray-400">至</span>
+            <span className={isDark ? 'text-gray-400' : 'text-slate-500'}>至</span>
             <input
               type="text"
               placeholder="結束代號 (如: C999)"
               value={cpaCodeEnd}
               onChange={(e) => setCpaCodeEnd(e.target.value.toUpperCase())}
-              className="bg-slate-900 border border-gray-600 px-3 py-1.5 rounded text-white font-mono w-40 focus:border-yellow-400 focus:outline-none"
+              className={`px-3 py-1.5 rounded font-mono w-40 focus:outline-none border ${
+                isDark
+                  ? 'bg-slate-900 border-gray-600 text-white focus:border-yellow-400'
+                  : 'bg-white border-slate-300 text-slate-800 focus:border-blue-500'
+              }`}
             />
             <button
               type="button"
@@ -192,11 +214,13 @@ export const Wbase1020Print: React.FC = () => {
         </div>
 
         {/* Modal Action Bar */}
-        <div className="bg-slate-950 px-6 py-3 border-t border-gray-800 flex justify-end print:hidden">
+        <div className={`px-6 py-3 border-t flex justify-end print:hidden ${isDark ? 'bg-slate-950 border-gray-800' : 'bg-slate-100 border-slate-300'}`}>
           <button
             type="button"
             onClick={closePrint}
-            className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded font-bold transition text-sm"
+            className={`px-6 py-2 rounded font-bold transition text-sm ${
+              isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-slate-800'
+            }`}
           >
             關閉 (Esc)
           </button>

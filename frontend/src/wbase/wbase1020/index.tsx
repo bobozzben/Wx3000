@@ -1,110 +1,135 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWbase1020 } from './useWbase1020';
-import { Wbase1020Print } from './wbase1020Print';
 import { Wbase1020Form } from './Wbase1020Form';
-import type { CpaItem } from '../../services/wbase1020';
-import { updateCpa } from '../../services/wbase1020';
+import { Wbase1020Print } from './wbase1020Print';
 import {
   Users,
   Search,
-  CheckCircle,
-  AlertCircle,
-  Printer,
   RefreshCw,
+  Printer,
   Trash2,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  ArrowLeft,
 } from 'lucide-react';
+import { useTheme } from '../menu/ThemeContext';
 
 interface Wbase1020PageProps {
   onBackToMenu?: () => void;
 }
 
 export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) => {
+  const { isDark } = useTheme();
+
   const {
-    list,
-    selectedItem,
-    searchKeyword,
-    setSearchKeyword,
-    fetchList,
-    openDeleteConfirm,
+    rows,
+    setRows,
+    loading,
+    errorToast,
+    setErrorToast,
+    showAutoCloseToast,
     isDeleteConfirmOpen,
-    closeDeleteConfirm,
+    setIsDeleteConfirmOpen,
+    isPrintOpen,
+    closePrint,
+    selectedIndex,
+    refreshData,
+    handleSaveRow,
+    handleSaveAll,
+    openDeleteConfirm,
     confirmDelete,
     openPrint,
-    actionMessage,
-    clearActionMessage,
-    loading,
   } = useWbase1020();
 
-  const [saveSuccessOpen, setSaveSuccessOpen] = useState(false);
-  const [countdown, setCountdown] = useState<number>(3);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Load list on initial mount
+  // Initial load
   useEffect(() => {
-    fetchList();
-  }, []);
+    refreshData();
+  }, [refreshData]);
 
-  // 3-second auto-close countdown timer effect
+  // Global keyboard shortcuts (F7: Print, Esc: Exit/Close)
   useEffect(() => {
-    if (!saveSuccessOpen) return;
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
 
-    if (countdown <= 0) {
-      setSaveSuccessOpen(false);
-      if (onBackToMenu) {
-        onBackToMenu();
+      if (e.key === 'F7') {
+        e.preventDefault();
+        openPrint();
+        return;
       }
-      return;
-    }
 
-    const timer = setTimeout(() => {
-      setCountdown((prev) => prev - 1);
-    }, 1000);
+      if (e.key === 'Escape') {
+        if (isPrintOpen) {
+          e.preventDefault();
+          closePrint();
+          return;
+        }
+        if (isDeleteConfirmOpen) {
+          e.preventDefault();
+          setIsDeleteConfirmOpen(false);
+          return;
+        }
+        if (onBackToMenu) {
+          e.preventDefault();
+          onBackToMenu();
+          return;
+        }
+      }
+    };
 
-    return () => clearTimeout(timer);
-  }, [saveSuccessOpen, countdown, onBackToMenu]);
-
-  const handleGridRowsChange = (newRows: CpaItem[]) => {
-    useWbase1020.setState({ list: newRows });
-  };
-
-  const handleSaveRow = async (row: CpaItem) => {
-    if (!row.cpaCode || !row.cpaCode.trim()) return;
-    try {
-      await updateCpa(row.cpaCode.trim(), row);
-    } catch (err) {
-      console.error('Save CPA row error:', err);
-    }
-  };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [openPrint, closePrint, isPrintOpen, isDeleteConfirmOpen, setIsDeleteConfirmOpen, onBackToMenu]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchList(searchKeyword);
+    if (!searchQuery.trim()) {
+      refreshData();
+      return;
+    }
+    refreshData(searchQuery);
   };
 
-  const handleShowSummary = (hasModified: boolean) => {
-    if (hasModified) {
-      setCountdown(3);
-      setSaveSuccessOpen(true);
-    } else {
-      if (onBackToMenu) {
-        onBackToMenu();
-      }
-    }
-  };
+  const selectedRow = rows[selectedIndex];
 
   return (
-    <div className="flex flex-col h-full min-h-screen bg-gray-100 p-4 font-mono">
-      {/* Top Banner / Breadcrumb Header */}
-      <div className="bg-blue-950 border-2 border-blue-900 rounded-lg p-3 mb-3 text-white flex flex-wrap items-center justify-between shadow-md">
+    <div
+      className={`min-h-screen flex flex-col font-mono selection:bg-yellow-500 selection:text-black transition-colors ${
+        isDark ? 'bg-slate-950 text-white' : 'bg-[#F6F8FA] text-slate-800'
+      }`}
+    >
+      {/* Banner */}
+      <div
+        className={`px-6 py-4 border-b flex items-center justify-between shadow-md transition-colors ${
+          isDark
+            ? 'bg-slate-900 border-slate-800 text-white'
+            : 'bg-white border-blue-900 text-blue-900'
+        }`}
+      >
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-yellow-500 text-black rounded font-bold shadow">
+          {onBackToMenu && (
+            <button
+              onClick={onBackToMenu}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-gray-300 hover:text-white transition"
+              title="返回主選單"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <div className="p-2 bg-yellow-400 text-black rounded font-bold">
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-wide text-yellow-300">
-              會計師資料維護作業 <span className="text-xs text-gray-300">[wbase1020]</span>
+            <h1 className="text-xl font-black tracking-wider flex items-center gap-2">
+              會計師資料維護
+              <span className="text-xs px-2 py-0.5 rounded bg-blue-800 text-white font-normal">
+                wbase1020
+              </span>
             </h1>
-            <p className="text-xs text-gray-300">
-              提供基本會計師主檔資料建置、編輯、刪除與區間清冊列印 (FoxPro 15 列版)。
+            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+              提供基本會計師主檔資料建置、編輯、刪除與區間清冊列印
             </p>
           </div>
         </div>
@@ -114,166 +139,164 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
           <div className="relative">
             <input
               type="text"
-              placeholder="搜尋代號/姓名/事務所..."
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              className="bg-slate-900 border border-blue-500 px-3 py-1.5 pl-9 rounded text-sm text-white font-mono focus:outline-none focus:border-yellow-400 w-64"
+              placeholder="搜尋會計師代號 / 姓名..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-64 px-3 py-1.5 rounded text-sm focus:outline-none border ${
+                isDark
+                  ? 'bg-slate-950 border-blue-500 text-white focus:border-yellow-400'
+                  : 'bg-white border-slate-300 text-slate-800 focus:border-blue-500'
+              }`}
             />
-            <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" />
+            <Search className="w-4 h-4 text-gray-400 absolute right-2.5 top-2.5" />
           </div>
           <button
             type="submit"
-            className="bg-blue-800 hover:bg-blue-700 text-white font-bold px-4 py-1.5 rounded text-sm border border-blue-600 transition"
+            className="px-3 py-1.5 bg-blue-800 hover:bg-blue-700 text-white text-sm font-bold rounded border border-blue-600 transition"
           >
-            查詢
+            搜尋
           </button>
         </form>
       </div>
 
-      {/* Main FoxProGridV2 View */}
-      <div className="flex-1 mb-3">
+      {/* Main Grid Content Area */}
+      <div className="flex-1 p-6 flex flex-col min-h-0">
         <Wbase1020Form
-          rows={list}
-          onRowsChange={handleGridRowsChange}
+          rows={rows}
+          onRowsChange={setRows}
           onSaveRow={handleSaveRow}
           onOpenPrint={openPrint}
-          onShowSummary={handleShowSummary}
+          onShowSummary={() => {
+            if (onBackToMenu) onBackToMenu();
+          }}
           statusBarInfo={
-            selectedItem && selectedItem.cpaCode
-              ? `已選取: [${selectedItem.cpaCode}] ${selectedItem.cpaName || ''}`
-              : '提示：[Enter]下一格 [↑↓]換列/底端新增 [F3]開窗 [F7]列印 [ESC]存檔'
+            selectedRow ? (
+              <span className="text-xs">
+                目前選取：[{selectedRow.cpaCode}] {selectedRow.cpaName} | 事務所：{selectedRow.officeName || '-'}
+              </span>
+            ) : null
           }
         />
       </div>
 
-      {/* Main Action Bar */}
-      <div className="bg-white border-2 border-blue-900 rounded-lg p-3 flex flex-wrap items-center justify-between shadow-md gap-3">
-        <div className="flex items-center space-x-2 text-xs font-bold text-gray-700">
-          <span className="bg-blue-950 text-yellow-300 px-2 py-1 rounded">
-            熱鍵提示：
-          </span>
-          <span>[Enter] 編輯/下一欄</span>
-          <span>•</span>
-          <span>[↓] 新增列</span>
-          <span>•</span>
-          <span>[F2] 編輯</span>
-          <span>•</span>
+      {/* Bottom Actions Bar */}
+      <div
+        className={`px-6 py-3 border-t flex justify-between items-center text-xs transition-colors ${
+          isDark
+            ? 'bg-slate-900 border-slate-800 text-gray-400'
+            : 'bg-white border-slate-200 text-gray-600'
+        }`}
+      >
+        <div className="flex space-x-4">
+          <span>[↑/↓] 筆數切換</span>
+          <span>[Enter] 編輯/跳欄</span>
+          <span>[F2] 欄位搜尋</span>
           <span>[F3] 開窗搜尋</span>
-          <span>•</span>
-          <span>[F7] 列印</span>
-          <span>•</span>
-          <span>[ESC] 存檔並自動返回主畫面</span>
+          <span>[F7] 列印預覽</span>
+          <span>[Esc] 存檔關閉</span>
         </div>
 
-        <div className="flex flex-wrap space-x-2">
+        <div className="flex space-x-3">
           <button
-            type="button"
-            onClick={() => fetchList()}
+            onClick={() => refreshData()}
             disabled={loading}
-            className="flex items-center space-x-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold px-3 py-1.5 rounded border border-gray-400 text-sm transition"
+            className={`flex items-center space-x-1 px-3 py-1.5 rounded text-sm font-bold border transition ${
+              isDark
+                ? 'bg-slate-800 hover:bg-slate-700 text-gray-200 border-slate-600'
+                : 'bg-gray-100 hover:bg-gray-200 text-slate-700 border-slate-300'
+            }`}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>重新整理</span>
           </button>
 
           <button
-            type="button"
             onClick={openPrint}
-            className="flex items-center space-x-1 bg-slate-800 hover:bg-slate-700 text-yellow-300 font-bold px-4 py-1.5 rounded border border-slate-600 text-sm transition"
+            className="flex items-center space-x-1 px-3 py-1.5 bg-blue-800 hover:bg-blue-700 text-white font-bold rounded text-sm border border-blue-600 transition"
           >
             <Printer className="w-4 h-4" />
-            <span>[F7] 清冊列印</span>
+            <span>列印清冊 [F7]</span>
           </button>
 
           <button
-            type="button"
             onClick={() => openDeleteConfirm()}
-            disabled={!selectedItem}
-            className="flex items-center space-x-1 bg-red-700 hover:bg-red-800 text-white font-bold px-4 py-1.5 rounded border border-red-900 text-sm shadow transition disabled:opacity-50"
+            disabled={rows.length === 0}
+            className="flex items-center space-x-1 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white font-bold rounded text-sm border border-red-500 transition disabled:opacity-50"
           >
             <Trash2 className="w-4 h-4" />
-            <span>刪除項目</span>
+            <span>刪除此筆</span>
           </button>
         </div>
       </div>
 
-      {/* Print Preview & Filter Dialog */}
-      <Wbase1020Print />
-
-      {/* Delete Confirmation Modal */}
-      {isDeleteConfirmOpen && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 font-mono">
-          <div className="bg-slate-900 border-4 border-red-600 rounded-lg p-6 max-w-md w-full text-white shadow-2xl text-center">
-            <Trash2 className="w-12 h-12 text-red-500 mx-auto mb-3" />
-            <h3 className="text-xl font-bold text-red-400 mb-2">確認刪除會計師資料？</h3>
-            <p className="text-sm text-gray-300 mb-6">
-              您即將刪除代號為{' '}
-              <span className="text-yellow-400 font-bold">
-                [{selectedItem.cpaCode}] {selectedItem.cpaName}
-              </span>{' '}
-              的資料，此動作無法復原！
-            </p>
-            <div className="flex justify-center space-x-4">
-              <button
-                type="button"
-                onClick={closeDeleteConfirm}
-                className="px-5 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded text-sm transition"
-              >
-                取消 (Esc)
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded text-sm shadow-lg transition"
-              >
-                確認刪除 (Enter)
-              </button>
+      {/* Delete Confirm Modal */}
+      {isDeleteConfirmOpen && selectedRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
+          <div
+            className={`border-2 rounded-lg p-6 max-w-md w-full shadow-2xl transition-colors ${
+              isDark ? 'bg-slate-900 border-red-500 text-white' : 'bg-white border-red-600 text-slate-800'
+            }`}
+          >
+            <div className="flex items-center space-x-3 text-red-500 mb-4">
+              <AlertTriangle className="w-8 h-8 shrink-0" />
+              <h3 className="text-lg font-bold">確認刪除該筆會計師資料？</h3>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3-Second Auto-Close Save Success Toast Modal */}
-      {saveSuccessOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 font-mono">
-          <div className="bg-blue-950 border-4 border-yellow-400 text-white p-6 rounded-lg shadow-2xl max-w-lg text-center animate-fade-in">
-            <div className="flex justify-center mb-3">
-              <CheckCircle className="w-14 h-14 text-yellow-400 animate-bounce" />
-            </div>
-            <h4 className="text-2xl font-bold mb-2 text-yellow-300">💾 資料存檔成功！</h4>
-            <p className="text-base font-semibold mb-4 text-gray-200">
-              目前共有 <span className="text-yellow-400 text-xl font-mono px-1">{list.length}</span> 筆會計師記錄。
-            </p>
-
-            <div className="mt-4 px-5 py-3 bg-yellow-400/20 border-2 border-yellow-400 rounded-lg text-yellow-200 text-base font-bold shadow-inner flex items-center justify-center space-x-2">
-              <span>⏳ 系統將於</span>
-              <span className="text-2xl font-bold font-mono text-yellow-400 bg-black/40 px-3 py-0.5 rounded border border-yellow-500/50">
-                {countdown}
+            <p className="text-sm mb-6 leading-relaxed">
+              您即將刪除會計師資料：
+              <span className="font-bold text-yellow-400 ml-1">
+                [{selectedRow.cpaCode}] {selectedRow.cpaName}
               </span>
-              <span>秒後自動關閉並回到主畫面...</span>
+              <br />
+              此操作將從 PostgreSQL 資料庫中移除資料，無法復原。
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className={`px-4 py-1.5 rounded font-bold text-sm transition ${
+                  isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-slate-800'
+                }`}
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-1.5 bg-red-700 hover:bg-red-600 text-white font-bold rounded text-sm shadow transition"
+              >
+                確定刪除
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Global Error Toast Message */}
-      {actionMessage && actionMessage.type === 'error' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 font-mono">
-          <div className="bg-red-950 border-4 border-red-500 text-white p-6 rounded-lg shadow-2xl max-w-lg text-center">
-            <div className="flex justify-center mb-3">
-              <AlertCircle className="w-12 h-12 text-red-400" />
-            </div>
-            <h4 className="text-xl font-bold mb-2">系統錯誤提示</h4>
-            <p className="text-base font-semibold mb-6">{actionMessage.text}</p>
-            <button
-              onClick={clearActionMessage}
-              className="bg-yellow-400 text-black px-6 py-2 rounded font-bold text-base hover:bg-yellow-300 transition"
-            >
-              確定
-            </button>
-          </div>
+      {/* Auto-Close Toast (Saved) */}
+      {showAutoCloseToast && (
+        <div className="fixed bottom-12 right-6 z-50 flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xl border border-emerald-400 animate-bounce font-bold text-sm">
+          <CheckCircle className="w-5 h-5" />
+          <span>已成功儲存至 PostgreSQL 資料庫！</span>
         </div>
       )}
+
+      {/* Error Toast */}
+      {errorToast && (
+        <div className="fixed bottom-12 right-6 z-50 flex items-center justify-between space-x-3 bg-red-600 text-white px-4 py-2.5 rounded-lg shadow-xl border border-red-400 font-bold text-sm max-w-md">
+          <div className="flex items-center space-x-2">
+            <XCircle className="w-5 h-5 shrink-0" />
+            <span>{errorToast}</span>
+          </div>
+          <button
+            onClick={() => setErrorToast(null)}
+            className="text-white hover:text-gray-200 underline text-xs"
+          >
+            關閉
+          </button>
+        </div>
+      )}
+
+      {/* Print Preview Dialog */}
+      <Wbase1020Print />
     </div>
   );
 };
+
+export default Wbase1020Page;

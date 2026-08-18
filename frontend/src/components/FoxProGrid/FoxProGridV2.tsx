@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { SearchModal } from './SearchModal';
 import type { SearchItem } from './SearchModal';
+import { useTheme } from '../../wbase/menu/ThemeContext';
 
 export interface ColumnDefV2<T> {
   key: keyof T & string;
@@ -58,6 +59,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
   height = '608px',
   getRowKey,
 }: FoxProGridV2Props<T>) {
+  const { isDark } = useTheme();
   const [selectedCell, setSelectedCell] = useState<{ r: number; c: number }>({ r: 0, c: 0 });
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editValue, setEditValue] = useState<string>('');
@@ -149,30 +151,29 @@ export function FoxProGridV2<T extends Record<string, any>>({
 
   // Helper to move cell focus
   const moveCell = useCallback(
-    (r: number, c: number, deltaC: number) => {
-      let nextR = r;
-      let nextC = c + deltaC;
+    (r: number, c: number, dr: number, dc: number = 0) => {
+      let nr = r + dr;
+      let nc = c + dc;
 
-      if (nextC >= columns.length) {
-        nextC = 0;
-        nextR += 1;
-      } else if (nextC < 0) {
-        nextC = columns.length - 1;
-        nextR -= 1;
+      if (nc >= columns.length) {
+        nc = 0;
+        nr += 1;
+      } else if (nc < 0) {
+        nc = columns.length - 1;
+        nr -= 1;
       }
 
-      if (nextR >= displayRows.length) {
-        const newRow = createEmptyRow();
-        const updated = [...displayRows, newRow];
-        onRowsChange(updated);
-        nextR = displayRows.length;
-        nextC = 0;
-      } else if (nextR < 0) {
-        nextR = 0;
-        nextC = 0;
+      if (nr >= displayRows.length) {
+        const newRows = [...displayRows, createEmptyRow()];
+        onRowsChange(newRows);
+        // Ensure index moves forward
+        nr = displayRows.length;
+        nc = 0;
+      } else if (nr < 0) {
+        nr = 0;
       }
 
-      setSelectedCell({ r: nextR, c: nextC });
+      setSelectedCell({ r: nr, c: nc });
       setIsEditing(false);
     },
     [columns.length, displayRows, createEmptyRow, onRowsChange]
@@ -190,32 +191,27 @@ export function FoxProGridV2<T extends Record<string, any>>({
   // Keyboard navigation & shortcut event listener (FoxPro 100% style)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const activeTag = document.activeElement?.tagName.toLowerCase();
-      if (searchModalOpen && (activeTag === 'input' || activeTag === 'textarea')) {
+      const target = e.target as HTMLElement;
+      if (
+        searchModalOpen ||
+        (target && target.tagName === 'INPUT' && target !== inputRef.current)
+      ) {
         return;
       }
 
       const { r, c } = selectedCell;
       const col = columns[c];
-      if (!col) return;
 
-      // F2: Start Editing
-      if (e.key === 'F2') {
+      // ESC: Save & Show Summary or direct exit
+      if (e.key === 'Escape') {
         e.preventDefault();
-        if (col.editable !== false) {
-          const val = displayRows[r]?.[col.key] || '';
-          setEditValue(String(val));
-          setIsEditing(true);
+        e.stopPropagation();
+        if (isEditing) {
+          setIsEditing(false);
+          return;
         }
-        return;
-      }
-
-      // F3: Search Modal
-      if (e.key === 'F3') {
-        e.preventDefault();
-        if (onF3Search) {
-          setSearchTargetColKey(col.key);
-          setSearchModalOpen(true);
+        if (onShowSummary) {
+          onShowSummary(hasModified);
         }
         return;
       }
@@ -227,76 +223,95 @@ export function FoxProGridV2<T extends Record<string, any>>({
         return;
       }
 
-      // ESC: Save & Show Summary or direct exit
-      if (e.key === 'Escape') {
+      // F3: Search Modal
+      if (e.key === 'F3') {
         e.preventDefault();
-        if (isEditing) {
-          setIsEditing(false);
-        } else if (onShowSummary) {
-          onShowSummary(hasModified);
+        if (col && onF3Search) {
+          setSearchTargetColKey(col.key);
+          setSearchModalOpen(true);
         }
         return;
       }
 
+      // F2: Start Editing
+      if (e.key === 'F2') {
+        e.preventDefault();
+        if (col && col.editable !== false) {
+          if (!isEditing) {
+            setEditValue(String(displayRows[r]?.[col.key] ?? ''));
+            setIsEditing(true);
+          } else {
+            commitEdit(r, c, editValue);
+            setIsEditing(false);
+          }
+        }
+        return;
+      }
+
+      // If cell is in Editing state
       if (isEditing) {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' || e.key === 'Tab') {
           e.preventDefault();
           const success = commitEdit(r, c, editValue);
           if (success) {
-            moveCell(r, c, 1);
+            moveCell(r, c, 0, 1);
           }
           return;
         }
-        if (e.key === 'Tab') {
+        if (e.key === 'ArrowUp') {
           e.preventDefault();
           const success = commitEdit(r, c, editValue);
           if (success) {
-            moveCell(r, c, e.shiftKey ? -1 : 1);
+            moveCell(r, c, -1, 0);
           }
           return;
         }
-      } else {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          const success = commitEdit(r, c, editValue);
+          if (success) {
+            moveCell(r, c, 1, 0);
+          }
+          return;
+        }
+        return;
+      }
+
+      // Navigation mode (isEditing === false)
+      if (!isEditing) {
         if (e.key === 'Enter') {
           e.preventDefault();
-          const val = displayRows[r]?.[col.key] || '';
-          setEditValue(String(val));
-          setIsEditing(true);
+          if (col && col.editable !== false) {
+            setEditValue(String(displayRows[r]?.[col.key] ?? ''));
+            setIsEditing(true);
+          }
           return;
         }
 
         if (e.key === 'Tab') {
           e.preventDefault();
-          moveCell(r, c, e.shiftKey ? -1 : 1);
+          moveCell(r, c, 0, e.shiftKey ? -1 : 1);
           return;
         }
 
         if (e.key === 'ArrowUp') {
           e.preventDefault();
-          if (r > 0) setSelectedCell({ r: r - 1, c });
+          moveCell(r, c, -1, 0);
           return;
         }
-
         if (e.key === 'ArrowDown') {
           e.preventDefault();
-          if (r < displayRows.length - 1) {
-            setSelectedCell({ r: r + 1, c });
-          } else {
-            const newRow = createEmptyRow();
-            onRowsChange([...displayRows, newRow]);
-            setSelectedCell({ r: r + 1, c });
-          }
+          moveCell(r, c, 1, 0);
           return;
         }
-
         if (e.key === 'ArrowLeft') {
           e.preventDefault();
-          moveCell(r, c, -1);
+          moveCell(r, c, 0, -1);
           return;
         }
-
         if (e.key === 'ArrowRight') {
           e.preventDefault();
-          moveCell(r, c, 1);
+          moveCell(r, c, 0, 1);
           return;
         }
 
@@ -350,7 +365,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
       onSaveRow(targetRow, r);
     }
     setSearchModalOpen(false);
-    moveCell(r, c, 1);
+    moveCell(r, c, 0, 1);
   };
 
   const handleF3Query = async (query: string): Promise<SearchItem[]> => {
@@ -365,11 +380,21 @@ export function FoxProGridV2<T extends Record<string, any>>({
       {/* Excel 15-Row Grid Container */}
       <div
         style={{ height }}
-        className="w-full bg-white border-2 border-blue-900 rounded shadow-md overflow-hidden flex flex-col select-none"
+        className={`w-full border-2 rounded shadow-md overflow-hidden flex flex-col select-none transition-colors ${
+          isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-blue-900'
+        }`}
       >
         {/* Header */}
-        <div className="bg-[#1e3a8a] text-white flex text-sm font-bold tracking-wider h-[38px] shrink-0 border-b border-blue-900">
-          <div className="w-[50px] h-full flex items-center justify-center border-r border-blue-800 shrink-0">
+        <div
+          className={`flex text-sm font-bold tracking-wider h-[38px] shrink-0 border-b transition-colors ${
+            isDark ? 'bg-slate-950 text-yellow-300 border-slate-800' : 'bg-[#1e3a8a] text-white border-blue-900'
+          }`}
+        >
+          <div
+            className={`w-[50px] h-full flex items-center justify-center border-r shrink-0 ${
+              isDark ? 'border-slate-800' : 'border-blue-800'
+            }`}
+          >
             項次
           </div>
           {columns.map((col) => (
@@ -379,7 +404,9 @@ export function FoxProGridV2<T extends Record<string, any>>({
                 width: col.width || '150px',
                 flex: col.width === '1fr' ? 1 : undefined,
               }}
-              className={`h-full flex items-center px-3 border-r border-blue-800 last:border-r-0 shrink-0 font-bold ${
+              className={`h-full flex items-center px-3 border-r last:border-r-0 shrink-0 font-bold ${
+                isDark ? 'border-slate-800' : 'border-blue-800'
+              } ${
                 col.align === 'center'
                   ? 'justify-center'
                   : col.align === 'right'
@@ -393,7 +420,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
         </div>
 
         {/* Rows Body */}
-        <div className="flex-1 overflow-y-auto bg-[#f8fafc]">
+        <div className={`flex-1 overflow-y-auto ${isDark ? 'bg-slate-900' : 'bg-[#f8fafc]'}`}>
           {displayRows.map((row, rIdx) => {
             const isRowSelected = selectedCell.r === rIdx;
             const isEven = rIdx % 2 === 1;
@@ -403,12 +430,32 @@ export function FoxProGridV2<T extends Record<string, any>>({
             return (
               <div
                 key={rowKey}
-                className={`flex border-b border-gray-200 h-[38px] items-center text-sm transition-colors ${
-                  isEven ? 'bg-[#ffecd9]' : 'bg-white'
-                } ${isRowSelected ? 'bg-blue-100/60' : ''}`}
+                className={`flex border-b h-[38px] items-center text-sm transition-colors ${
+                  isDark ? 'border-slate-800/80' : 'border-gray-200'
+                } ${
+                  isDark
+                    ? isEven
+                      ? 'bg-slate-800/60 text-white'
+                      : 'bg-slate-900 text-white'
+                    : isEven
+                    ? 'bg-[#ffecd9] text-slate-800'
+                    : 'bg-white text-slate-800'
+                } ${
+                  isRowSelected
+                    ? isDark
+                      ? 'bg-blue-950/90 text-white font-semibold'
+                      : 'bg-blue-100/60 font-medium'
+                    : ''
+                }`}
               >
                 {/* Index Cell */}
-                <div className="w-[50px] h-full flex items-center justify-center border-r border-gray-200 text-gray-500 font-bold bg-gray-50 shrink-0">
+                <div
+                  className={`w-[50px] h-full flex items-center justify-center border-r font-bold shrink-0 ${
+                    isDark
+                      ? 'border-slate-800 text-yellow-400 bg-slate-950'
+                      : 'border-gray-200 text-gray-500 bg-gray-50'
+                  }`}
+                >
                   {String(rIdx + 1).padStart(2, '0')}
                 </div>
 
@@ -432,11 +479,25 @@ export function FoxProGridV2<T extends Record<string, any>>({
                         setSelectedCell({ r: rIdx, c: cIdx });
                         setIsEditing(false);
                       }}
-                      className={`h-full border-r border-gray-200 flex items-center px-3 cursor-cell overflow-hidden shrink-0 relative ${
+                      onDoubleClick={() => {
+                        if (col.editable !== false) {
+                          setEditValue(String(cellVal));
+                          setIsEditing(true);
+                        }
+                      }}
+                      className={`h-full border-r flex items-center px-3 cursor-cell overflow-hidden shrink-0 relative ${
+                        isDark ? 'border-slate-800 text-white' : 'border-gray-200 text-slate-800'
+                      } ${
                         isCellFocused
-                          ? 'border-2 border-[#eab308] bg-[#fef9c3] font-bold text-black shadow-inner z-10'
+                          ? isDark
+                            ? 'border-2 border-yellow-400 bg-yellow-950/90 font-bold text-white shadow-inner z-10'
+                            : 'border-2 border-[#eab308] bg-[#fef9c3] font-bold text-black shadow-inner z-10'
                           : ''
-                      } ${col.className || ''}`}
+                      } ${
+                        isDark && col.className
+                          ? col.className.replace(/text-(black|blue-\d+|gray-\d+|slate-\d+)/g, 'text-white')
+                          : col.className || ''
+                      }`}
                     >
                       {isCellFocused && isEditing ? (
                         <input
@@ -449,7 +510,9 @@ export function FoxProGridV2<T extends Record<string, any>>({
                               commitEdit(selectedCell.r, selectedCell.c, editValue);
                             }
                           }}
-                          className="w-full h-full bg-transparent outline-none border-none font-mono text-sm font-bold text-black p-0"
+                          className={`w-full h-full bg-transparent outline-none border-none font-mono text-sm font-bold p-0 ${
+                            isDark ? 'text-white' : 'text-black'
+                          }`}
                         />
                       ) : col.renderCell ? (
                         col.renderCell(cellVal, row, rIdx)
@@ -466,7 +529,13 @@ export function FoxProGridV2<T extends Record<string, any>>({
       </div>
 
       {/* StatusBar */}
-      <div className="mt-2 flex flex-wrap items-center justify-between bg-blue-950 text-white px-4 py-2.5 rounded font-bold text-sm border-t-2 border-yellow-500 shadow gap-2">
+      <div
+        className={`mt-2 flex flex-wrap items-center justify-between px-4 py-2.5 rounded font-bold text-sm border-t-2 shadow gap-2 transition-colors ${
+          isDark
+            ? 'bg-slate-950 text-slate-100 border-yellow-500'
+            : 'bg-blue-950 text-white border-yellow-500'
+        }`}
+      >
         <div className="flex items-center space-x-6">
           <span className="text-yellow-400 font-bold">
             總筆數: <span className="text-white font-mono text-base">{rows.length}</span> 筆
@@ -515,7 +584,13 @@ export function FoxProGridV2<T extends Record<string, any>>({
       {/* Primary Key Duplicate Alert Modal */}
       {pkErrorAlert.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-red-950 border-4 border-yellow-400 text-white p-6 rounded-lg shadow-2xl max-w-md text-center font-mono">
+          <div
+            className={`border-4 rounded-lg p-6 max-w-md text-center font-mono shadow-2xl transition-colors ${
+              isDark
+                ? 'bg-slate-900 border-red-500 text-white'
+                : 'bg-red-950 border-yellow-400 text-white'
+            }`}
+          >
             <h4 className="text-xl font-bold text-yellow-300 mb-3">主鍵資料重複提示</h4>
             <p className="text-base font-semibold mb-6">{pkErrorAlert.message}</p>
             <button

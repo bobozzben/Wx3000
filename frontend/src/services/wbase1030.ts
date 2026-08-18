@@ -91,3 +91,6 @@ export const callWaccrep3101b = async (
   return response.data;
 };
 
+export type Waccrep3106bParams = Waccrep3101bParams;
+export const callWaccrep3106b = callWaccrep3101b;
+

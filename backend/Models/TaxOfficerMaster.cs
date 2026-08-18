@@ -12,7 +12,6 @@ namespace Wx3000.Backend.Models
         [StringLength(20)]
         public string TaxCode { get; set; } = string.Empty;
 
-        [Required]
         [Column("姓名")]
         [StringLength(50)]
         public string TaxName { get; set; } = string.Empty;

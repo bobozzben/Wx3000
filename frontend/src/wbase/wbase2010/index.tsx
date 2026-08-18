@@ -1,9 +1,12 @@
 import React, { useEffect } from 'react';
 import { useWbase2010 } from './useWbase2010';
+import type { CompanyItem } from '../../services/wbase2010';
 import { Wbase2010Form } from './Wbase2010Form';
 import { Wbase2010Print } from './wbase2010Print';
 import { TABS_CONFIG } from './companyFieldDefs';
 import { useTheme } from '../menu/ThemeContext';
+import { FoxProGridCard } from '../../components/FoxProGridCard';
+import type { FoxProGridCardColumn } from '../../components/FoxProGridCard';
 import {
   Folder,
   Search,
@@ -18,6 +21,24 @@ import {
 interface Wbase2010PageProps {
   onBackToMenu?: () => void;
 }
+
+const COMPANY_COLUMNS: FoxProGridCardColumn<CompanyItem>[] = [
+  { key: 'code', label: '編號', width: '90px' },
+  { key: 'name', label: '客戶名稱', width: '1fr' },
+  { key: 'uni', label: '統編', width: '130px' },
+  { key: 'owner', label: '負責人', width: '90px' },
+  { key: 'tel', label: '電話', width: '140px' },
+  {
+    key: 'type',
+    label: '類別',
+    width: '70px',
+    render: (c) => (
+      <span className="text-[11px] px-2 py-0.5 rounded-full border bg-slate-100 border-slate-200 text-slate-700">
+        {c.type || '上市'}
+      </span>
+    ),
+  },
+];
 
 export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) => {
   const { isDark } = useTheme();
@@ -156,142 +177,25 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
       {/* Main Container */}
       <div className="flex-1 flex flex-col p-3 md:p-5 gap-4 max-w-[1440px] w-full mx-auto">
         {/* Customer List Grid Card */}
-        <div
-          className={`rounded-[12px] border overflow-hidden transition-colors ${
-            isDark
-              ? 'bg-slate-800 border-slate-700/80 shadow-md'
-              : 'bg-white border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.04)]'
-          }`}
-        >
-          {/* Card Title Bar */}
-          <div
-            className={`h-10 px-4 flex items-center justify-between border-b ${
-              isDark
-                ? 'bg-slate-800/90 border-slate-700 text-slate-200'
-                : 'bg-gradient-to-r from-white to-slate-50/50 border-slate-100 text-slate-800'
-            }`}
-          >
-            <div className="flex items-center gap-2 text-[13px] font-semibold">
-              <Folder size={14} className={isDark ? 'text-slate-400' : 'text-slate-400'} />
-              客戶清單
-              <span
-                className={`ml-2 text-[11px] font-normal px-2 py-0.5 rounded-full ${
-                  isDark
-                    ? 'bg-slate-700 text-slate-300'
-                    : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                {filteredCompanies.length} 筆
-              </span>
-            </div>
-            <div className={`text-[11px] hidden md:block ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              ↑↓ 換筆 · Enter / F6 編修 · F2 查詢
-            </div>
-          </div>
-
-          {/* Grid Header */}
-          <div
-            className={`text-[11px] font-semibold uppercase tracking-wider hidden md:grid grid-cols-[90px_1fr_130px_90px_140px_70px] h-8 items-center px-1 border-b ${
-              isDark
-                ? 'bg-slate-900/90 border-slate-700/80 text-slate-400'
-                : 'bg-[#FAFBFC] border-slate-200 text-slate-500'
-            }`}
-          >
-            <div className="px-3">編號</div>
-            <div className="px-3">客戶名稱</div>
-            <div className="px-3">統編</div>
-            <div className="px-3">負責人</div>
-            <div className="px-3">電話</div>
-            <div className="px-3">類別</div>
-          </div>
-
-          {/* Grid Rows */}
-          <div
-            ref={gridContainerRef}
-            tabIndex={0}
-            onKeyDown={handleGridKeyDown}
-            className={`outline-none max-h-[260px] md:max-h-[300px] overflow-auto divide-y focus:ring-2 focus:ring-blue-500/20 focus:ring-inset ${
-              isDark ? 'divide-slate-700/50' : 'divide-slate-100'
-            }`}
-            aria-label="客戶清單 Grid"
-          >
-            {filteredCompanies.map((c, idx) => {
-              const isSelected = selectedIndex === idx;
-              return (
-                <div
-                  key={c.code}
-                  id={`row-${idx}`}
-                  onClick={() => {
-                    setSelectedIndex(idx);
-                    gridContainerRef.current?.focus();
-                  }}
-                  onDoubleClick={startEdit}
-                  className={`grid grid-cols-1 md:grid-cols-[90px_1fr_130px_90px_140px_70px] h-auto md:h-8 items-center text-[13px] cursor-pointer transition-colors ${
-                    isSelected
-                      ? isDark
-                        ? 'bg-blue-950/60 border-l-[3px] border-l-blue-500 font-medium text-blue-200'
-                        : 'bg-[#E8F0FE] border-l-[3px] border-l-blue-600 font-medium text-blue-900'
-                      : isDark
-                      ? 'border-l-[3px] border-l-transparent hover:bg-slate-700/50 text-slate-300'
-                      : 'border-l-[3px] border-l-transparent hover:bg-[#F5F7FF] text-slate-700'
-                  }`}
-                >
-                  <div className="px-3 py-1.5 md:py-0 font-medium flex items-center gap-2">
-                    <span className={`md:hidden text-[10px] w-10 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                      編號
-                    </span>
-                    {c.code}
-                    {isSelected && (
-                      <span className="md:hidden ml-auto w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    )}
-                  </div>
-                  <div
-                    className={`px-3 py-1 md:py-0 truncate font-medium flex items-center gap-2 ${
-                      isDark ? 'text-slate-100' : 'text-slate-900'
-                    }`}
-                  >
-                    <span className={`md:hidden text-[10px] w-10 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                      名稱
-                    </span>
-                    <span className="truncate">{c.name}</span>
-                  </div>
-                  <div className={`px-3 py-1 md:py-0 hidden md:block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                    {c.uni || '-'}
-                  </div>
-                  <div className={`px-3 py-1 md:py-0 hidden md:block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                    {c.owner || '-'}
-                  </div>
-                  <div className={`px-3 py-1 md:py-0 hidden md:block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                    {c.tel || '-'}
-                  </div>
-                  <div className="px-3 py-1 md:py-0 hidden md:block">
-                    <span
-                      className={`text-[11px] px-2 py-0.5 rounded-full border ${
-                        isDark
-                          ? 'bg-slate-900 border-slate-700 text-slate-300'
-                          : 'bg-slate-100 border-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {c.type || '上市'}
-                    </span>
-                  </div>
-
-                  <div className={`md:hidden px-3 pb-2 flex gap-3 text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    <span>{c.uni || '-'}</span>
-                    <span>{c.owner || '-'}</span>
-                    <span>{c.tel || '-'}</span>
-                  </div>
-                </div>
-              );
-            })}
-
-            {filteredCompanies.length === 0 && (
-              <div className={`p-8 text-center text-[13px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                {loading ? '資料載入中...' : '查無客戶資料'}
-              </div>
-            )}
-          </div>
-        </div>
+        <FoxProGridCard<CompanyItem>
+          title="客戶清單"
+          totalCount={filteredCompanies.length}
+          shortcutHint="↑↓ 換筆 · Enter / F6 編修 · F2 查詢"
+          data={filteredCompanies}
+          columns={COMPANY_COLUMNS}
+          gridColsLayout="grid-cols-1 md:grid-cols-[90px_1fr_130px_90px_140px_70px]"
+          selectedIndex={selectedIndex}
+          onSelectRow={(_c, idx) => {
+            setSelectedIndex(idx);
+            gridContainerRef.current?.focus();
+          }}
+          onDoubleClickRow={startEdit}
+          onKeyDown={handleGridKeyDown}
+          gridContainerRef={gridContainerRef}
+          loading={loading}
+          emptyText="查無客戶資料"
+          getItemKey={(c) => c.code}
+        />
 
         {/* Tab Pills & Form Section Area */}
         <div className="flex flex-col gap-3">

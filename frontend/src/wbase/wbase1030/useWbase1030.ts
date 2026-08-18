@@ -1,148 +1,177 @@
 import { create } from 'zustand';
-import type { EmpItem, EmpPrintFilter, Waccrep3101bParams } from '../../services/wbase1030';
+import type {
+  EmpItem,
+  EmpPrintFilter,
+  Waccrep3106bParams,
+} from '../../services/wbase1030';
 import {
   getEmpList,
+  createEmp,
+  updateEmp,
   deleteEmp,
   printEmpList,
-  callWaccrep3101b,
+  callWaccrep3106b,
 } from '../../services/wbase1030';
 
 interface Wbase1030State {
-  list: EmpItem[];
-  selectedItem: EmpItem | null;
-  searchKeyword: string;
-  isDeleteConfirmOpen: boolean;
-  isPrintOpen: boolean;
-  printFilter: EmpPrintFilter;
-  printData: EmpItem[];
+  rows: EmpItem[];
+  setRows: (rows: EmpItem[]) => void;
+  selectedIndex: number;
+  setSelectedIndex: (idx: number) => void;
   loading: boolean;
-  actionMessage: { type: 'success' | 'error'; text: string } | null;
+  errorToast: string | null;
+  setErrorToast: (msg: string | null) => void;
+  showAutoCloseToast: boolean;
+  setShowAutoCloseToast: (show: boolean) => void;
+  isDeleteConfirmOpen: boolean;
+  setIsDeleteConfirmOpen: (open: boolean) => void;
+  isPrintOpen: boolean;
+  printData: EmpItem[];
+  printFilter: EmpPrintFilter;
 
   // Actions
-  setSearchKeyword: (keyword: string) => void;
-  fetchList: (kw?: string) => Promise<void>;
-  selectItem: (item: EmpItem | null) => void;
-  openDeleteConfirm: (item?: EmpItem) => void;
-  closeDeleteConfirm: () => void;
+  refreshData: (keyword?: string) => Promise<void>;
+  handleSaveRow: (updatedRow: EmpItem) => Promise<void>;
+  handleSaveAll: () => Promise<void>;
+  openDeleteConfirm: (idx?: number) => void;
   confirmDelete: () => Promise<boolean>;
   openPrint: () => void;
   closePrint: () => void;
+  fetchPrintDataList: (filter: EmpPrintFilter) => Promise<EmpItem[]>;
   fetchPrintData: (filter: EmpPrintFilter) => Promise<EmpItem[]>;
-  triggerReportDll: (params?: Waccrep3101bParams) => Promise<boolean>;
-  clearActionMessage: () => void;
+  triggerReportDll: (params?: Waccrep3106bParams) => Promise<boolean>;
 }
 
 export const useWbase1030 = create<Wbase1030State>((set, get) => ({
-  list: [],
-  selectedItem: null,
-  searchKeyword: '',
-  isDeleteConfirmOpen: false,
-  isPrintOpen: false,
-  printFilter: { codeStart: '', codeEnd: '' },
-  printData: [],
+  rows: [],
+  setRows: (rows) => set({ rows }),
+  selectedIndex: 0,
+  setSelectedIndex: (selectedIndex) => set({ selectedIndex }),
   loading: false,
-  actionMessage: null,
+  errorToast: null,
+  setErrorToast: (errorToast) => set({ errorToast }),
+  showAutoCloseToast: false,
+  setShowAutoCloseToast: (showAutoCloseToast) => set({ showAutoCloseToast }),
+  isDeleteConfirmOpen: false,
+  setIsDeleteConfirmOpen: (isDeleteConfirmOpen) => set({ isDeleteConfirmOpen }),
+  isPrintOpen: false,
+  printData: [],
+  printFilter: { empCodeStart: '', empCodeEnd: '' },
 
-  setSearchKeyword: (searchKeyword) => set({ searchKeyword }),
-
-  fetchList: async (kw) => {
-    const keyword = kw !== undefined ? kw : get().searchKeyword;
+  refreshData: async (keyword) => {
     set({ loading: true });
     try {
       const data = await getEmpList(keyword);
-      set({
-        list: data,
-        selectedItem: data.length > 0 ? data[0] : null,
-        loading: false,
-      });
-    } catch (err: any) {
-      console.error('Fetch emp list error:', err);
-      set({
-        loading: false,
-        actionMessage: { type: 'error', text: '載入人員資料失敗，請確認後端服務。' },
-      });
+      const safeData = Array.isArray(data) ? data : [];
+      set({ rows: safeData, loading: false });
+    } catch (e) {
+      console.error('Failed to load employee items:', e);
+      set({ errorToast: '載入員工資料失敗，請重新連線', loading: false });
     }
   },
 
-  selectItem: (selectedItem) => set({ selectedItem }),
-
-  openDeleteConfirm: (item) => {
-    const target = item || get().selectedItem;
-    if (!target) return;
-    set({ selectedItem: target, isDeleteConfirmOpen: true });
+  handleSaveRow: async (updatedRow) => {
+    if (!updatedRow.empCode || !updatedRow.empCode.trim()) return;
+    try {
+      const isNew = !get().rows.some((r) => r.empCode === updatedRow.empCode);
+      if (isNew) {
+        await createEmp(updatedRow);
+      } else {
+        await updateEmp(updatedRow.empCode.trim(), updatedRow);
+      }
+      set({ showAutoCloseToast: true });
+      setTimeout(() => set({ showAutoCloseToast: false }), 2000);
+      await get().refreshData();
+    } catch (e) {
+      console.error('Save employee row error:', e);
+      set({ errorToast: '儲存員工資料失敗' });
+    }
   },
 
-  closeDeleteConfirm: () => set({ isDeleteConfirmOpen: false }),
-
-  confirmDelete: async () => {
-    const { selectedItem, fetchList } = get();
-    if (!selectedItem) return false;
-
+  handleSaveAll: async () => {
     set({ loading: true });
     try {
-      await deleteEmp(selectedItem.empCode);
-      set({
-        isDeleteConfirmOpen: false,
-        loading: false,
-        actionMessage: { type: 'success', text: `🗑️ 人員 [${selectedItem.empCode}] 已刪除！` },
-      });
-      await fetchList();
-      return true;
-    } catch (err: any) {
-      console.error('Delete error:', err);
-      const msg = err?.response?.data?.message || err?.message || '刪除失敗';
-      set({
-        loading: false,
-        actionMessage: { type: 'error', text: `❌ 刪除失敗: ${msg}` },
-      });
-      return false;
+      for (const row of get().rows) {
+        if (row.empCode && row.empCode.trim()) {
+          await updateEmp(row.empCode.trim(), row);
+        }
+      }
+      set({ showAutoCloseToast: true });
+      setTimeout(() => set({ showAutoCloseToast: false }), 2000);
+      await get().refreshData();
+    } catch (e) {
+      console.error('Batch save employee error:', e);
+      set({ errorToast: '儲存過程中發生例外' });
+    } finally {
+      set({ loading: false });
     }
+  },
+
+  openDeleteConfirm: (idx) => {
+    if (idx !== undefined) set({ selectedIndex: idx });
+    set({ isDeleteConfirmOpen: true });
+  },
+
+  confirmDelete: async () => {
+    const { rows, selectedIndex, refreshData } = get();
+    const target = rows[selectedIndex];
+    if (!target || !target.empCode) {
+      const newRows = [...rows];
+      newRows.splice(selectedIndex, 1);
+      set({ rows: newRows, isDeleteConfirmOpen: false });
+      return true;
+    }
+
+    try {
+      const res = await deleteEmp(target.empCode);
+      if (res) {
+        set({
+          selectedIndex: Math.max(0, selectedIndex - 1),
+          isDeleteConfirmOpen: false,
+        });
+        await refreshData();
+        return true;
+      }
+    } catch (e) {
+      console.error('Delete employee error:', e);
+      set({ errorToast: '刪除員工資料失敗' });
+    } finally {
+      set({ isDeleteConfirmOpen: false });
+    }
+    return false;
   },
 
   openPrint: () => set({ isPrintOpen: true }),
   closePrint: () => set({ isPrintOpen: false }),
 
-  fetchPrintData: async (filter) => {
+  fetchPrintDataList: async (filter) => {
+    set({ loading: true });
     try {
       const data = await printEmpList(filter);
-      set({ printData: data, printFilter: filter });
+      set({ printData: data, printFilter: filter, loading: false });
       return data;
-    } catch (err: any) {
-      console.error('Print fetch error:', err);
-      set({ actionMessage: { type: 'error', text: '取得列印資料失敗' } });
+    } catch (e) {
+      console.error('Fetch print employee data error:', e);
+      set({ errorToast: '無法取得列印預覽資料', loading: false });
       return [];
     }
+  },
+
+  fetchPrintData: async (filter) => {
+    return await get().fetchPrintDataList(filter);
   },
 
   triggerReportDll: async (params) => {
     set({ loading: true });
     try {
-      const res = await callWaccrep3101b(params);
-      set({
-        loading: false,
-        actionMessage: {
-          type: 'success',
-          text: `🖨️ 成功呼叫 DLL 報表 (waccrep3101_b)！傳回碼: ${res.result}`,
-        },
-      });
+      await callWaccrep3106b(params);
+      set({ showAutoCloseToast: true, loading: false });
+      setTimeout(() => set({ showAutoCloseToast: false }), 2000);
       return true;
-    } catch (err: any) {
-      console.error('Call waccrep3101_b error:', err);
-      const msg =
-        err?.response?.data?.error ||
-        err?.message ||
-        '無法連線至 LocalAgent (http://localhost:18889/report)';
-      set({
-        loading: false,
-        actionMessage: {
-          type: 'error',
-          text: `❌ 呼叫 DLL 報表失敗: ${msg}`,
-        },
-      });
+    } catch (e) {
+      console.error('Trigger DLL report error:', e);
+      set({ errorToast: '呼叫 DLL 報表失敗', loading: false });
       return false;
     }
   },
-
-  clearActionMessage: () => set({ actionMessage: null }),
 }));
-

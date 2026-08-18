@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useWbase1050 } from './useWbase1050';
-import { Wbase1050Form } from './Wbase1050Form';
-import { Wbase1050Print } from './wbase1050Print';
+import React, { useState } from 'react';
+import { useWbase1060 } from './useWbase1060';
+import { Wbase1060Form } from './Wbase1060Form';
+import { Wbase1060Print } from './wbase1060Print';
 import {
-  FileText,
+  DollarSign,
   Search,
   RefreshCw,
   Printer,
@@ -15,11 +15,11 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../menu/ThemeContext';
 
-interface Wbase1050PageProps {
+interface Wbase1060PageProps {
   onBackToMenu?: () => void;
 }
 
-export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) => {
+export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) => {
   const { isDark } = useTheme();
 
   const {
@@ -40,20 +40,22 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
     openDeleteConfirm,
     confirmDelete,
     openPrint,
-  } = useWbase1050();
+  } = useWbase1060();
 
   const [searchQuery, setSearchQuery] = useState('');
 
   // Initial load
-  useEffect(() => {
+  React.useEffect(() => {
     refreshData();
   }, [refreshData]);
 
   // Global keyboard shortcuts (F7: Print, Esc: Exit/Close)
-  useEffect(() => {
+  React.useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
 
+      const target = e.target as HTMLElement;
+      // Do not override input typing except function keys like F7
       if (e.key === 'F7') {
         e.preventDefault();
         openPrint();
@@ -105,7 +107,7 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
         className={`px-6 py-4 border-b flex items-center justify-between shadow-md transition-colors ${
           isDark
             ? 'bg-slate-900 border-slate-800 text-white'
-            : 'bg-[#1e3a8a] text-white border-blue-900'
+            : 'bg-white border-blue-900 text-blue-900'
         }`}
       >
         <div className="flex items-center space-x-3">
@@ -119,17 +121,17 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
             </button>
           )}
           <div className="p-2 bg-yellow-400 text-black rounded font-bold">
-            <FileText className="w-6 h-6" />
+            <DollarSign className="w-6 h-6" />
           </div>
           <div>
             <h1 className="text-xl font-black tracking-wider flex items-center gap-2">
-              稅務人員資料維護
+              基本收費項目維護
               <span className="text-xs px-2 py-0.5 rounded bg-blue-800 text-white font-normal">
-                wbase1050
+                wbase1060
               </span>
             </h1>
-            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-slate-200'}`}>
-              設定與管理稅務人員主檔資料 (PostgreSQL Table: 稅務人員)
+            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+              設定與管理標準收費項目 (PostgreSQL Table: 基本收費項目)
             </p>
           </div>
         </div>
@@ -139,7 +141,7 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
           <div className="relative">
             <input
               type="text"
-              placeholder="搜尋稅務人員代號 / 姓名..."
+              placeholder="搜尋項目代號 / 項目名稱..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`w-64 px-3 py-1.5 rounded text-sm focus:outline-none border ${
@@ -161,7 +163,7 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
 
       {/* Main Grid Content Area */}
       <div className="flex-1 p-6 flex flex-col min-h-0">
-        <Wbase1050Form
+        <Wbase1060Form
           rows={rows}
           onRowsChange={setRows}
           onSaveRow={handleSaveRow}
@@ -172,7 +174,8 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
           statusBarInfo={
             selectedRow ? (
               <span className="text-xs">
-                目前選取：[{selectedRow.taxCode}] {selectedRow.taxName} | 分機：{selectedRow.extension || '-'}
+                目前選取：[{selectedRow.feeCode}] {selectedRow.feeName} | 收費金額：NT${' '}
+                {Number(selectedRow.price || 0).toLocaleString('zh-TW', { minimumFractionDigits: 2 })}
               </span>
             ) : null
           }
@@ -198,7 +201,7 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
 
         <div className="flex space-x-3">
           <button
-            onClick={() => refreshData()}
+            onClick={refreshData}
             disabled={loading}
             className={`flex items-center space-x-1 px-3 py-1.5 rounded text-sm font-bold border transition ${
               isDark
@@ -239,12 +242,12 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
           >
             <div className="flex items-center space-x-3 text-red-500 mb-4">
               <AlertTriangle className="w-8 h-8 shrink-0" />
-              <h3 className="text-lg font-bold">確認刪除該筆稅務人員資料？</h3>
+              <h3 className="text-lg font-bold">確認刪除該筆收費項目？</h3>
             </div>
             <p className="text-sm mb-6 leading-relaxed">
-              您即將刪除稅務人員資料：
+              您即將刪除收費項目：
               <span className="font-bold text-yellow-400 ml-1">
-                [{selectedRow.taxCode}] {selectedRow.taxName}
+                [{selectedRow.feeCode}] {selectedRow.feeName}
               </span>
               <br />
               此操作將從 PostgreSQL 資料庫中移除資料，無法復原。
@@ -294,9 +297,9 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
       )}
 
       {/* Print Preview Dialog */}
-      <Wbase1050Print />
+      <Wbase1060Print />
     </div>
   );
 };
 
-export default Wbase1050Page;
+export default Wbase1060Page;

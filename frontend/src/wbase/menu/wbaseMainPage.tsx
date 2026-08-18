@@ -7,6 +7,7 @@ import { useMenuKeyboard } from './useMenuKeyboard';
 import { Wbase1020Page } from '../wbase1020';
 import { Wbase1030Page } from '../wbase1030';
 import { Wbase1050Page } from '../wbase1050';
+import { Wbase1060Page } from '../wbase1060';
 import { Wbase2010Page } from '../wbase2010';
 import { ArrowLeft, LayoutGrid, Sun, Moon } from 'lucide-react';
 import { useTheme } from './ThemeContext';
@@ -23,6 +24,8 @@ export const WbaseMainPage: React.FC = () => {
       setActiveModule('wbase1030');
     } else if (item.code === 'wbase1050') {
       setActiveModule('wbase1050');
+    } else if (item.code === 'wbase1060') {
+      setActiveModule('wbase1060');
     } else if (item.code === 'wbase2010') {
       setActiveModule('wbase2010');
     } else if (item.code === 'A00') {
@@ -130,6 +133,8 @@ export const WbaseMainPage: React.FC = () => {
                   ? '會計師/記帳士資料'
                   : activeModule === 'wbase1050'
                   ? '稅務人員資料'
+                  : activeModule === 'wbase1060'
+                  ? '基本收費項目'
                   : activeModule === 'wbase2010'
                   ? '客戶資料建檔'
                   : '員工資料'}
@@ -170,6 +175,8 @@ export const WbaseMainPage: React.FC = () => {
             <Wbase1020Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase1050' ? (
             <Wbase1050Page onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase1060' ? (
+            <Wbase1060Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase2010' ? (
             <Wbase2010Page onBackToMenu={() => setActiveModule(null)} />
           ) : (
