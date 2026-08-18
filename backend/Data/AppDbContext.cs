@@ -16,6 +16,8 @@ namespace Wx3000.Backend.Data
         public DbSet<TaxOfficerMaster> TaxOfficerMasters => Set<TaxOfficerMaster>();
         public DbSet<CompanyMaster> CompanyMasters => Set<CompanyMaster>();
         public DbSet<FeeItemMaster> FeeItemMasters => Set<FeeItemMaster>();
+        public DbSet<FeeSummaryMaster> FeeSummaryMasters => Set<FeeSummaryMaster>();
+        public DbSet<NoteMaster> NoteMasters => Set<NoteMaster>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

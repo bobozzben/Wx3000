@@ -8,6 +8,8 @@ import { Wbase1020Page } from '../wbase1020';
 import { Wbase1030Page } from '../wbase1030';
 import { Wbase1050Page } from '../wbase1050';
 import { Wbase1060Page } from '../wbase1060';
+import { Wbase1070Page } from '../wbase1070';
+import { Wbase1080Page } from '../wbase1080';
 import { Wbase2010Page } from '../wbase2010';
 import { ArrowLeft, LayoutGrid, Sun, Moon } from 'lucide-react';
 import { useTheme } from './ThemeContext';
@@ -26,6 +28,10 @@ export const WbaseMainPage: React.FC = () => {
       setActiveModule('wbase1050');
     } else if (item.code === 'wbase1060') {
       setActiveModule('wbase1060');
+    } else if (item.code === 'wbase1070') {
+      setActiveModule('wbase1070');
+    } else if (item.code === 'wbase1080') {
+      setActiveModule('wbase1080');
     } else if (item.code === 'wbase2010') {
       setActiveModule('wbase2010');
     } else if (item.code === 'A00') {
@@ -93,7 +99,6 @@ export const WbaseMainPage: React.FC = () => {
 
   // Module view: render the active module with a navigation bar
   if (activeModule !== null) {
-    const is1020 = activeModule === 'wbase1020';
     return (
       <div
         className={`w-full min-h-screen flex flex-col transition-colors duration-300 ${
@@ -135,6 +140,10 @@ export const WbaseMainPage: React.FC = () => {
                   ? '稅務人員資料'
                   : activeModule === 'wbase1060'
                   ? '基本收費項目'
+                  : activeModule === 'wbase1070'
+                  ? '收費項目備註'
+                  : activeModule === 'wbase1080'
+                  ? '基本收費摘要'
                   : activeModule === 'wbase2010'
                   ? '客戶資料建檔'
                   : '員工資料'}
@@ -177,6 +186,10 @@ export const WbaseMainPage: React.FC = () => {
             <Wbase1050Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase1060' ? (
             <Wbase1060Page onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase1070' ? (
+            <Wbase1070Page onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase1080' ? (
+            <Wbase1080Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase2010' ? (
             <Wbase2010Page onBackToMenu={() => setActiveModule(null)} />
           ) : (
