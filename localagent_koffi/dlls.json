@@ -1,0 +1,50 @@
+{
+  "dlls": {
+    "wbaseRP": {
+      "path": "wbase/wbaseRP.dll",
+      "fallback_paths": [
+        "F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll",
+        "C:\\Wx3000\\wbaseRP.dll"
+      ],
+      "abi": "stdcall",
+      "functions": {
+        "waccrep3101_b": {
+          "ret": "int",
+          "params": [
+            "double",
+            "double",
+            "double",
+            "int",
+            "int",
+            "str"
+          ],
+          "comment": "hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path - 已移除 handle",
+          "bringToFront": true
+        },
+        "waccrep3102_b": {
+          "ret": "int",
+          "params": [
+            "double",
+            "str"
+          ],
+          "comment": "範例：新增函數只要這樣加一行",
+          "bringToFront": false
+        }
+      }
+    },
+    "myOther": {
+      "path": "wbase/myOther.dll",
+      "abi": "stdcall",
+      "functions": {
+        "myFunc1": {
+          "ret": "int",
+          "params": [
+            "int",
+            "str"
+          ],
+          "bringToFront": false
+        }
+      }
+    }
+  }
+}

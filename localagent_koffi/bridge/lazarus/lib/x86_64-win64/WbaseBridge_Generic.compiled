@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Compiler Value="C:\fpcupdeluxe4\fpc\bin\x86_64-win64\fpc.exe" Date="1556840750"/>
+  <Params Value="-MObjFPC -Scaghi -WR -CirotR -O1 -gw3 -gl -gh -gt -l -vewnhibq -FiF:\ADSProject\Wx3000\localagent_koffi\bridge\lazarus\lib\x86_64-win64 -FuF:\ADSProject\Wx3000\localagent_koffi\bridge\lazarus\ -FUF:\ADSProject\Wx3000\localagent_koffi\bridge\lazarus\lib\x86_64-win64\ -FEF:\ADSProject\Wx3000\localagent_koffi\bridge\lazarus\ -oF:\ADSProject\Wx3000\localagent_koffi\bridge\lazarus\WbaseBridge_Generic.exe WbaseBridge_Generic.lpr"/>
+</CONFIG>

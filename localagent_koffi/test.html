@@ -1,21 +1,28 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>v22 Dual Mode</title></head><body>
-<h2>Rx3000Agent v22 - 雙模式切換</h2>
-<div>Mode: <b id="mode">?</b> <button onclick="setMode('koffi')">切 koffi 直接模式</button> <button onclick="setMode('bridge')">切 bridge 間接模式</button></div>
-<button onclick="fetchConfig()">Config</button> <button onclick="testMac()">MAC</button>
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>v26 Generic</title></head><body>
+<h2>Rx3000Agent v26 - 通用版 (多DLL多函數)</h2>
+<div>編輯 dlls.json 就能新增 DLL / 函數，不用改程式碼</div>
+<button onclick="loadList()">載入 dlls.json</button> <button onclick="fetch('/config').then(r=>r.json()).then(j=>log(JSON.stringify(j,null,2)))">config</button>
 <hr>
-<h3>wbaseReport</h3>
-Handle <input id="handle" value="0" size="8"> hs_chk <input id="hs_chk" value="1" size="5"> top <input id="top_mag" value="10" size="5"> left <input id="left_mag" value="10" size="5"> PrtIndex <input id="PrtIndex" value="0" size="3"> IsPrint <input id="IsPrint" value="0" size="3"><br><br>
-Path <input id="path" value="C:\temp\wbase_test.pdf" style="width:400px"><br><br>
-<button onclick="testWs()">WS 呼叫</button> <button onclick="testUrl()">URL 呼叫</button>
-<pre id="log" style="background:#eee;padding:10px;height:350px;overflow:auto"></pre>
+<h3>通用呼叫</h3>
+DLL Key: <input id="dll" value="wbaseRP"> Func: <input id="func" value="waccrep3101_b"> 
+Args JSON: <input id="args" value='[1,10,10,0,0,"C:\\temp\\wbase_test.pdf"]' style="width:400px"><br><br>
+<button onclick="callGeneric()">呼叫 /api/call</button> <button onclick="callWs()">WS 呼叫</button>
+<hr>
+<h3>舊相容 wbaseReport</h3>
+<button onclick="testOld()">GET /wbaseReport</button>
+<pre id="log" style="background:#eee;padding:10px;height:400px;overflow:auto"></pre>
 <script>
 let ws; function log(m){ document.getElementById('log').textContent += m+"\n"; }
-function ensureWs(cb){ if(ws&&ws.readyState===1){cb();return;} ws=new WebSocket('ws://localhost:18889'); ws.onopen=cb; ws.onmessage=e=>{log("[WS] "+e.data); try{let j=JSON.parse(e.data); if(j.mode) document.getElementById('mode').textContent=j.mode; if(j.cmd==='config'||j.mode) document.getElementById('mode').textContent=j.mode||j.mode; }catch{} } }
-function fetchConfig(){ fetch('http://localhost:18889/config').then(r=>r.json()).then(j=>{log(JSON.stringify(j,null,2)); document.getElementById('mode').textContent=j.mode;}); }
-function testMac(){ fetch('http://localhost:18889/mac').then(r=>r.json()).then(j=>log(JSON.stringify(j))); }
-function setMode(m){ ensureWs(()=>{ ws.send(JSON.stringify({cmd:'setMode',mode:m})); log("[SEND] setMode "+m);}); }
-function getP(){ return { handle:document.getElementById('handle').value, hs_chk:document.getElementById('hs_chk').value, top_mag:document.getElementById('top_mag').value, left_mag:document.getElementById('left_mag').value, PrtIndex:document.getElementById('PrtIndex').value, IsPrint:document.getElementById('IsPrint').value, path:document.getElementById('path').value }; }
-function testWs(){ const p=getP(); ensureWs(()=>{ log("[SEND] "+JSON.stringify({cmd:'wbaseReport',...p})); ws.send(JSON.stringify({cmd:'wbaseReport',...p})); }); }
-function testUrl(){ const p=getP(); const url=`http://localhost:18889/wbaseReport?handle=${p.handle}&hs_chk=${p.hs_chk}&top_mag=${p.top_mag}&left_mag=${p.left_mag}&PrtIndex=${p.PrtIndex}&IsPrint=${p.IsPrint}&path=${encodeURIComponent(p.path)}`; log(url); fetch(url).then(r=>r.json()).then(j=>log(JSON.stringify(j,null,2))); }
-fetchConfig();
+function ensureWs(cb){ if(ws&&ws.readyState===1){cb();return;} ws=new WebSocket('ws://localhost:18889'); ws.onopen=cb; ws.onmessage=e=>log("[WS] "+e.data); }
+function loadList(){ fetch('/dllList').then(r=>r.json()).then(j=>log(JSON.stringify(j,null,2))); }
+function callGeneric(){
+  const dll=document.getElementById('dll').value, func=document.getElementById('func').value, args=JSON.parse(document.getElementById('args').value);
+  fetch('/api/call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dll,func,args})}).then(r=>r.json()).then(j=>log(JSON.stringify(j,null,2)));
+}
+function callWs(){
+  const dll=document.getElementById('dll').value, func=document.getElementById('func').value, args=JSON.parse(document.getElementById('args').value);
+  ensureWs(()=>{ ws.send(JSON.stringify({cmd:'call',dll,func,args})); log("[SEND] call "+dll+"."+func); });
+}
+function testOld(){ fetch('/wbaseReport?hs_chk=1&top_mag=10&left_mag=10&PrtIndex=0&IsPrint=0&path=C%3A%5Ctemp%5Cwbase_test.pdf').then(r=>r.json()).then(j=>log(JSON.stringify(j,null,2))); }
+loadList();
 </script></body></html>

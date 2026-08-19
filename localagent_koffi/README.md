@@ -1,36 +1,40 @@
-# v22 Dual Mode
+# v26 通用版 - 多DLL多函數
 
-## 兩種模式
-- koffi: Node.js 直接 load wbaseRP.dll，最快，維護最簡單 (推薦)
-- bridge: Node.js 呼叫 WbaseBridge.exe (Delphi 寫的)，再由 exe 呼叫 DLL，最穩，pkg 不會出問題
+## 1. 只改 dlls.json 就能擴充
+{
+  "dlls": {
+    "wbaseRP": {
+      "path": "wbase/wbaseRP.dll",
+      "functions": {
+        "waccrep3101_b": { "ret": "int", "params": ["double","double","double","int","int","str"], "bringToFront": true },
+        "waccrep3102_b": { "ret": "int", "params": ["double","str"] }
+      }
+    },
+    "newDLL": {
+      "path": "wbase/new.dll",
+      "functions": {
+        "newFunc": { "ret": "int", "params": ["int","str"] }
+      }
+    }
+  }
+}
 
-## 切換方式 (3種)
-1. 環境變數 (發佈時用):
-   set WBASE_MODE=bridge
-   Rx3000Agent.exe
-   或
-   set WBASE_MODE=koffi
-   Rx3000Agent.exe
+## 2. agent.js 通用呼叫 (koffi 模式)
+POST http://localhost:18889/api/call
+Body: { "dll": "wbaseRP", "func": "waccrep3101_b", "args": [1,10,10,0,0,"C:\\temp\\a.pdf"] }
 
-2. WS 即時切換 (測試用):
-   ws.send(JSON.stringify({cmd:'setMode', mode:'bridge'}))
-   ws.send(JSON.stringify({cmd:'setMode', mode:'koffi'}))
+GET http://localhost:18889/api/call?dll=wbaseRP&func=waccrep3101_b&args=[1,10,10,0,0,"C:\\temp\\a.pdf"]
 
-3. 改 agent.js 第一行 CONFIG.MODE 預設值
+WS: ws.send(JSON.stringify({cmd:"call", dll:"wbaseRP", func:"waccrep3101_b", args:[1,10,10,0,0,"C:\\temp\\a.pdf"]}))
 
-## 編譯 WbaseBridge.exe (Delphi 團隊維護)
-1. 開啟 bridge/delphi/WbaseBridge.dpr
-2. Delphi 編譯成 WbaseBridge.exe
-3. 放到 專案根目錄 或 dist\
+## 3. WbaseBridge 通用呼叫 (bridge 模式)
+WbaseBridge.exe --dll wbase/wbaseRP.dll --func waccrep3101_b --args "[1,10,10,0,0,\"C:\\temp\\a.pdf\"]"
 
-## 發佈結構
-dist/
-  Rx3000Agent.exe
-  WbaseBridge.exe (bridge 模式才需要)
-  wbase/
-    wbaseRP.dll
-  test.html
+舊相容:
+WbaseBridge.exe 1 10 10 0 0 C:\temp\a.pdf
 
-## 測試
-http://localhost:18889/config 查看目前模式
-http://localhost:18889/wbaseReport?handle=0&path=C:\temp\test.pdf
+## 4. 加新函數要改哪裡
+- koffi 模式: 完全不用改程式，只要改 dlls.json
+- bridge 模式: WbaseBridge.lpr 最下方有 // ========== 通用分發表 ========== 註解處，複製 waccrep3101_b 那一段，改參數類型即可
+
+因為 Pascal 無法真正動態呼叫任意簽名，所以 bridge 需要加一個分支，但只要 5 行。

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectSession>
+    <PathDelim Value="\"/>
+    <Version Value="12"/>
+    <BuildModes Active="Debug"/>
+    <Units>
+      <Unit>
+        <Filename Value="WbaseBridge_Generic.lpr"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="WbaseBridge"/>
+        <IsVisibleTab Value="True"/>
+        <TopLine Value="25"/>
+        <CursorPos X="113" Y="46"/>
+        <UsageCount Value="20"/>
+        <Loaded Value="True"/>
+      </Unit>
+    </Units>
+    <JumpHistory HistoryIndex="3">
+      <Position>
+        <Filename Value="WbaseBridge_Generic.lpr"/>
+        <Caret Line="15" Column="41"/>
+      </Position>
+      <Position>
+        <Filename Value="WbaseBridge_Generic.lpr"/>
+        <Caret Line="121" Column="9" TopLine="101"/>
+      </Position>
+      <Position>
+        <Filename Value="WbaseBridge_Generic.lpr"/>
+        <Caret Line="177" Column="10" TopLine="170"/>
+      </Position>
+      <Position>
+        <Filename Value="WbaseBridge_Generic.lpr"/>
+        <Caret Line="112" Column="2" TopLine="100"/>
+      </Position>
+    </JumpHistory>
+    <RunParams>
+      <FormatVersion Value="2"/>
+      <Modes ActiveMode=""/>
+    </RunParams>
+  </ProjectSession>
+</CONFIG>

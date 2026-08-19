@@ -5,14 +5,27 @@ const path = require('path');
 const os = require('os');
 const { execFile } = require('child_process');
 
+// ========== 通用設定檔 ==========
+let DLL_CONFIG = { dlls: {} };
+try {
+  const cfgPath = path.join(__dirname, 'dlls.json');
+  if (fs.existsSync(cfgPath)) {
+    DLL_CONFIG = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    console.log('[CONFIG] 載入 dlls.json', Object.keys(DLL_CONFIG.dlls || {}));
+  }
+} catch(e) { console.error('dlls.json 載入失敗', e.message); }
+
 const CONFIG = {
-  MODE: process.env.WBASE_MODE || 'koffi', // koffi | bridge
+  MODE: process.env.WBASE_MODE || 'koffi',
   PORT: 18889,
-  getDllPath() {
+  getDllPath(dllKey) {
+    if (process.env.WBASE_DLL_PATH && fs.existsSync(process.env.WBASE_DLL_PATH)) return process.env.WBASE_DLL_PATH;
+    const info = (DLL_CONFIG.dlls || {})[dllKey];
+    if (!info) return null;
     const cands = [
-      path.join(path.dirname(process.execPath), 'wbase', 'wbaseRP.dll'),
-      path.join(__dirname, 'wbase', 'wbaseRP.dll'),
-      'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll'
+      path.join(path.dirname(process.execPath), info.path),
+      path.join(__dirname, info.path),
+      ...(info.fallback_paths || [])
     ];
     for (const p of cands) if (fs.existsSync(p)) return p;
     return cands[0];
@@ -20,118 +33,102 @@ const CONFIG = {
   getBridgePath() {
     const cands = [
       path.join(path.dirname(process.execPath), 'WbaseBridge.exe'),
-      path.join(path.dirname(process.execPath), 'bridge', 'WbaseBridge.exe'),
       path.join(__dirname, 'WbaseBridge.exe'),
       path.join(__dirname, 'bridge', 'WbaseBridge.exe'),
-      'F:\\ADSProject\\Wx3000\\localagent_koffi\\bridge\\lazarus\\lib\\x86_64-win64\\WbaseBridge.exe'
     ];
     for (const p of cands) if (fs.existsSync(p)) return p;
     return cands[0];
   }
 };
 
-console.log(`[CONFIG] MODE=${CONFIG.MODE}`);
-
 let koffi = null;
-let wbaseLib = null;
-let waccrep3101_b = null;
+try { koffi = require('koffi'); } catch(e) { console.warn('koffi not installed, 請 npm install koffi 或用 bridge 模式'); }
 
-function loadKoffi() {
-  if (CONFIG.MODE !== 'koffi') return { success: false, error: 'MODE=bridge' };
-  try { koffi = require('koffi'); } catch (e) {
-    return { success: false, error: 'koffi not installed' };
-  }
-  const dllPath = CONFIG.getDllPath();
+const loadedLibs = {}; // dllKey -> { lib, funcs: {name: func} }
+
+function loadDllKoffi(dllKey) {
+  if (!koffi) return { success: false, error: 'koffi not installed' };
+  const info = DLL_CONFIG.dlls[dllKey];
+  if (!info) return { success: false, error: `dll ${dllKey} not in dlls.json` };
+  const dllPath = CONFIG.getDllPath(dllKey);
+  if (!fs.existsSync(dllPath)) return { success: false, error: `DLL not found: ${dllPath}` };
+  
   try {
-    if (!fs.existsSync(dllPath)) return { success: false, error: `DLL not found: ${dllPath}` };
-    wbaseLib = koffi.load(dllPath);
-    // 新版: 取消 vMainAppHandle，只剩 6 參數
-    // Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const path: ansistring): integer; stdcall;
-    waccrep3101_b = wbaseLib.func('__stdcall', 'waccrep3101_b', 'int', [
-      'double', // hs_chk
-      'double', // top_mag
-      'double', // left_mag
-      'int',    // PrtIndex
-      'int',    // IsPrint
-      'str'     // path
-    ]);
-    console.log(`[DLL][koffi] 載入成功 (無Handle版): ${dllPath}`);
+    if (!loadedLibs[dllKey]) {
+      const lib = koffi.load(dllPath);
+      loadedLibs[dllKey] = { lib, path: dllPath, funcs: {}, info };
+    }
+    const entry = loadedLibs[dllKey];
+    // 載入所有函數
+    for (const [funcName, funcDef] of Object.entries(info.functions || {})) {
+      if (!entry.funcs[funcName]) {
+        entry.funcs[funcName] = entry.lib.func('__stdcall', funcDef.func || funcName, funcDef.ret || 'int', funcDef.params || []);
+        console.log(`[koffi] ${dllKey}.${funcName} 載入成功`);
+      }
+    }
     return { success: true, dllPath };
-  } catch (e) {
-    console.error('[DLL][koffi] 載入失敗', e.message);
+  } catch(e) {
     return { success: false, error: e.message };
   }
 }
 
-if (CONFIG.MODE === 'koffi') loadKoffi();
+// 預先載入
+if (CONFIG.MODE === 'koffi') {
+  for (const k of Object.keys(DLL_CONFIG.dlls || {})) loadDllKoffi(k);
+}
 
-function callViaKoffi(hs_chk, top_mag, left_mag, PrtIndex, IsPrint, savePath) {
-  if (!waccrep3101_b) {
-    const r = loadKoffi();
+function callViaKoffi(dllKey, funcName, args) {
+  const entry = loadedLibs[dllKey];
+  if (!entry || !entry.funcs[funcName]) {
+    const r = loadDllKoffi(dllKey);
     if (!r.success) return r;
   }
   try {
-    const dir = path.dirname(savePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const ret = waccrep3101_b(
-      parseFloat(hs_chk) || 0,
-      parseFloat(top_mag) || 0,
-      parseFloat(left_mag) || 0,
-      parseInt(PrtIndex) || 0,
-      parseInt(IsPrint) || 0,
-      savePath
-    );
-    return { success: true, mode: 'koffi', retCode: ret, path: savePath };
-  } catch (e) {
+    const fn = loadedLibs[dllKey].funcs[funcName];
+    if (!fn) return { success: false, error: `func ${funcName} not found` };
+    // 確保目錄存在 (如果最後一個參數是路徑)
+    const last = args[args.length-1];
+    if (typeof last === 'string' && (last.includes(':\\') || last.includes('/'))) {
+      try { const dir = path.dirname(last); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch(e) {}
+    }
+    const ret = fn(...args);
+    return { success: true, mode: 'koffi', dll: dllKey, func: funcName, retCode: ret };
+  } catch(e) {
     return { success: false, mode: 'koffi', error: e.message };
   }
 }
 
-function callViaBridge(hs_chk, top_mag, left_mag, PrtIndex, IsPrint, savePath, timeoutMs = 30000) {
+function callViaBridge(dllKey, funcName, args) {
   return new Promise((resolve) => {
     const bridgePath = CONFIG.getBridgePath();
     if (!fs.existsSync(bridgePath)) {
       resolve({ success: false, mode: 'bridge', error: `Bridge not found: ${bridgePath}` });
       return;
     }
-    try {
-      const dir = path.dirname(savePath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    } catch (e) { }
-
-    const args = [
-      String(parseFloat(hs_chk) || 0),
-      String(parseFloat(top_mag) || 0),
-      String(parseFloat(left_mag) || 0),
-      String(parseInt(PrtIndex) || 0),
-      String(parseInt(IsPrint) || 0),
-      savePath
-    ];
-    console.log(`[DLL][bridge] exec ${bridgePath} ${args.join(' ')}`);
-    execFile(bridgePath, args, { timeout: timeoutMs, windowsHide: true }, (err, stdout, stderr) => {
+    // 通用參數格式: --dll wbaseRP --func waccrep3101_b --args JSON
+    const argsJson = JSON.stringify(args);
+    const dllPath = CONFIG.getDllPath(dllKey) || dllKey;
+    const cmdArgs = ['--dll', dllPath, '--func', funcName, '--args', argsJson, '--dllkey', dllKey];
+    
+    execFile(bridgePath, cmdArgs, { timeout: 60000, windowsHide: false }, (err, stdout, stderr) => {
       if (err) {
-        resolve({ success: false, mode: 'bridge', error: err.message, stderr });
+        resolve({ success: false, mode: 'bridge', error: err.message, stderr, stdout });
         return;
       }
       const out = stdout.toString().trim();
-      if (out.startsWith('OK:')) {
-        resolve({ success: true, mode: 'bridge', retCode: parseInt(out.substring(3)) || 0, path: savePath, raw: out });
-      } else if (out.startsWith('ERROR:')) {
-        resolve({ success: false, mode: 'bridge', error: out });
+      if (out.includes('OK:')) {
+        const m = out.match(/OK:(-?\d+)/);
+        resolve({ success: true, mode: 'bridge', retCode: m ? parseInt(m[1]) : 0, raw: out });
       } else {
-        resolve({ success: true, mode: 'bridge', retCode: parseInt(out) || 0, path: savePath, raw: out });
+        resolve({ success: false, mode: 'bridge', error: out || stderr });
       }
     });
   });
 }
 
-async function call_waccrep3101_b(hs_chk, top_mag, left_mag, PrtIndex, IsPrint, savePath) {
-  if (!savePath) return { success: false, error: 'path 空' };
-  if (CONFIG.MODE === 'bridge') {
-    return await callViaBridge(hs_chk, top_mag, left_mag, PrtIndex, IsPrint, savePath);
-  } else {
-    return callViaKoffi(hs_chk, top_mag, left_mag, PrtIndex, IsPrint, savePath);
-  }
+async function genericCall(dllKey, funcName, args) {
+  if (CONFIG.MODE === 'bridge') return await callViaBridge(dllKey, funcName, args);
+  return callViaKoffi(dllKey, funcName, args);
 }
 
 function getMacs() {
@@ -143,46 +140,82 @@ function getMacs() {
   return [...new Set(macs)];
 }
 
+// ========== HTTP + WS ==========
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
   const url = new URL(req.url, `http://localhost:${CONFIG.PORT}`);
 
   if (url.pathname === '/mac') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.writeHead(200, {'Content-Type':'application/json'});
     res.end(JSON.stringify({ success: true, macs: getMacs() }));
     return;
   }
   if (url.pathname === '/config') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      mode: CONFIG.MODE,
-      dllPath: CONFIG.getDllPath(),
-      dllExists: fs.existsSync(CONFIG.getDllPath()),
-      bridgePath: CONFIG.getBridgePath(),
-      bridgeExists: fs.existsSync(CONFIG.getBridgePath()),
-      signature: 'waccrep3101_b(hs_chk, top_mag, left_mag: double; PrtIndex, IsPrint: integer; path: ansistring)'
-    }));
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ mode: CONFIG.MODE, dlls: DLL_CONFIG, bridgeExists: fs.existsSync(CONFIG.getBridgePath()) }));
     return;
   }
+  if (url.pathname === '/dllList') {
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify(DLL_CONFIG));
+    return;
+  }
+  // 舊相容
   if (url.pathname === '/wbaseReport') {
-    const result = await call_waccrep3101_b(
-      url.searchParams.get('hs_chk') || '0',
-      url.searchParams.get('top_mag') || '0',
-      url.searchParams.get('left_mag') || '0',
-      url.searchParams.get('PrtIndex') || '0',
-      url.searchParams.get('IsPrint') || '0',
-      url.searchParams.get('path') || 'C:\\temp\\wbase_report.pdf'
-    );
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    const args = [
+      parseFloat(url.searchParams.get('hs_chk')||'0'),
+      parseFloat(url.searchParams.get('top_mag')||'0'),
+      parseFloat(url.searchParams.get('left_mag')||'0'),
+      parseInt(url.searchParams.get('PrtIndex')||'0'),
+      parseInt(url.searchParams.get('IsPrint')||'0'),
+      url.searchParams.get('path')||'C:\\temp\\wbase_report.pdf'
+    ];
+    const result = await genericCall('wbaseRP', 'waccrep3101_b', args);
+    res.writeHead(200, {'Content-Type':'application/json'});
     res.end(JSON.stringify(result));
     return;
   }
+  // 通用 POST /api/call
+  if (url.pathname === '/api/call' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const result = await genericCall(data.dll, data.func, data.args || []);
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify(result));
+      } catch(e) {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    });
+    return;
+  }
+  // 通用 GET /api/call?dll=...&func=...&args=JSON
+  if (url.pathname === '/api/call' && req.method === 'GET') {
+    try {
+      const dll = url.searchParams.get('dll');
+      const func = url.searchParams.get('func');
+      const argsStr = url.searchParams.get('args') || '[]';
+      const args = JSON.parse(argsStr);
+      const result = await genericCall(dll, func, args);
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify(result));
+      return;
+    } catch(e) {
+      res.writeHead(400, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ success: false, error: e.message }));
+      return;
+    }
+  }
   if (url.pathname === '/' || url.pathname === '/test.html') {
     const p = path.join(__dirname, 'test.html');
-    if (fs.existsSync(p)) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(fs.readFileSync(p)); return; }
+    if (fs.existsSync(p)) { res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'}); res.end(fs.readFileSync(p)); return; }
   }
   res.writeHead(404); res.end('Not Found');
 });
@@ -192,20 +225,21 @@ wss.on('connection', (ws) => {
   ws.on('message', async (msg) => {
     try {
       const data = JSON.parse(msg.toString());
-      if (data.cmd === 'mac') ws.send(JSON.stringify({ cmd: 'mac', success: true, macs: getMacs() }));
-      if (data.cmd === 'setMode' && (data.mode === 'koffi' || data.mode === 'bridge')) {
-        CONFIG.MODE = data.mode;
-        if (CONFIG.MODE === 'koffi') loadKoffi();
-        ws.send(JSON.stringify({ cmd: 'setMode', success: true, mode: CONFIG.MODE }));
+      if (data.cmd === 'mac') ws.send(JSON.stringify({ cmd:'mac', success:true, macs:getMacs() }));
+      if (data.cmd === 'dllList') ws.send(JSON.stringify({ cmd:'dllList', ...DLL_CONFIG }));
+      if (data.cmd === 'setMode') { CONFIG.MODE = data.mode; ws.send(JSON.stringify({ cmd:'setMode', success:true, mode:CONFIG.MODE })); }
+      if (data.cmd === 'call') {
+        const r = await genericCall(data.dll, data.func, data.args || []);
+        ws.send(JSON.stringify({ cmd:'call', ...r }));
       }
       if (data.cmd === 'wbaseReport') {
-        const r = await call_waccrep3101_b(data.hs_chk, data.top_mag, data.left_mag, data.PrtIndex, data.IsPrint, data.path);
-        ws.send(JSON.stringify({ cmd: 'wbaseReport', ...r }));
+        const r = await genericCall('wbaseRP', 'waccrep3101_b', [data.hs_chk, data.top_mag, data.left_mag, data.PrtIndex, data.IsPrint, data.path]);
+        ws.send(JSON.stringify({ cmd:'wbaseReport', ...r }));
       }
-    } catch (e) { ws.send(JSON.stringify({ success: false, error: e.message })); }
+    } catch(e) { ws.send(JSON.stringify({ success:false, error:e.message })); }
   });
 });
 
 server.listen(CONFIG.PORT, () => {
-  console.log(`Rx3000Agent v23 noHandle running http://localhost:${CONFIG.PORT} MODE=${CONFIG.MODE}`);
+  console.log(`Rx3000Agent v26 generic http://localhost:${CONFIG.PORT} MODE=${CONFIG.MODE}`);
 });
