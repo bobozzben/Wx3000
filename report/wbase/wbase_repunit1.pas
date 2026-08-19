@@ -17,7 +17,7 @@ Procedure WriteStrToFile_Debug(WriteStr: String; FileName: String = 'C:\BENDEBUG
 
 
 //Function waccrep3101_b(): integer; stdcall;
-Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer): integer; stdcall;
+Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; const fpath: AnsiString): integer; stdcall;
 
 Implementation
 
@@ -119,7 +119,8 @@ End;
 
 
 //Function waccrep3101_b(): integer; stdcall;
-Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer): integer; stdcall;
+//Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer): integer; stdcall;
+Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; const fpath: AnsiString): integer; stdcall;
 Begin
   //  Application.Handle := vMainAppHandle;
   Result := 0;

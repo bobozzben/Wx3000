@@ -1,0 +1,22 @@
+{
+  "name": "rx3000-agent",
+  "version": "22.0.0",
+  "main": "agent.js",
+  "bin": "agent.js",
+  "pkg": {
+    "assets": [
+      "test.html",
+      "wbase/*.dll",
+      "WbaseBridge.exe",
+      "bridge/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
+  },
+  "dependencies": {
+    "koffi": "^2.16.3",
+    "ws": "^8.16.0"
+  }
+}
