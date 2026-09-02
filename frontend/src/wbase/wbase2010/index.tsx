@@ -8,13 +8,11 @@ import { useTheme } from '../menu/ThemeContext';
 import { FoxProGridCard } from '../../components/FoxProGridCard';
 import type { FoxProGridCardColumn } from '../../components/FoxProGridCard';
 import {
-  Folder,
   Search,
   Plus,
   Trash2,
   Edit3,
   LogOut,
-  X,
   Printer,
 } from 'lucide-react';
 
@@ -191,7 +189,7 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
           }}
           onDoubleClickRow={startEdit}
           onKeyDown={handleGridKeyDown}
-          gridContainerRef={gridContainerRef}
+          gridContainerRef={gridContainerRef as unknown as React.RefObject<HTMLDivElement>}
           loading={loading}
           emptyText="查無客戶資料"
           getItemKey={(c) => c.code}

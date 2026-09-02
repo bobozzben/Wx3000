@@ -18,10 +18,15 @@ namespace Wx3000.Backend.Data
         public DbSet<FeeItemMaster> FeeItemMasters => Set<FeeItemMaster>();
         public DbSet<FeeSummaryMaster> FeeSummaryMasters => Set<FeeSummaryMaster>();
         public DbSet<NoteMaster> NoteMasters => Set<NoteMaster>();
+        public DbSet<TicketPlaceMaster> TicketPlaceMasters => Set<TicketPlaceMaster>();
+        public DbSet<InvoicePurchaseMaster> InvoicePurchaseMasters => Set<InvoicePurchaseMaster>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<InvoicePurchaseMaster>()
+                .HasKey(i => new { i.Period, i.Times, i.CompanyCode });
 
             modelBuilder.Entity<PurchaseHeader>()
                 .HasIndex(p => p.BillNo)

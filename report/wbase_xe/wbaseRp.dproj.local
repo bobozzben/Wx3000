@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
-  <Transactions>
-    <Transaction>2026/08/11 16:52:31.772,F:\ADSProject\Wx3000\report\wbase_xe\wbaseRp.dproj=C:\Users\ben\OneDrive\文件\RAD Studio\Projects\Project1.dproj</Transaction>
+	<Transactions>
+    <Transaction>2026/08/11 16:52:31.000.772,C:\Users\ben\OneDrive\文件\RAD Studio\Projects\Project1.dproj=F:\ADSProject\Wx3000\report\wbase_xe\wbaseRp.dproj</Transaction>
   </Transactions>
 </BorlandProject>

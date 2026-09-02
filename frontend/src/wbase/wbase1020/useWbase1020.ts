@@ -120,15 +120,13 @@ export const useWbase1020 = create<Wbase1020State>((set, get) => ({
     }
 
     try {
-      const res = await deleteCpa(target.cpaCode);
-      if (res) {
-        set({
-          selectedIndex: Math.max(0, selectedIndex - 1),
-          isDeleteConfirmOpen: false,
-        });
-        await refreshData();
-        return true;
-      }
+      await deleteCpa(target.cpaCode);
+      set({
+        selectedIndex: Math.max(0, selectedIndex - 1),
+        isDeleteConfirmOpen: false,
+      });
+      await refreshData();
+      return true;
     } catch (e) {
       console.error('Delete CPA error:', e);
       set({ errorToast: '刪除會計師資料失敗' });

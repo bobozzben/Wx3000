@@ -3,6 +3,12 @@ import { SearchModal } from './SearchModal';
 import type { SearchItem } from './SearchModal';
 import { useTheme } from '../../wbase/menu/ThemeContext';
 
+export interface HeaderGroupDef {
+  label: React.ReactNode;
+  width?: string;
+  className?: string;
+}
+
 export interface ColumnDefV2<T> {
   key: keyof T & string;
   label: string;
@@ -20,6 +26,8 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
   rows: T[];
   /** Column definitions */
   columns: ColumnDefV2<T>[];
+  /** Optional top multi-level header groups */
+  headerGroups?: HeaderGroupDef[];
   /** Factory function to create a new blank row */
   createEmptyRow: () => T;
   /** Row data update callback */
@@ -47,6 +55,7 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
 export function FoxProGridV2<T extends Record<string, any>>({
   rows,
   columns,
+  headerGroups,
   createEmptyRow,
   onRowsChange,
   onSaveRow,
@@ -384,6 +393,27 @@ export function FoxProGridV2<T extends Record<string, any>>({
           isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-blue-900'
         }`}
       >
+        {/* Grouped Header Row */}
+        {headerGroups && headerGroups.length > 0 && (
+          <div
+            className={`flex text-xs font-bold tracking-wider h-[30px] shrink-0 border-b transition-colors ${
+              isDark ? 'bg-slate-950/90 text-slate-200 border-slate-800' : 'bg-[#0f2557] text-blue-100 border-blue-900'
+            }`}
+          >
+            {headerGroups.map((grp, gIdx) => (
+              <div
+                key={gIdx}
+                style={{ width: grp.width }}
+                className={`h-full flex items-center justify-center border-r last:border-r-0 shrink-0 ${
+                  grp.className || ''
+                }`}
+              >
+                {grp.label}
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Header */}
         <div
           className={`flex text-sm font-bold tracking-wider h-[38px] shrink-0 border-b transition-colors ${

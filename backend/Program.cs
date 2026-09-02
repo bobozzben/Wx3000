@@ -1,4 +1,5 @@
 using Wx3000.Backend.Data;
+using Wx3000.Backend.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +14,9 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 // Register EF Core PostgreSQL DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
+
+// Register SystemParamService
+builder.Services.AddScoped<ISystemParamService, SystemParamService>();
 
 // Add CORS Policy for Frontend & ngrok
 builder.Services.AddCors(options =>

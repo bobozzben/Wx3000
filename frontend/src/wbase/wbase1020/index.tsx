@@ -36,7 +36,6 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
     selectedIndex,
     refreshData,
     handleSaveRow,
-    handleSaveAll,
     openDeleteConfirm,
     confirmDelete,
     openPrint,

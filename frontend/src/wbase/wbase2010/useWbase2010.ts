@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   type CompanyItem,
-  FIELD_METADATA,
   TAB_FIELDS_MAP,
   INITIAL_COMPANIES,
 } from './companyFieldDefs';
@@ -17,7 +16,7 @@ export function useWbase2010() {
   const [isPrintOpen, setIsPrintOpen] = useState<boolean>(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
 
-  const gridContainerRef = useRef<HTMLDivElement | null>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
   const inputRefsMap = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement>>(new Map());
 
   // Flattened field order across all tabs (0..5) for Enter key navigation

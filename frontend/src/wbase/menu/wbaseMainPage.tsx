@@ -11,6 +11,8 @@ import { Wbase1060Page } from '../wbase1060';
 import { Wbase1070Page } from '../wbase1070';
 import { Wbase1080Page } from '../wbase1080';
 import { Wbase2010Page } from '../wbase2010';
+import { Wbase3010Page } from '../wbase3010';
+import { Wbase3020Page } from '../wbase3020';
 import { ArrowLeft, LayoutGrid, Sun, Moon } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 
@@ -34,6 +36,10 @@ export const WbaseMainPage: React.FC = () => {
       setActiveModule('wbase1080');
     } else if (item.code === 'wbase2010') {
       setActiveModule('wbase2010');
+    } else if (item.code === 'wbase3010') {
+      setActiveModule('wbase3010');
+    } else if (item.code === 'wbase3020') {
+      setActiveModule('wbase3020');
     } else if (item.code === 'A00') {
       // 結束離開
       if (window.confirm('確定要離開系統嗎？')) {
@@ -131,7 +137,13 @@ export const WbaseMainPage: React.FC = () => {
               }`}
             >
               <LayoutGrid className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-              <span>{activeModule?.startsWith('wbase20') ? '客戶資料' : '事務所資料'}</span>
+              <span>
+                {activeModule?.startsWith('wbase30')
+                  ? '發票統購'
+                  : activeModule?.startsWith('wbase20')
+                  ? '客戶資料'
+                  : '事務所資料'}
+              </span>
               <span className={isDark ? 'text-slate-700' : 'text-slate-300'}>/</span>
               <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 {activeModule === 'wbase1020'
@@ -146,6 +158,10 @@ export const WbaseMainPage: React.FC = () => {
                   ? '基本收費摘要'
                   : activeModule === 'wbase2010'
                   ? '客戶資料建檔'
+                  : activeModule === 'wbase3010'
+                  ? '購買地點'
+                  : activeModule === 'wbase3020'
+                  ? '預購統一發票輸入'
                   : '員工資料'}
               </span>
               <span className={`text-xs ml-1 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
@@ -192,6 +208,10 @@ export const WbaseMainPage: React.FC = () => {
             <Wbase1080Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase2010' ? (
             <Wbase2010Page onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase3010' ? (
+            <Wbase3010Page onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase3020' ? (
+            <Wbase3020Page onBackToMenu={() => setActiveModule(null)} />
           ) : (
             <Wbase1030Page onBackToMenu={() => setActiveModule(null)} />
           )}

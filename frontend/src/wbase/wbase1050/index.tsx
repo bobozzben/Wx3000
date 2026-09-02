@@ -36,7 +36,6 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
     selectedIndex,
     refreshData,
     handleSaveRow,
-    handleSaveAll,
     openDeleteConfirm,
     confirmDelete,
     openPrint,
@@ -172,7 +171,7 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
           statusBarInfo={
             selectedRow ? (
               <span className="text-xs">
-                目前選取：[{selectedRow.taxCode}] {selectedRow.taxName} | 分機：{selectedRow.extension || '-'}
+                目前選取：[{selectedRow.taxCode}] {selectedRow.taxName} | 分機：{selectedRow.ext || '-'}
               </span>
             ) : null
           }

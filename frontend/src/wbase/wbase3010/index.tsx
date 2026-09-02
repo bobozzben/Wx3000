@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useWbase1060 } from './useWbase1060';
-import { Wbase1060Form } from './Wbase1060Form';
-import { Wbase1060Print } from './wbase1060Print';
+import { useWbase3010 } from './useWbase3010';
+import { Wbase3010Form } from './Wbase3010Form';
+import { Wbase3010Print } from './wbase3010Print';
 import {
-  DollarSign,
+  MapPin,
   Search,
   RefreshCw,
   Printer,
@@ -15,11 +15,11 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../menu/ThemeContext';
 
-interface Wbase1060PageProps {
+interface Wbase3010PageProps {
   onBackToMenu?: () => void;
 }
 
-export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) => {
+export const Wbase3010Page: React.FC<Wbase3010PageProps> = ({ onBackToMenu }) => {
   const { isDark } = useTheme();
 
   const {
@@ -39,7 +39,7 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
     openDeleteConfirm,
     confirmDelete,
     openPrint,
-  } = useWbase1060();
+  } = useWbase3010();
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -119,17 +119,17 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
             </button>
           )}
           <div className="p-2 bg-yellow-400 text-black rounded font-bold">
-            <DollarSign className="w-6 h-6" />
+            <MapPin className="w-6 h-6" />
           </div>
           <div>
             <h1 className="text-xl font-black tracking-wider flex items-center gap-2">
-              基本收費項目維護
+              統一發票購買地點維護
               <span className="text-xs px-2 py-0.5 rounded bg-blue-800 text-white font-normal">
-                wbase1060
+                wbase3010
               </span>
             </h1>
             <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
-              設定與管理標準收費項目 (PostgreSQL Table: 基本收費項目)
+              設定與管理統一發票購買地點 (PostgreSQL Table: 基本購票地點)
             </p>
           </div>
         </div>
@@ -139,7 +139,7 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
           <div className="relative">
             <input
               type="text"
-              placeholder="搜尋項目代號 / 項目名稱..."
+              placeholder="搜尋代號 / 購買地點 / 連絡人..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`w-64 px-3 py-1.5 rounded text-sm focus:outline-none border ${
@@ -161,7 +161,7 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
 
       {/* Main Grid Content Area */}
       <div className="flex-1 p-6 flex flex-col min-h-0">
-        <Wbase1060Form
+        <Wbase3010Form
           rows={rows}
           onRowsChange={setRows}
           onSaveRow={handleSaveRow}
@@ -172,8 +172,7 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
           statusBarInfo={
             selectedRow ? (
               <span className="text-xs">
-                目前選取：[{selectedRow.feeCode}] {selectedRow.feeName} | 收費金額：NT${' '}
-                {Number(selectedRow.price || 0).toLocaleString('zh-TW', { minimumFractionDigits: 2 })}
+                目前選取：[{selectedRow.placeCode}] {selectedRow.placeName || '未命名'} | 連絡人：{selectedRow.contactPerson || '(無)'} | 電話：{selectedRow.contactTel || '(無)'}
               </span>
             ) : null
           }
@@ -240,12 +239,12 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
           >
             <div className="flex items-center space-x-3 text-red-500 mb-4">
               <AlertTriangle className="w-8 h-8 shrink-0" />
-              <h3 className="text-lg font-bold">確認刪除該筆收費項目？</h3>
+              <h3 className="text-lg font-bold">確認刪除該筆購票地點？</h3>
             </div>
             <p className="text-sm mb-6 leading-relaxed">
-              您即將刪除收費項目：
+              您即將刪除購票地點：
               <span className="font-bold text-yellow-400 ml-1">
-                [{selectedRow.feeCode}] {selectedRow.feeName}
+                [{selectedRow.placeCode}] {selectedRow.placeName}
               </span>
               <br />
               此操作將從 PostgreSQL 資料庫中移除資料，無法復原。
@@ -295,9 +294,9 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
       )}
 
       {/* Print Preview Dialog */}
-      <Wbase1060Print />
+      <Wbase3010Print />
     </div>
   );
 };
 
-export default Wbase1060Page;
+export default Wbase3010Page;
