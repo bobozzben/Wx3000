@@ -50,7 +50,6 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
     mode,
     activeTab,
     isSearchOpen,
-    setIsSearchOpen,
     searchQuery,
     setSearchQuery,
     isPrintOpen,
@@ -66,20 +65,88 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
     saveForm,
     deleteSelected,
     handleGridKeyDown,
-  } = useWbase2010();
+    openSearchModal,
+    closeSearchModal,
+    selectCompanyFromSearch,
+  } = useWbase2010(onBackToMenu);
 
-  // Scroll active row into view in grid mode and auto focus Grid
+  const [searchModalIndex, setSearchModalIndex] = React.useState<number>(0);
+  const modalListRef = React.useRef<HTMLDivElement>(null);
+
+  // Reset modal highlighted index when search modal opens or search query changes
+  useEffect(() => {
+    if (isSearchOpen) {
+      setSearchModalIndex(0);
+    }
+  }, [isSearchOpen, searchQuery]);
+
+  // Scroll active search item into view inside search modal list
+  useEffect(() => {
+    if (isSearchOpen) {
+      const el = document.getElementById(`search-item-${searchModalIndex}`);
+      const container = modalListRef.current;
+      if (el && container) {
+        const containerTop = container.scrollTop;
+        const containerHeight = container.clientHeight;
+        const rowTop = el.offsetTop;
+        const rowHeight = el.offsetHeight;
+
+        if (rowTop < containerTop) {
+          container.scrollTop = rowTop;
+        } else if (rowTop + rowHeight > containerTop + containerHeight) {
+          container.scrollTop = rowTop + rowHeight - containerHeight;
+        }
+      }
+    }
+  }, [searchModalIndex, isSearchOpen]);
+
+  const handleSearchModalKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSearchModalIndex((prev) => Math.min(filteredCompanies.length - 1, prev + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSearchModalIndex((prev) => Math.max(0, prev - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredCompanies.length > 0 && filteredCompanies[searchModalIndex]) {
+        selectCompanyFromSearch(filteredCompanies[searchModalIndex].code);
+      }
+    } else if (e.key === 'Escape' || e.key === 'F2') {
+      e.preventDefault();
+      closeSearchModal();
+    }
+  };
+
+  // Scroll active row into view inside grid container in grid mode (strictly scoped to container)
   useEffect(() => {
     if (mode === 'grid') {
-      document.getElementById(`row-${selectedIndex}`)?.scrollIntoView({
-        block: 'nearest',
-      });
+      const el = document.getElementById(`row-${selectedIndex}`);
+      const container = gridContainerRef.current;
+      if (el && container) {
+        const containerTop = container.scrollTop;
+        const containerHeight = container.clientHeight;
+        const rowTop = el.offsetTop;
+        const rowHeight = el.offsetHeight;
+
+        if (rowTop < containerTop) {
+          container.scrollTop = rowTop;
+        } else if (rowTop + rowHeight > containerTop + containerHeight) {
+          container.scrollTop = rowTop + rowHeight - containerHeight;
+        }
+      }
+    }
+  }, [selectedIndex, mode, loading]);
+
+  // Auto focus grid container when entering page or when mode is grid
+  useEffect(() => {
+    if (mode === 'grid') {
       const timer = setTimeout(() => {
         gridContainerRef.current?.focus();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [selectedIndex, mode, loading]);
+  }, [mode, loading]);
 
   const selectedCompany = filteredCompanies[selectedIndex] || companies[0] || null;
 
@@ -159,7 +226,7 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
           </div>
 
           <button
-            onClick={() => setIsSearchOpen(true)}
+            onClick={openSearchModal}
             className={`h-8 w-8 md:w-auto md:px-3 rounded-lg border flex items-center justify-center gap-1.5 text-[12px] font-medium transition ${
               isDark
                 ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200'
@@ -241,12 +308,13 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
             formData={formData}
             setFormData={setFormData}
             inputRefsMap={inputRefsMap}
+            mode={mode}
           />
         </div>
       </div>
 
       {/* Bottom Status Bar */}
-      <div className="mt-auto">
+      <div className="mt-auto sticky bottom-0 z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
         <div
           className={`h-8 border-t flex items-center justify-between px-4 text-[11px] ${
             isDark
@@ -256,9 +324,9 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
         >
           <div className="flex items-center gap-3 truncate">
             <span className="hidden md:inline">
-              Grid: ↑↓換筆 Enter/F6編修 | 分頁: Enter下一格 F3~F8切頁 Esc回Grid
+              Grid: ↑↓換筆 Enter/F6編修 | 編輯: Enter下一格 F3~F8切頁 Esc存檔回清單 | 瀏覽: Esc離開
             </span>
-            <span className="md:hidden">↑↓換筆 · Enter下一格 · Esc回Grid</span>
+            <span className="md:hidden">↑↓換筆 · Enter下一格 · Esc存檔/離開</span>
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <span className="hidden md:inline">
@@ -316,7 +384,7 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
               </button>
 
               <button
-                onClick={() => setIsSearchOpen(true)}
+                onClick={openSearchModal}
                 className="h-8 px-2.5 md:px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 border bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 transition"
               >
                 <Search size={14} />
@@ -361,21 +429,22 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
           <div className="h-[48px] bg-[#0F172A] flex items-center justify-between px-4">
             <div className="flex items-center gap-3 text-[12px] text-slate-300">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              編輯模式 · Enter 依序跳格 · 到最後自動回到 F3
+              編輯模式 · Enter 依序跳格 · Esc 儲存並回清單
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={saveForm}
-                className="h-8 px-4 rounded-lg bg-blue-600 text-white text-[12px] font-semibold hover:bg-blue-500 transition"
+                className="h-8 px-4 rounded-lg bg-blue-600 text-white text-[12px] font-semibold hover:bg-blue-500 transition flex items-center gap-1.5 shadow-sm"
               >
-                儲存
+                <span>儲存並回清單</span>
+                <span className="text-[10px] opacity-80 border border-white/30 rounded px-1 font-mono">Esc</span>
               </button>
               <button
                 onClick={cancelEdit}
-                className="h-8 px-4 rounded-lg bg-white text-slate-900 text-[12px] font-semibold hover:bg-slate-100 transition"
+                className="h-8 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[12px] font-medium border border-slate-700 transition"
               >
-                Esc 回清單
+                放棄修改
               </button>
             </div>
           </div>
@@ -384,27 +453,27 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
 
       {/* Search Modal Dialog (F2) */}
       {isSearchOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div
-            className={`rounded-[12px] shadow-2xl w-full max-w-[520px] overflow-hidden border ${
+            className={`rounded-[12px] shadow-2xl w-full max-w-[560px] overflow-hidden border-2 transition-colors ${
               isDark
-                ? 'bg-slate-800 border-slate-700 text-slate-100'
-                : 'bg-white border-slate-200 text-slate-900'
+                ? 'bg-slate-900 border-slate-700 text-slate-100'
+                : 'bg-white border-blue-900 text-slate-900'
             }`}
           >
             <div
               className={`h-12 px-5 flex items-center justify-between border-b ${
-                isDark ? 'border-slate-700' : 'border-slate-100'
+                isDark ? 'bg-slate-950 border-slate-800' : 'bg-[#1E3A8A] text-white'
               }`}
             >
-              <div className="flex items-center gap-2 font-semibold text-[14px]">
-                <Search size={16} className="text-blue-500" />
-                <span>查詢客戶 F2</span>
+              <div className="flex items-center gap-2 font-bold text-[14px]">
+                <Search size={16} className="text-yellow-400" />
+                <span>查詢客戶 F2 [純鍵盤 ↑↓移動 Enter選擇 Esc關閉]</span>
               </div>
               <button
-                onClick={() => setIsSearchOpen(false)}
+                onClick={closeSearchModal}
                 className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                  isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
+                  isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-blue-800 text-white'
                 }`}
               >
                 ✕
@@ -421,58 +490,83 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
                   autoFocus
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="輸入編號、名稱、統編..."
-                  className={`w-full h-10 pl-10 pr-3 rounded-[8px] border text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  onKeyDown={handleSearchModalKeyDown}
+                  placeholder="輸入編號、名稱、統編、負責人... (↑↓鍵選擇, Enter確定)"
+                  className={`w-full h-10 pl-10 pr-3 rounded-[8px] border text-[13px] focus:outline-none focus:ring-2 focus:ring-yellow-400 ${
                     isDark
-                      ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500'
-                      : 'bg-white border-[#D1D5DB] text-slate-800'
+                      ? 'bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-500'
+                      : 'bg-white border-[#D1D5DB] text-slate-800 font-mono'
                   }`}
                 />
               </div>
 
               <div
-                className={`mt-4 max-h-[280px] overflow-auto divide-y border rounded-lg ${
+                ref={modalListRef}
+                className={`mt-4 max-h-[300px] overflow-auto divide-y border rounded-lg ${
                   isDark
-                    ? 'border-slate-700 divide-slate-700/60'
-                    : 'border-slate-100 divide-slate-100'
+                    ? 'border-slate-700 divide-slate-800'
+                    : 'border-slate-200 divide-slate-100'
                 }`}
               >
-                {filteredCompanies.map((c) => (
-                  <button
-                    key={c.code}
-                    onClick={() => {
-                      const idx = companies.findIndex((item) => item.code === c.code);
-                      if (idx !== -1) setSelectedIndex(idx);
-                      setIsSearchOpen(false);
-                      setTimeout(() => gridContainerRef.current?.focus(), 100);
-                    }}
-                    className={`w-full text-left px-3 py-2.5 flex items-center justify-between transition ${
-                      isDark
-                        ? 'hover:bg-slate-700/60 text-slate-200'
-                        : 'hover:bg-[#F5F7FF] text-slate-900'
-                    }`}
-                  >
-                    <div>
-                      <div className="text-[13px] font-medium">
-                        {c.code} · {c.name}
-                      </div>
-                      <div
-                        className={`text-[11px] ${
-                          isDark ? 'text-slate-400' : 'text-slate-500'
-                        }`}
-                      >
-                        {c.uni || '-'} · {c.owner || '-'}
-                      </div>
-                    </div>
-                    <div
-                      className={`text-[11px] ${
-                        isDark ? 'text-slate-400' : 'text-slate-400'
+                {filteredCompanies.map((c, idx) => {
+                  const isSelected = idx === searchModalIndex;
+                  return (
+                    <button
+                      key={c.code}
+                      id={`search-item-${idx}`}
+                      onClick={() => selectCompanyFromSearch(c.code)}
+                      onMouseEnter={() => setSearchModalIndex(idx)}
+                      className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between transition-colors ${
+                        isSelected
+                          ? isDark
+                            ? 'bg-blue-900/90 text-yellow-300 ring-2 ring-yellow-400 font-medium'
+                            : 'bg-blue-600 text-white font-medium shadow-inner ring-2 ring-yellow-400'
+                          : isDark
+                          ? 'hover:bg-slate-800/80 text-slate-200'
+                          : 'hover:bg-[#F5F7FF] text-slate-900'
                       }`}
                     >
-                      {c.type || '上市'}
-                    </div>
-                  </button>
-                ))}
+                      <div>
+                        <div className="text-[13px] font-medium flex items-center gap-2">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[11px] font-mono ${
+                              isSelected
+                                ? 'bg-yellow-400 text-slate-950 font-bold'
+                                : isDark
+                                ? 'bg-slate-800 text-slate-200'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {c.code}
+                          </span>
+                          <span>{c.name}</span>
+                        </div>
+                        <div
+                          className={`text-[11px] mt-1 ${
+                            isSelected
+                              ? 'text-blue-100'
+                              : isDark
+                              ? 'text-slate-400'
+                              : 'text-slate-500'
+                          }`}
+                        >
+                          統編: {c.uni || '-'} · 負責人: {c.owner || '-'} · 電話: {c.tel || '-'}
+                        </div>
+                      </div>
+                      <div
+                        className={`text-[11px] px-2 py-0.5 rounded-full ${
+                          isSelected
+                            ? 'bg-yellow-400 text-slate-950 font-bold'
+                            : isDark
+                            ? 'bg-slate-800 text-slate-300'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {c.type || '上市'}
+                      </div>
+                    </button>
+                  );
+                })}
 
                 {filteredCompanies.length === 0 && (
                   <div
@@ -480,15 +574,18 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
                       isDark ? 'text-slate-500' : 'text-slate-400'
                     }`}
                   >
-                    查無資料
+                    查無符合「{searchQuery}」之客戶資料
                   </div>
                 )}
               </div>
 
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex items-center justify-between text-[11px]">
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                  符合條件: {filteredCompanies.length} 筆
+                </span>
                 <button
-                  onClick={() => setIsSearchOpen(false)}
-                  className="h-9 px-4 rounded-lg bg-slate-900 text-white text-[13px] font-medium hover:bg-slate-800 transition"
+                  onClick={closeSearchModal}
+                  className="h-8 px-4 rounded-lg bg-slate-800 text-slate-200 text-[12px] font-medium hover:bg-slate-700 transition border border-slate-700"
                 >
                   關閉 Esc
                 </button>

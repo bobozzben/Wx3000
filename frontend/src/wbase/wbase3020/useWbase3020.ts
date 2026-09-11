@@ -68,7 +68,14 @@ export const useWbase3020 = create<Wbase3020State>((set, get) => ({
     try {
       const { period, times, inputMode, inputCondition } = get();
       const data = await fetchInvoicePurchaseList(period, times, keyword, inputMode, inputCondition);
-      set({ rows: data, loading: false });
+      const uniqueMap = new Map<string, InvoicePurchaseItem>();
+      data.forEach((item) => {
+        const key = (item.companyCode || '').trim().toUpperCase();
+        if (key && !uniqueMap.has(key)) {
+          uniqueMap.set(key, item);
+        }
+      });
+      set({ rows: Array.from(uniqueMap.values()), loading: false });
     } catch (e) {
       console.error('Failed to load invoice purchase items:', e);
       set({ errorToast: '載入發票購買資料失敗，請確認連線', loading: false });

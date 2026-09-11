@@ -5,7 +5,14 @@ import {
   INITIAL_COMPANIES,
 } from './companyFieldDefs';
 
-export function useWbase2010() {
+const parseCapital = (val: any): number => {
+  if (!val) return 0;
+  const cleaned = String(val).replace(/,/g, '').replace(/元/g, '').trim();
+  const num = Number(cleaned);
+  return isNaN(num) ? 0 : num;
+};
+
+export function useWbase2010(onBackToMenu?: () => void) {
   const [companies, setCompanies] = useState<CompanyItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
@@ -129,7 +136,7 @@ export function useWbase2010() {
   }, [filteredCompanies, selectedIndex, mode]);
 
   // Load from backend PostgreSQL API with fallback
-  const fetchCompanies = useCallback(async () => {
+  const fetchCompanies = useCallback(async (targetCode?: string) => {
     setLoading(true);
     try {
       const res = await fetch('/api/wbase2010');
@@ -163,7 +170,15 @@ export function useWbase2010() {
             officeId: (d.officeId || '').trim(),
           }));
           setCompanies(mapped);
-          setSelectedIndex(0);
+
+          if (targetCode) {
+            const idx = mapped.findIndex((c) => c.code.toLowerCase() === targetCode.toLowerCase());
+            if (idx !== -1) {
+              setSelectedIndex(idx);
+            }
+          } else {
+            setSelectedIndex((prev) => (prev < mapped.length ? prev : 0));
+          }
         } else {
           setCompanies(INITIAL_COMPANIES);
         }
@@ -211,7 +226,7 @@ export function useWbase2010() {
     setMode('edit');
     setActiveTab(0);
     setTimeout(() => {
-      focusField('f3_code');
+      focusField('f3_name');
     }, 100);
   }, [focusField]);
 
@@ -298,85 +313,103 @@ export function useWbase2010() {
       ...formData,
     };
 
+    // Pre-submit validation for field length limits against DB schema
+    const FIELD_LENGTH_LIMITS: Record<string, { label: string; maxLen: number }> = {
+      f3_code: { label: '客戶編號 (f3_code)', maxLen: 30 },
+      f3_name: { label: '客戶名稱 (f3_name)', maxLen: 255 },
+      f3_eng: { label: '英文名稱 (f3_eng)', maxLen: 255 },
+      f3_short: { label: '簡稱 (f3_short)', maxLen: 255 },
+      f3_uni: { label: '統一編號 (f3_uni)', maxLen: 20 },
+      f3_taxNo: { label: '稅籍編號 (f3_taxNo)', maxLen: 30 },
+      f3_taxOffice: { label: '稅捐處 (f3_taxOffice)', maxLen: 100 },
+      f3_tel: { label: '電話 (f3_tel)', maxLen: 255 },
+      f3_fax: { label: '傳真 (f3_fax)', maxLen: 255 },
+      f3_addr: { label: '公司地址 (f3_addr)', maxLen: 255 },
+      f3_addr2: { label: '通訊地址 (f3_addr2)', maxLen: 255 },
+      f3_email: { label: '電子郵件 (f3_email)', maxLen: 255 },
+      f3_acctType: { label: '帳務類別 (f3_acctType)', maxLen: 50 },
+      f3_owner: { label: '負責人姓名 (f3_owner)', maxLen: 255 },
+      f3_idNo: { label: '負責人身分證 (f3_idNo)', maxLen: 30 },
+      f3_ownerMobile: { label: '負責人手機 (f3_ownerMobile)', maxLen: 255 },
+      f3_ownerAddr: { label: '負責人地址 (f3_ownerAddr)', maxLen: 255 },
+      f3_contactName: { label: '聯絡人 (f3_contactName)', maxLen: 255 },
+      f3_contactTel: { label: '聯絡電話 (f3_contactTel)', maxLen: 255 },
+      f3_memo: { label: '備註 (f3_memo)', maxLen: 255 },
+      f5_listed: { label: '上市櫃 (f5_listed)', maxLen: 20 },
+      f6_officeId: { label: '事務所代號 (f6_officeId)', maxLen: 30 },
+    };
+
+    for (const [fid, meta] of Object.entries(FIELD_LENGTH_LIMITS)) {
+      const val = formData[fid] || '';
+      if (val.length > meta.maxLen) {
+        alert(`儲存失敗：欄位「${meta.label}」內容長度為 ${val.length} 字元，超過資料庫限制長度 (${meta.maxLen} 字元)！\n內容為: "${val}"\n請修正後再儲存。`);
+        focusField(fid, true);
+        return;
+      }
+    }
+
+    const str = (v: any) => (v === null || v === undefined ? '' : String(v).trim());
+
+    const bodyData = {
+      companyCode: str(payload.code),
+      companyName: str(payload.name),
+      englishName: str(payload.eng),
+      shortName: str(payload.short),
+      unifiedNo: str(payload.uni),
+      taxNo: str(payload.taxNo),
+      taxOffice: str(payload.taxOffice),
+      capital: parseCapital(payload.capital),
+      tel: str(payload.tel),
+      fax: str(payload.fax),
+      address: str(payload.addr),
+      address2: str(payload.addr2),
+      email: str(payload.email),
+      acctType: str(payload.acctType || '一般'),
+      owner: str(payload.owner),
+      ownerIdNo: str(payload.idNo),
+      ownerTel: str(payload.ownerTel),
+      ownerMobile: str(payload.ownerMobile),
+      ownerAddr: str(payload.ownerAddr),
+      contactName: str(payload.contactName),
+      contactMobile: str(payload.contactTel || payload.contactMobile || payload.f4_phone),
+      memo: str(payload.memo),
+      listedType: str(payload.type || payload.f5_listed || '上市'),
+      officeId: str(payload.officeId || payload.f6_officeId),
+    };
+
     try {
       if (mode === 'add') {
         const res = await fetch('/api/wbase2010', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            companyCode: payload.code,
-            companyName: payload.name,
-            englishName: payload.eng,
-            shortName: payload.short,
-            unifiedNo: payload.uni,
-            taxNo: payload.taxNo,
-            taxOffice: payload.taxOffice,
-            capital: payload.capital ? Number(payload.capital) : null,
-            tel: payload.tel,
-            fax: payload.fax,
-            address: payload.addr,
-            address2: payload.addr2,
-            email: payload.email,
-            acctType: payload.acctType,
-            owner: payload.owner,
-            ownerIdNo: payload.idNo,
-            ownerTel: payload.ownerTel,
-            ownerMobile: payload.ownerMobile,
-            ownerAddr: payload.ownerAddr,
-            contactName: payload.contactName,
-            contactTel: payload.contactTel,
-            memo: payload.memo,
-            listedType: payload.type,
-            officeId: payload.officeId,
-          }),
+          body: JSON.stringify(bodyData),
         });
         if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.message || '新增失敗');
+          const errData = await res.json().catch(() => ({}));
+          const detailStr = errData.detail ? ` (${errData.detail})` : '';
+          throw new Error((errData.message || '新增失敗') + detailStr);
         }
       } else if (mode === 'edit') {
         const res = await fetch(`/api/wbase2010/${encodeURIComponent(payload.code)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            companyName: payload.name,
-            englishName: payload.eng,
-            shortName: payload.short,
-            unifiedNo: payload.uni,
-            taxNo: payload.taxNo,
-            taxOffice: payload.taxOffice,
-            capital: payload.capital ? Number(payload.capital) : null,
-            tel: payload.tel,
-            fax: payload.fax,
-            address: payload.addr,
-            address2: payload.addr2,
-            email: payload.email,
-            acctType: payload.acctType,
-            owner: payload.owner,
-            ownerIdNo: payload.idNo,
-            ownerTel: payload.ownerTel,
-            ownerMobile: payload.ownerMobile,
-            ownerAddr: payload.ownerAddr,
-            contactName: payload.contactName,
-            contactTel: payload.contactTel,
-            memo: payload.memo,
-            listedType: payload.type,
-            officeId: payload.officeId,
-          }),
+          body: JSON.stringify(bodyData),
         });
         if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.message || '更新失敗');
+          const errData = await res.json().catch(() => ({}));
+          const detailStr = errData.detail ? ` (${errData.detail})` : '';
+          throw new Error((errData.message || '更新失敗') + detailStr);
         }
       }
-    } catch (err: any) {
-      console.warn('PostgreSQL API error during save:', err);
-    }
 
-    // Refresh companies list from PostgreSQL
-    await fetchCompanies();
-    alert(mode === 'add' ? '新增成功！' : '修改成功！');
-    cancelEdit();
+      // Refresh companies list from PostgreSQL upon success and maintain focus on saved record
+      await fetchCompanies(payload.code);
+      alert(mode === 'add' ? '新增成功！' : '修改成功！');
+      cancelEdit();
+    } catch (err: any) {
+      console.error('PostgreSQL API error during save:', err);
+      alert(`儲存至 PostgreSQL 資料庫失敗：${err.message || err}`);
+    }
   }, [formData, mode, cancelEdit, fetchCompanies]);
 
   // Delete company record from PostgreSQL
@@ -402,9 +435,41 @@ export function useWbase2010() {
     }
   }, [filteredCompanies, selectedIndex, fetchCompanies]);
 
-  // Grid navigation via Arrow keys & shortcuts
+  // Open F2 Search Modal
+  const openSearchModal = useCallback(() => {
+    setSearchQuery('');
+    setIsSearchOpen(true);
+  }, []);
+
+  // Close F2 Search Modal and refocus grid
+  const closeSearchModal = useCallback(() => {
+    setIsSearchOpen(false);
+    setSearchQuery('');
+    setTimeout(() => {
+      gridContainerRef.current?.focus();
+    }, 80);
+  }, []);
+
+  // Select company from F2 Search Modal
+  const selectCompanyFromSearch = useCallback((code: string) => {
+    const idx = companies.findIndex((c) => c.code.toLowerCase() === code.toLowerCase());
+    setSearchQuery('');
+    if (idx !== -1) {
+      setSelectedIndex(idx);
+    }
+    setIsSearchOpen(false);
+    setTimeout(() => {
+      gridContainerRef.current?.focus();
+    }, 80);
+  }, [companies]);
+
+  // Grid navigation via Arrow keys, PageUp/Down, Home/End & shortcuts
   const handleGridKeyDown = (e: React.KeyboardEvent) => {
     if (mode !== 'grid') return;
+
+    // Calculate dynamic visible page size based on grid container height (default 8 rows)
+    const container = gridContainerRef.current;
+    const pageSize = container ? Math.max(1, Math.floor(container.clientHeight / 32)) : 8;
 
     if (e.key === 'ArrowUp') {
       e.preventDefault();
@@ -412,15 +477,30 @@ export function useWbase2010() {
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex((prev) => Math.min(filteredCompanies.length - 1, prev + 1));
+    } else if (e.key === 'PageUp') {
+      e.preventDefault();
+      setSelectedIndex((prev) => Math.max(0, prev - pageSize));
+    } else if (e.key === 'PageDown') {
+      e.preventDefault();
+      setSelectedIndex((prev) => Math.min(filteredCompanies.length - 1, prev + pageSize));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setSelectedIndex(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setSelectedIndex(Math.max(0, filteredCompanies.length - 1));
     } else if (e.key === 'Enter' || e.key === 'F6') {
       e.preventDefault();
       startEdit();
     } else if (e.key === 'F2') {
       e.preventDefault();
-      setIsSearchOpen(true);
+      openSearchModal();
     } else if (e.key === 'Delete') {
       e.preventDefault();
       deleteSelected();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      if (onBackToMenu) onBackToMenu();
     }
   };
 
@@ -440,10 +520,10 @@ export function useWbase2010() {
         return;
       }
 
-      // Esc cancels edit
+      // Esc saves form & returns to grid list in edit mode
       if (e.key === 'Escape') {
         e.preventDefault();
-        cancelEdit();
+        saveForm();
         return;
       }
 
@@ -486,7 +566,7 @@ export function useWbase2010() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode, activeTab, allFieldsOrdered, switchTab, cancelEdit, focusField]);
+  }, [mode, activeTab, allFieldsOrdered, switchTab, saveForm, focusField]);
 
   return {
     companies,
@@ -516,5 +596,8 @@ export function useWbase2010() {
     handleGridKeyDown,
     focusField,
     fetchCompanies,
+    openSearchModal,
+    closeSearchModal,
+    selectCompanyFromSearch,
   };
 }

@@ -46,6 +46,8 @@ export interface FoxProGridCardProps<T extends Record<string, any>> {
   getItemKey?: (item: T, index: number) => string | number;
   /** Optional custom row renderer */
   renderRow?: (item: T, index: number, isSelected: boolean, isEven: boolean) => React.ReactNode;
+  /** Whether to sync active row selection on grid scroll (default true) */
+  enableScrollSync?: boolean;
 }
 
 export function FoxProGridCard<T extends Record<string, any>>({
@@ -66,8 +68,64 @@ export function FoxProGridCard<T extends Record<string, any>>({
   emptyText = '查無資料',
   getItemKey,
   renderRow,
+  enableScrollSync = true,
 }: FoxProGridCardProps<T>) {
   const { isDark } = useTheme();
+  const scrollTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Smooth debounced scroll sync when user pauses scrolling
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!onSelectRow || !enableScrollSync || data.length === 0) return;
+    const container = e.currentTarget;
+
+    if (scrollTimerRef.current) {
+      clearTimeout(scrollTimerRef.current);
+    }
+
+    scrollTimerRef.current = setTimeout(() => {
+      const containerRect = container.getBoundingClientRect();
+
+      // Check if current selected item is still visible inside container viewport
+      if (selectedIndex !== undefined && selectedIndex >= 0) {
+        const curEl = document.getElementById(`row-${selectedIndex}`);
+        if (curEl) {
+          const curRect = curEl.getBoundingClientRect();
+          // If current selected row is visible within viewport bounds, keep it selected!
+          if (curRect.top >= containerRect.top - 8 && curRect.bottom <= containerRect.bottom + 8) {
+            return;
+          }
+        }
+      }
+
+      const children = Array.from(container.children) as HTMLElement[];
+      let topVisibleIdx = -1;
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        if (child.id && child.id.startsWith('row-')) {
+          const rowIdx = parseInt(child.id.replace('row-', ''), 10);
+          const childRect = child.getBoundingClientRect();
+          // Find first row that has at least 16px visible in container top viewport
+          if (childRect.bottom >= containerRect.top + 16) {
+            topVisibleIdx = rowIdx;
+            break;
+          }
+        }
+      }
+
+      if (topVisibleIdx >= 0 && topVisibleIdx < data.length && topVisibleIdx !== selectedIndex) {
+        onSelectRow(data[topVisibleIdx], topVisibleIdx);
+      }
+    }, 150);
+  };
 
   // Generate dynamic grid-template-columns if gridColsLayout is not explicitly specified
   const computedGridCols = gridColsLayout
@@ -141,7 +199,8 @@ export function FoxProGridCard<T extends Record<string, any>>({
         ref={gridContainerRef}
         tabIndex={0}
         onKeyDown={onKeyDown}
-        className={`outline-none ${maxHeight} overflow-auto divide-y focus:ring-2 focus:ring-blue-500/20 focus:ring-inset ${
+        onScroll={handleScroll}
+        className={`relative outline-none ${maxHeight} overflow-auto divide-y focus:ring-2 focus:ring-blue-500/20 focus:ring-inset ${
           isDark ? 'divide-slate-700/50 bg-slate-900' : 'divide-gray-200 bg-[#f8fafc]'
         }`}
         aria-label={`${title} Grid`}

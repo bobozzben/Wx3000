@@ -21,6 +21,7 @@ interface Wbase2010FormProps {
   formData: Record<string, string>;
   setFormData: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   inputRefsMap: React.MutableRefObject<Map<string, HTMLInputElement | HTMLTextAreaElement>>;
+  mode?: 'grid' | 'edit' | 'add';
 }
 
 function SectionCard({
@@ -62,6 +63,7 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
   formData,
   setFormData,
   inputRefsMap,
+  mode = 'edit',
 }) => {
   const { isDark } = useTheme();
 
@@ -73,6 +75,7 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
     const meta = FIELD_METADATA[fid] || { label: fid };
     const val = formData[fid] || '';
     const isTextArea = meta.type === 'textarea';
+    const isDisabled = fid === 'f3_code' && mode === 'edit';
 
     const inputProps = {
       'data-field': fid,
@@ -85,6 +88,7 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
         }
       },
       value: val,
+      disabled: isDisabled,
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
         handleInputChange(fid, e.target.value),
       placeholder: meta.placeholder || '',
@@ -107,20 +111,28 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
           <textarea
             {...inputProps}
             rows={2}
-            className={`w-full min-h-[64px] rounded-[8px] border px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
+            className={`w-full min-h-[64px] rounded-[8px] border px-3 py-2 text-[13px] transition ${
               isDark
-                ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600'
-                : 'bg-white border-[#D1D5DB] text-slate-800'
+                ? isDisabled
+                  ? 'bg-slate-800/60 border-slate-700 text-slate-500 cursor-not-allowed'
+                  : 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500'
+                : isDisabled
+                ? 'bg-slate-100 border-[#D1D5DB] text-slate-500 cursor-not-allowed opacity-90'
+                : 'bg-white border-[#D1D5DB] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500'
             }`}
           />
         ) : (
           <input
             {...inputProps}
             type="text"
-            className={`w-full h-8 rounded-[8px] border px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm ${
+            className={`w-full h-8 rounded-[8px] border px-3 text-[13px] transition shadow-sm ${
               isDark
-                ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600'
-                : 'bg-white border-[#D1D5DB] text-slate-800'
+                ? isDisabled
+                  ? 'bg-slate-800/60 border-slate-700 text-slate-500 cursor-not-allowed'
+                  : 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500'
+                : isDisabled
+                ? 'bg-slate-100 border-[#D1D5DB] text-slate-500 cursor-not-allowed opacity-90'
+                : 'bg-white border-[#D1D5DB] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500'
             }`}
           />
         )}

@@ -10,6 +10,7 @@ namespace Wx3000.Backend.Controllers
     public class Wbase3020Controller : ControllerBase
     {
         private readonly AppDbContext _context;
+        private static readonly SemaphoreSlim _seedLock = new SemaphoreSlim(1, 1);
 
         public Wbase3020Controller(AppDbContext context)
         {
@@ -18,6 +19,7 @@ namespace Wx3000.Backend.Controllers
 
         private async Task EnsureTableCreatedAndSeededAsync(string period, string times)
         {
+            await _seedLock.WaitAsync();
             try
             {
                 await _context.Database.ExecuteSqlRawAsync(@"
@@ -67,6 +69,13 @@ namespace Wx3000.Backend.Controllers
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""購買地點"" character varying(50) DEFAULT '';
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""建檔人員"" character varying(50) DEFAULT '';
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""guid"" character varying(50) DEFAULT '';
+
+                    DELETE FROM ""e3000__comm"".""基本發票購買"" a
+                    USING ""e3000__comm"".""基本發票購買"" b
+                    WHERE a.ctid < b.ctid
+                      AND a.""期別"" = b.""期別""
+                      AND a.""次數"" = b.""次數""
+                      AND a.""公司編號"" = b.""公司編號"";
                 ");
 
                 // Check if any record exists for this period & times
@@ -76,6 +85,7 @@ namespace Wx3000.Backend.Controllers
                 if (!hasRecords)
                 {
                     var newItems = new List<InvoicePurchaseMaster>();
+                    var existingCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                     try
                     {
@@ -83,11 +93,15 @@ namespace Wx3000.Backend.Controllers
                         foreach (var c in companies)
                         {
                             if (string.IsNullOrWhiteSpace(c.CompanyCode)) continue;
+                            var code = c.CompanyCode.Trim();
+                            if (existingCodes.Contains(code)) continue;
+                            existingCodes.Add(code);
+
                             newItems.Add(new InvoicePurchaseMaster
                             {
                                 Period = period,
                                 Times = times,
-                                CompanyCode = c.CompanyCode.Trim(),
+                                CompanyCode = code,
                                 CompanyShortName = c.ShortName?.Trim() ?? c.CompanyName?.Trim() ?? string.Empty,
                                 UnifiedNo = c.UnifiedNo?.Trim() ?? string.Empty,
                                 TaxNo = c.TaxNo?.Trim() ?? string.Empty,
@@ -99,8 +113,6 @@ namespace Wx3000.Backend.Controllers
                     {
                         Console.WriteLine($"CompanyMasters fetch info: {ex.Message}");
                     }
-
-                    var existingCodes = new HashSet<string>(newItems.Select(x => x.CompanyCode));
 
                     // Demo sample seed data matching standard specification
                     var defaultCompanies = new[]
@@ -161,6 +173,10 @@ namespace Wx3000.Backend.Controllers
             catch (Exception ex)
             {
                 Console.WriteLine($"EnsureTableCreatedAndSeededAsync error: {ex.Message}");
+            }
+            finally
+            {
+                _seedLock.Release();
             }
         }
 
@@ -260,7 +276,11 @@ namespace Wx3000.Backend.Controllers
                 }
 
                 var list = await queryable.ToListAsync();
-                return Ok(list);
+                var deduplicatedList = list
+                    .GroupBy(x => x.CompanyCode.Trim().ToUpper())
+                    .Select(g => g.First())
+                    .ToList();
+                return Ok(deduplicatedList);
             }
             catch (Exception ex)
             {
