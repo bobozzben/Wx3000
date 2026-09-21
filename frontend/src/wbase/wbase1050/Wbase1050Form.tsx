@@ -11,6 +11,10 @@ interface Wbase1050FormProps {
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
   statusBarInfo?: React.ReactNode;
+  onInsertRow?: () => void;
+  onDeleteRow?: () => void;
+  onRefreshData?: () => void;
+  onExit?: () => void;
 }
 
 const TAX_COLUMNS: ColumnDefV2<TaxOfficerItem>[] = [
@@ -32,6 +36,10 @@ export const Wbase1050Form: React.FC<Wbase1050FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onInsertRow,
+  onDeleteRow,
+  onRefreshData,
+  onExit,
 }) => {
   const createEmptyRow = (): TaxOfficerItem => ({
     taxCode: '',
@@ -73,6 +81,10 @@ export const Wbase1050Form: React.FC<Wbase1050FormProps> = ({
       onF3Search={handleF3Search}
       f3SearchTitle="稅務人員開窗搜尋 [F3]"
       getRowKey={(row, idx) => row.taxCode || idx}
+      onInsertRow={onInsertRow}
+      onDeleteRow={onDeleteRow}
+      onRefreshData={onRefreshData}
+      onExit={onExit}
     />
   );
 };

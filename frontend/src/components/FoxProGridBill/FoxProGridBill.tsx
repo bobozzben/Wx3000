@@ -207,11 +207,11 @@ export const FoxProGridBill: React.FC<FoxProGridBillProps> = ({
 
   return (
     <div
-      className="flex flex-col w-full h-full font-mono outline-none"
+      className="flex-1 min-h-0 flex flex-col w-full h-full font-mono outline-none"
       onKeyDownCapture={handleKeyDownCapture}
       tabIndex={-1}
     >
-      <div className="ag-theme-alpine foxpro-grid w-full h-[480px] border-2 border-blue-900 rounded shadow-md overflow-hidden">
+      <div className="ag-theme-alpine foxpro-grid w-full flex-1 min-h-0 border-2 border-blue-900 rounded shadow-md overflow-hidden">
         <AgGridReact
           rowData={rows}
           columnDefs={columnDefs}
@@ -236,7 +236,7 @@ export const FoxProGridBill: React.FC<FoxProGridBillProps> = ({
         />
       </div>
 
-      <div className="mt-2 flex items-center justify-between bg-blue-950 text-white px-4 py-2.5 rounded font-bold text-sm border-t-2 border-yellow-500 shadow">
+      <div className="mt-2 shrink-0 flex items-center justify-between bg-blue-950 text-white px-4 py-2.5 rounded font-bold text-sm border-t-2 border-yellow-500 shadow">
         <div className="flex space-x-6 text-base">
           <span>總筆數: <span className="text-yellow-400 font-extrabold">{rows.length}</span> 筆</span>
           <span>總數量: <span className="text-yellow-400 font-extrabold">{totalQty.toLocaleString()}</span></span>

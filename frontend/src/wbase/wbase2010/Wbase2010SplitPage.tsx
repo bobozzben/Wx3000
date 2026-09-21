@@ -14,31 +14,31 @@ import {
   Edit3,
   LogOut,
   Printer,
+  Columns,
 } from 'lucide-react';
 
-interface Wbase2010PageProps {
+interface Wbase2010SplitPageProps {
   onBackToMenu?: () => void;
 }
 
-const COMPANY_COLUMNS: FoxProGridCardColumn<CompanyItem>[] = [
-  { key: 'code', label: '編號', width: '90px' },
+const SPLIT_COMPANY_COLUMNS: FoxProGridCardColumn<CompanyItem>[] = [
+  { key: 'code', label: '編號', width: '80px' },
   { key: 'name', label: '客戶名稱', width: '1fr' },
-  { key: 'uni', label: '統編', width: '130px' },
-  { key: 'owner', label: '負責人', width: '90px' },
-  { key: 'tel', label: '電話', width: '140px' },
+  { key: 'uni', label: '統編', width: '110px' },
+  { key: 'owner', label: '負責人', width: '80px' },
   {
     key: 'type',
     label: '類別',
-    width: '70px',
+    width: '60px',
     render: (c) => (
-      <span className="text-[11px] px-2 py-0.5 rounded-full border bg-slate-100 border-slate-200 text-slate-700">
+      <span className="text-[11px] px-1.5 py-0.5 rounded-full border bg-slate-100 border-slate-200 text-slate-700">
         {c.type || '上市'}
       </span>
     ),
   },
 ];
 
-export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) => {
+export const Wbase2010SplitPage: React.FC<Wbase2010SplitPageProps> = ({ onBackToMenu }) => {
   const { isDark } = useTheme();
 
   const {
@@ -118,7 +118,7 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
     }
   };
 
-  // Scroll active row into view inside grid container in grid mode (strictly scoped to container)
+  // Scroll active row into view inside grid container in grid mode
   useEffect(() => {
     if (mode === 'grid') {
       const el = document.getElementById(`row-${selectedIndex}`);
@@ -179,19 +179,22 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
         }`}
       >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-[13px]">
-            F
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-[13px] shadow-sm">
+            <Columns size={16} />
           </div>
           <div>
-            <div className="text-[13px] font-semibold tracking-tight leading-none">
-              FoxPro Client
+            <div className="text-[13px] font-semibold tracking-tight leading-none flex items-center gap-2">
+              <span>客戶資料維護 (左右雙欄測試)</span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-mono font-bold">
+                SPLIT VIEW
+              </span>
             </div>
             <div
               className={`text-[11px] leading-none mt-1 ${
                 isDark ? 'text-slate-400' : 'text-slate-500'
               }`}
             >
-              客戶主檔維護 · Beautified Fixed v2
+              Wbase2010 Split Layout · GRID 左 / CARD 右
             </div>
           </div>
 
@@ -199,15 +202,15 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
             <span
               className={`text-[11px] px-2 py-1 rounded-full border font-medium ${
                 isDark
-                  ? 'bg-blue-950/80 text-blue-300 border-blue-800'
-                  : 'bg-blue-50 text-blue-700 border-blue-100'
+                  ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800'
+                  : 'bg-indigo-50 text-indigo-700 border-indigo-100'
               }`}
             >
-              GRID MODE
+              SPLIT MODE
             </span>
             <span className={isDark ? 'text-slate-600' : 'text-slate-400'}>/</span>
             <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-              {mode === 'grid' ? '瀏覽' : '編輯'}
+              {mode === 'grid' ? '瀏覽 (↑↓換筆)' : '編輯 (Enter下一格)'}
             </span>
           </div>
         </div>
@@ -239,40 +242,43 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
         </div>
       </div>
 
-      {/* Main Container */}
-      <div className="flex-1 flex flex-col p-3 md:p-5 gap-4 max-w-[1440px] w-full mx-auto">
-        {/* Customer List Grid Card */}
-        <FoxProGridCard<CompanyItem>
-          title="客戶清單"
-          totalCount={filteredCompanies.length}
-          shortcutHint="↑↓ 換筆 · Enter / F6 編修 · F2 查詢"
-          data={filteredCompanies}
-          columns={COMPANY_COLUMNS}
-          gridColsLayout="grid-cols-1 md:grid-cols-[90px_1fr_130px_90px_140px_70px]"
-          selectedIndex={selectedIndex}
-          onSelectRow={(_c, idx) => {
-            setSelectedIndex(idx);
-            gridContainerRef.current?.focus();
-          }}
-          onDoubleClickRow={startEdit}
-          onKeyDown={handleGridKeyDown}
-          gridContainerRef={gridContainerRef as unknown as React.RefObject<HTMLDivElement>}
-          loading={loading}
-          emptyText="查無客戶資料"
-          getItemKey={(c) => c.code}
-        />
+      {/* Main Split Layout Container */}
+      <div className="flex-1 flex flex-col lg:flex-row p-3 md:p-4 gap-4 w-full mx-auto overflow-hidden">
+        {/* Left Side: GRID List */}
+        <div className="w-full lg:w-5/12 xl:w-4/12 flex flex-col shrink-0 min-w-[320px]">
+          <FoxProGridCard<CompanyItem>
+            title="客戶清單 (GRID)"
+            totalCount={filteredCompanies.length}
+            shortcutHint="↑↓ 換筆 · Enter / F6 編修"
+            data={filteredCompanies}
+            columns={SPLIT_COMPANY_COLUMNS}
+            gridColsLayout="grid-cols-1 md:grid-cols-[80px_1fr_110px_80px_60px]"
+            selectedIndex={selectedIndex}
+            onSelectRow={(_c, idx) => {
+              setSelectedIndex(idx);
+              gridContainerRef.current?.focus();
+            }}
+            onDoubleClickRow={startEdit}
+            onKeyDown={handleGridKeyDown}
+            gridContainerRef={gridContainerRef as unknown as React.RefObject<HTMLDivElement>}
+            maxHeight="max-h-[calc(100vh-210px)] h-full"
+            loading={loading}
+            emptyText="查無客戶資料"
+            getItemKey={(c) => c.code}
+          />
+        </div>
 
-        {/* Tab Pills & Form Section Area */}
-        <div className="flex flex-col gap-3">
+        {/* Right Side: CARD Form */}
+        <div className="w-full lg:w-7/12 xl:w-8/12 flex flex-col gap-3 min-w-0 flex-1 overflow-y-auto max-h-[calc(100vh-210px)] pr-1">
           {/* Tab Selector Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 shrink-0 sticky top-0 z-10 py-1 bg-inherit">
             {TABS_CONFIG.map((tab) => {
               const isActive = activeTab === tab.idx;
               return (
                 <button
                   key={tab.idx}
                   onClick={() => handleTabButtonClick(tab.idx)}
-                  className={`group flex items-center gap-2 h-9 px-4 rounded-full text-[13px] font-medium border transition-all shrink-0 ${
+                  className={`group flex items-center gap-2 h-8 px-3 rounded-full text-[12px] font-medium border transition-all shrink-0 ${
                     isActive
                       ? isDark
                         ? 'bg-blue-950/80 border-blue-700 text-blue-300 shadow-sm'
@@ -303,13 +309,15 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
           </div>
 
           {/* Form Content Cards */}
-          <Wbase2010Form
-            activeTab={activeTab}
-            formData={formData}
-            setFormData={setFormData}
-            inputRefsMap={inputRefsMap}
-            mode={mode}
-          />
+          <div className="flex-1">
+            <Wbase2010Form
+              activeTab={activeTab}
+              formData={formData}
+              setFormData={setFormData}
+              inputRefsMap={inputRefsMap}
+              mode={mode}
+            />
+          </div>
         </div>
       </div>
 

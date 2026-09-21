@@ -11,6 +11,10 @@ interface Wbase3010FormProps {
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
   statusBarInfo?: React.ReactNode;
+  onInsertRow?: () => void;
+  onDeleteRow?: () => void;
+  onRefreshData?: () => void;
+  onExit?: () => void;
 }
 
 const TICKET_PLACE_COLUMNS: ColumnDefV2<TicketPlaceItem>[] = [
@@ -28,6 +32,10 @@ export const Wbase3010Form: React.FC<Wbase3010FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onInsertRow,
+  onDeleteRow,
+  onRefreshData,
+  onExit,
 }) => {
   const createEmptyRow = (): TicketPlaceItem => ({
     placeCode: '',
@@ -68,6 +76,10 @@ export const Wbase3010Form: React.FC<Wbase3010FormProps> = ({
       onF3Search={handleF3Search}
       f3SearchTitle="購買地點開窗搜尋 [F3]"
       getRowKey={(row, idx) => row.placeCode || idx}
+      onInsertRow={onInsertRow}
+      onDeleteRow={onDeleteRow}
+      onRefreshData={onRefreshData}
+      onExit={onExit}
     />
   );
 };

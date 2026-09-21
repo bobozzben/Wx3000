@@ -11,6 +11,10 @@ interface Wbase1020FormProps {
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
   statusBarInfo?: React.ReactNode;
+  onInsertRow?: () => void;
+  onDeleteRow?: () => void;
+  onRefreshData?: () => void;
+  onExit?: () => void;
 }
 
 const CPA_COLUMNS: ColumnDefV2<CpaItem>[] = [
@@ -30,6 +34,10 @@ export const Wbase1020Form: React.FC<Wbase1020FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onInsertRow,
+  onDeleteRow,
+  onRefreshData,
+  onExit,
 }) => {
   const createEmptyRow = (): CpaItem => ({
     cpaCode: '',
@@ -71,6 +79,10 @@ export const Wbase1020Form: React.FC<Wbase1020FormProps> = ({
       onF3Search={handleF3Search}
       f3SearchTitle="會計師開窗搜尋 [F3]"
       getRowKey={(row, idx) => row?.cpaCode || idx}
+      onInsertRow={onInsertRow}
+      onDeleteRow={onDeleteRow}
+      onRefreshData={onRefreshData}
+      onExit={onExit}
     />
   );
 };

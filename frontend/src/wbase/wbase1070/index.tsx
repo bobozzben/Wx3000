@@ -5,9 +5,6 @@ import { Wbase1070Print } from './wbase1070Print';
 import {
   FileText,
   Search,
-  RefreshCw,
-  Printer,
-  Trash2,
   AlertTriangle,
   CheckCircle,
   XCircle,
@@ -25,7 +22,6 @@ export const Wbase1070Page: React.FC<Wbase1070PageProps> = ({ onBackToMenu }) =>
   const {
     rows,
     setRows,
-    loading,
     errorToast,
     setErrorToast,
     showAutoCloseToast,
@@ -95,16 +91,16 @@ export const Wbase1070Page: React.FC<Wbase1070PageProps> = ({ onBackToMenu }) =>
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-mono selection:bg-yellow-500 selection:text-black transition-colors ${
-        isDark ? 'bg-slate-950 text-white' : 'bg-[#F6F8FA] text-slate-800'
+      className={`h-full min-h-0 flex-1 flex flex-col font-mono selection:bg-yellow-500 selection:text-black transition-colors ${
+        isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900 font-medium'
       }`}
     >
       {/* Banner */}
       <div
-        className={`px-6 py-4 border-b flex items-center justify-between shadow-md transition-colors ${
+        className={`shrink-0 px-6 py-4 border-b flex items-center justify-between shadow-md transition-colors ${
           isDark
             ? 'bg-slate-900 border-slate-800 text-white'
-            : 'bg-white border-blue-900 text-blue-900'
+            : 'bg-white border-b-2 border-slate-200 text-slate-900 font-bold'
         }`}
       >
         <div className="flex items-center space-x-3">
@@ -159,7 +155,7 @@ export const Wbase1070Page: React.FC<Wbase1070PageProps> = ({ onBackToMenu }) =>
       </div>
 
       {/* Main Grid Content Area */}
-      <div className="flex-1 p-6 flex flex-col min-h-0">
+      <div className="flex-1 min-h-0 p-6 flex flex-col overflow-hidden">
         <Wbase1070Form
           rows={rows}
           onRowsChange={setRows}
@@ -175,57 +171,14 @@ export const Wbase1070Page: React.FC<Wbase1070PageProps> = ({ onBackToMenu }) =>
               </span>
             ) : null
           }
+          onInsertRow={() => {
+            const newRow = { noteCode: '', noteName: '', content: '' };
+            setRows([...rows, newRow]);
+          }}
+          onDeleteRow={() => openDeleteConfirm()}
+          onRefreshData={() => refreshData(searchQuery)}
+          onExit={onBackToMenu}
         />
-      </div>
-
-      {/* Bottom Actions Bar */}
-      <div
-        className={`px-6 py-3 border-t flex justify-between items-center text-xs transition-colors ${
-          isDark
-            ? 'bg-slate-900 border-slate-800 text-gray-400'
-            : 'bg-white border-slate-200 text-gray-600'
-        }`}
-      >
-        <div className="flex space-x-4">
-          <span>[↑/↓] 筆數切換</span>
-          <span>[Enter] 編輯/跳欄</span>
-          <span>[F2] 欄位搜尋</span>
-          <span>[F3] 開窗搜尋</span>
-          <span>[F7] 列印預覽</span>
-          <span>[Esc] 存檔關閉</span>
-        </div>
-
-        <div className="flex space-x-3">
-          <button
-            onClick={() => refreshData()}
-            disabled={loading}
-            className={`flex items-center space-x-1 px-3 py-1.5 rounded text-sm font-bold border transition ${
-              isDark
-                ? 'bg-slate-800 hover:bg-slate-700 text-gray-200 border-slate-600'
-                : 'bg-gray-100 hover:bg-gray-200 text-slate-700 border-slate-300'
-            }`}
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>重新整理</span>
-          </button>
-
-          <button
-            onClick={openPrint}
-            className="flex items-center space-x-1 px-3 py-1.5 bg-blue-800 hover:bg-blue-700 text-white font-bold rounded text-sm border border-blue-600 transition"
-          >
-            <Printer className="w-4 h-4" />
-            <span>列印清冊 [F7]</span>
-          </button>
-
-          <button
-            onClick={() => openDeleteConfirm()}
-            disabled={rows.length === 0}
-            className="flex items-center space-x-1 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white font-bold rounded text-sm border border-red-500 transition disabled:opacity-50"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>刪除此筆</span>
-          </button>
-        </div>
       </div>
 
       {/* Delete Confirm Modal */}

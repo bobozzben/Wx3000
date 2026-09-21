@@ -11,6 +11,10 @@ interface Wbase1060FormProps {
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
   statusBarInfo?: React.ReactNode;
+  onInsertRow?: () => void;
+  onDeleteRow?: () => void;
+  onRefreshData?: () => void;
+  onExit?: () => void;
 }
 
 const FEE_COLUMNS: ColumnDefV2<FeeItem>[] = [
@@ -36,6 +40,10 @@ export const Wbase1060Form: React.FC<Wbase1060FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onInsertRow,
+  onDeleteRow,
+  onRefreshData,
+  onExit,
 }) => {
   const createEmptyRow = (): FeeItem => ({
     feeCode: '',
@@ -70,6 +78,10 @@ export const Wbase1060Form: React.FC<Wbase1060FormProps> = ({
       onF3Search={handleF3Search}
       f3SearchTitle="收費項目開窗搜尋 [F3]"
       getRowKey={(row, idx) => row.feeCode || idx}
+      onInsertRow={onInsertRow}
+      onDeleteRow={onDeleteRow}
+      onRefreshData={onRefreshData}
+      onExit={onExit}
     />
   );
 };

@@ -90,6 +90,13 @@ export const WBASE_MENU_DATA: MenuItem[] = [
         actionUrl: '/wbase/wbase2010',
       },
       {
+        id: 'm_215',
+        code: 'wbase2010_split',
+        title: '客戶資料建檔 (左右雙欄測試)',
+        hasChildren: false,
+        actionUrl: '/wbase/wbase2010_split',
+      },
+      {
         id: 'm_220',
         code: 'wbase2020',
         title: '客戶資料匯出',

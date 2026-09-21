@@ -163,16 +163,16 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-mono selection:bg-yellow-500 selection:text-black transition-colors ${
-        isDark ? 'bg-slate-950 text-white' : 'bg-[#F6F8FA] text-slate-800'
+      className={`h-full min-h-0 flex-1 flex flex-col font-mono selection:bg-yellow-500 selection:text-black transition-colors ${
+        isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900 font-medium'
       }`}
     >
       {/* Top Header & Search Bar (Merged) */}
       <div
-        className={`px-4 py-2 border-b flex items-center justify-between font-bold text-sm shadow-xs transition-colors ${
+        className={`shrink-0 px-4 py-2 border-b flex items-center justify-between font-bold text-sm shadow-xs transition-colors ${
           isDark
             ? 'bg-slate-900 border-slate-800 text-slate-100'
-            : 'bg-blue-50 border-blue-200 text-blue-900'
+            : 'bg-white border-b-2 border-slate-200 text-slate-900 font-bold'
         }`}
       >
         <div className="flex items-center space-x-3 flex-wrap gap-y-2">
@@ -252,7 +252,7 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
       </div>
 
       {/* Main Grid Area */}
-      <div className="flex-1 p-4 flex flex-col min-h-0">
+      <div className="flex-1 min-h-0 p-4 flex flex-col overflow-hidden">
         <FoxProGridV2<InvoicePurchaseItem>
           rows={rows}
           columns={INVOICE_COLUMNS}
@@ -260,7 +260,6 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
           createEmptyRow={createEmptyRow}
           onRowsChange={setRows}
           onSaveRow={handleSaveRow}
-          onOpenPrint={openPrint}
           onShowSummary={() => {
             if (onBackToSele) onBackToSele();
           }}
@@ -274,101 +273,82 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
           onF3Search={handleF3Search}
           f3SearchTitle="發票購買公司開窗查詢 [F3]"
           getRowKey={(row, idx) => `${row.companyCode}_${idx}`}
+          onInsertRow={() => {
+            const newRow = createEmptyRow();
+            setRows([...rows, newRow]);
+          }}
+          onDeleteRow={() => openDeleteConfirm()}
+          onExit={onBackToSele || onBackToMenu}
+          hideKeyboardHints={true}
+          escLabel="儲存/離開"
+          customActions={
+            <>
+              {/* F3 轉檔 */}
+              <button
+                type="button"
+                onClick={() => alert('F3 轉檔功能：已完成預購轉檔準備')}
+                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
+              >
+                <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F3</span>
+                <span>轉檔</span>
+              </button>
+
+              {/* F4 清除 */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('確定要清除畫面上未儲存的輸入嗎？')) {
+                    refreshData();
+                  }
+                }}
+                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
+              >
+                <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F4</span>
+                <span>清除</span>
+              </button>
+
+              {/* F6 查詢 */}
+              <button
+                type="button"
+                onClick={() => refreshData(searchQuery)}
+                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
+              >
+                <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F6</span>
+                <span>查詢</span>
+              </button>
+
+              {/* F7 列印 */}
+              <button
+                type="button"
+                onClick={openPrint}
+                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
+              >
+                <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F7</span>
+                <span>列印</span>
+              </button>
+
+              {/* F8 上期拷貝 */}
+              <button
+                type="button"
+                onClick={() => alert('F8 上期拷貝：已成功由前一期別載入發票份數基底紀錄')}
+                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
+              >
+                <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F8</span>
+                <span>上期拷貝</span>
+              </button>
+
+              {/* F12 方向 */}
+              <button
+                type="button"
+                onClick={() => setDirectionRight(!directionRight)}
+                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
+              >
+                <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F12</span>
+                <span>方向 {directionRight ? '→' : '↓'}</span>
+              </button>
+            </>
+          }
         />
-      </div>
-
-      {/* Bottom Actions Bar (Image 3 Style) */}
-      <div className="bg-slate-200 border-t border-slate-300 px-6 py-2.5 flex justify-between items-center text-sm font-bold">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Ins 新增 */}
-          <button
-            onClick={() => {
-              const newRow = createEmptyRow();
-              setRows([...rows, newRow]);
-            }}
-            className="flex items-center space-x-1 px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition"
-          >
-            <span className="bg-yellow-600 text-white text-xs px-1 rounded">Ins</span>
-            <span>新增</span>
-          </button>
-
-          {/* Del 刪除 */}
-          <button
-            onClick={() => openDeleteConfirm()}
-            disabled={rows.length === 0}
-            className="flex items-center space-x-1 px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition disabled:opacity-50"
-          >
-            <span className="bg-yellow-600 text-white text-xs px-1 rounded">Del</span>
-            <span>刪除</span>
-          </button>
-
-          {/* F3 轉檔 */}
-          <button
-            onClick={() => alert('F3 轉檔功能：已完成預購轉檔準備')}
-            className="flex items-center space-x-1 px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition"
-          >
-            <span className="bg-yellow-600 text-white text-xs px-1 rounded">F3</span>
-            <span>轉檔</span>
-          </button>
-
-          {/* F4 清除 */}
-          <button
-            onClick={() => {
-              if (window.confirm('確定要清除畫面上未儲存的輸入嗎？')) {
-                refreshData();
-              }
-            }}
-            className="flex items-center space-x-1 px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition"
-          >
-            <span className="bg-yellow-600 text-white text-xs px-1 rounded">F4</span>
-            <span>清除</span>
-          </button>
-
-          {/* F6 查詢 */}
-          <button
-            onClick={() => refreshData(searchQuery)}
-            className="flex items-center space-x-1 px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition"
-          >
-            <span className="bg-yellow-600 text-white text-xs px-1 rounded">F6</span>
-            <span>查詢</span>
-          </button>
-
-          {/* F7 列印 */}
-          <button
-            onClick={openPrint}
-            className="flex items-center space-x-1 px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition"
-          >
-            <span className="bg-yellow-600 text-white text-xs px-1 rounded">F7</span>
-            <span>列印</span>
-          </button>
-
-          {/* F8 上期拷貝 */}
-          <button
-            onClick={() => alert('F8 上期拷貝：已成功由前一期別載入發票份數基底紀錄')}
-            className="flex items-center space-x-1 px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition"
-          >
-            <span className="bg-yellow-600 text-white text-xs px-1 rounded">F8</span>
-            <span>上期拷貝</span>
-          </button>
-
-          {/* F12 方向 */}
-          <button
-            onClick={() => setDirectionRight(!directionRight)}
-            className="flex items-center space-x-1 px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition"
-          >
-            <span className="bg-yellow-600 text-white text-xs px-1 rounded">F12</span>
-            <span>方向 {directionRight ? '→' : '↓'}</span>
-          </button>
-        </div>
-
-        {/* Esc 離開 */}
-        <button
-          onClick={onBackToSele || onBackToMenu}
-          className="flex items-center space-x-1 px-4 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded shadow-md border border-emerald-700 transition"
-        >
-          <span className="bg-emerald-800 text-white text-xs px-1 rounded">Esc</span>
-          <span>離開</span>
-        </button>
       </div>
 
       {/* Delete Confirm Modal */}

@@ -50,6 +50,22 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
   height?: string;
   /** Row key getter (default relies on index) */
   getRowKey?: (row: T, index: number) => string | number;
+  /** Callback on Ins key / Add Row button click */
+  onInsertRow?: () => void;
+  /** Callback on Del key / Delete Row button click */
+  onDeleteRow?: () => void;
+  /** Callback on F6 / Refresh button click */
+  onRefreshData?: () => void;
+  /** Callback on Esc button click */
+  onExit?: () => void;
+  /** Additional custom action buttons */
+  customActions?: React.ReactNode;
+  /** Hide [F2] edit hint badge */
+  hideF2Hint?: boolean;
+  /** Hide keyboard navigation hints ([F2], [F3], [Enter], [↑↓]) */
+  hideKeyboardHints?: boolean;
+  /** Label for Esc hint/button (default '存檔並結算' or '儲存/離開') */
+  escLabel?: string;
 }
 
 export function FoxProGridV2<T extends Record<string, any>>({
@@ -65,8 +81,16 @@ export function FoxProGridV2<T extends Record<string, any>>({
   onF3Search,
   f3SearchTitle = '資料搜尋 [F3]',
   minRows = 15,
-  height = '608px',
+  height,
   getRowKey,
+  onInsertRow,
+  onDeleteRow,
+  onRefreshData,
+  onExit,
+  customActions,
+  hideF2Hint = true,
+  hideKeyboardHints = true,
+  escLabel = '儲存/離開',
 }: FoxProGridV2Props<T>) {
   const { isDark } = useTheme();
   const [selectedCell, setSelectedCell] = useState<{ r: number; c: number }>({ r: 0, c: 0 });
@@ -385,11 +409,13 @@ export function FoxProGridV2<T extends Record<string, any>>({
   };
 
   return (
-    <div ref={gridContainerRef} className="flex flex-col w-full h-full font-mono outline-none">
+    <div ref={gridContainerRef} className="flex-1 min-h-0 flex flex-col w-full h-full font-mono outline-none">
       {/* Excel 15-Row Grid Container */}
       <div
-        style={{ height }}
+        style={height ? { height } : undefined}
         className={`w-full border-2 rounded shadow-md overflow-hidden flex flex-col select-none transition-colors ${
+          height ? '' : 'flex-1 min-h-0'
+        } ${
           isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-blue-900'
         }`}
       >
@@ -450,7 +476,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
         </div>
 
         {/* Rows Body */}
-        <div className={`flex-1 overflow-y-auto ${isDark ? 'bg-slate-900' : 'bg-[#f8fafc]'}`}>
+        <div className={`flex-1 min-h-0 overflow-y-auto ${isDark ? 'bg-slate-900' : 'bg-[#f8fafc]'}`}>
           {displayRows.map((row, rIdx) => {
             const isRowSelected = selectedCell.r === rIdx;
             const isEven = rIdx % 2 === 1;
@@ -560,7 +586,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
 
       {/* StatusBar */}
       <div
-        className={`mt-2 flex flex-wrap items-center justify-between px-4 py-2.5 rounded font-bold text-sm border-t-2 shadow gap-2 transition-colors ${
+        className={`mt-2 shrink-0 flex flex-wrap items-center justify-between px-4 py-2.5 rounded font-bold text-sm border-t-2 shadow gap-2 transition-colors ${
           isDark
             ? 'bg-slate-950 text-slate-100 border-yellow-500'
             : 'bg-blue-950 text-white border-yellow-500'
@@ -578,25 +604,92 @@ export function FoxProGridV2<T extends Record<string, any>>({
           </span>
           {statusBarInfo && <span className="text-gray-300 text-xs">{statusBarInfo}</span>}
         </div>
-        <div className="flex flex-wrap items-center space-x-3 text-xs font-normal text-gray-300">
-          <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-yellow-300 font-bold">
-            [F2] 編輯
-          </span>
-          <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-cyan-300 font-bold">
-            [F3] 查詢開窗
-          </span>
-          <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-green-300 font-bold">
-            [F7] 列印
-          </span>
-          <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-yellow-400 font-bold">
-            [ESC] 存檔並結算
-          </span>
-          <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-white font-bold">
-            [Enter] 下一格
-          </span>
-          <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-gray-200 font-bold">
-            [↑↓] 換列/底端新增
-          </span>
+        <div className="flex flex-wrap items-center gap-2 text-xs font-normal">
+          {/* Action buttons if callbacks provided */}
+          {onInsertRow && (
+            <button
+              type="button"
+              onClick={onInsertRow}
+              className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
+            >
+              <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">Ins</span>
+              <span>新增</span>
+            </button>
+          )}
+
+          {onDeleteRow && (
+            <button
+              type="button"
+              onClick={onDeleteRow}
+              disabled={rows.length === 0}
+              className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer disabled:opacity-50"
+            >
+              <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">Del</span>
+              <span>刪除</span>
+            </button>
+          )}
+
+          {onRefreshData && (
+            <button
+              type="button"
+              onClick={onRefreshData}
+              className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
+            >
+              <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F6</span>
+              <span>查詢</span>
+            </button>
+          )}
+
+          {onOpenPrint && (
+            <button
+              type="button"
+              onClick={onOpenPrint}
+              className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
+            >
+              <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F7</span>
+              <span>列印</span>
+            </button>
+          )}
+
+          {customActions}
+
+          {/* Keyboard hints */}
+          {!hideKeyboardHints && (
+            <>
+              {!hideF2Hint && (
+                <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-yellow-300 font-bold">
+                  [F2] 編輯
+                </span>
+              )}
+              {onF3Search && (
+                <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-cyan-300 font-bold">
+                  [F3] 查詢開窗
+                </span>
+              )}
+              <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-white font-bold">
+                [Enter] 下一格
+              </span>
+              <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-gray-200 font-bold">
+                [↑↓] 換列/底端新增
+              </span>
+            </>
+          )}
+
+          {/* Esc Button / Tag */}
+          {onExit ? (
+            <button
+              type="button"
+              onClick={onExit}
+              className="flex items-center space-x-1 px-3 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded shadow-md border border-emerald-700 transition cursor-pointer"
+            >
+              <span className="bg-emerald-800 text-white text-[10px] px-1 rounded font-mono">Esc</span>
+              <span>{escLabel}</span>
+            </button>
+          ) : (
+            <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-yellow-400 font-bold">
+              [ESC] {escLabel}
+            </span>
+          )}
         </div>
       </div>
 

@@ -11,6 +11,10 @@ interface Wbase1030FormProps {
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
   statusBarInfo?: React.ReactNode;
+  onInsertRow?: () => void;
+  onDeleteRow?: () => void;
+  onRefreshData?: () => void;
+  onExit?: () => void;
 }
 
 const EMP_COLUMNS: ColumnDefV2<EmpItem>[] = [
@@ -30,6 +34,10 @@ export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onInsertRow,
+  onDeleteRow,
+  onRefreshData,
+  onExit,
 }) => {
   const createEmptyRow = (): EmpItem => ({
     empCode: '',
@@ -68,6 +76,10 @@ export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
       onF3Search={handleF3Search}
       f3SearchTitle="人員開窗搜尋 [F3]"
       getRowKey={(row, idx) => row.empCode || idx}
+      onInsertRow={onInsertRow}
+      onDeleteRow={onDeleteRow}
+      onRefreshData={onRefreshData}
+      onExit={onExit}
     />
   );
 };

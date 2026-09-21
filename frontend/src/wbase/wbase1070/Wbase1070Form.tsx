@@ -11,6 +11,10 @@ interface Wbase1070FormProps {
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
   statusBarInfo?: React.ReactNode;
+  onInsertRow?: () => void;
+  onDeleteRow?: () => void;
+  onRefreshData?: () => void;
+  onExit?: () => void;
 }
 
 const NOTE_COLUMNS: ColumnDefV2<NoteItem>[] = [
@@ -26,6 +30,10 @@ export const Wbase1070Form: React.FC<Wbase1070FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onInsertRow,
+  onDeleteRow,
+  onRefreshData,
+  onExit,
 }) => {
   const createEmptyRow = (): NoteItem => ({
     noteCode: '',
@@ -61,6 +69,10 @@ export const Wbase1070Form: React.FC<Wbase1070FormProps> = ({
       onF3Search={handleF3Search}
       f3SearchTitle="收費項目備註開窗搜尋 [F3]"
       getRowKey={(row, idx) => row.noteCode || idx}
+      onInsertRow={onInsertRow}
+      onDeleteRow={onDeleteRow}
+      onRefreshData={onRefreshData}
+      onExit={onExit}
     />
   );
 };

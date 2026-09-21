@@ -136,7 +136,7 @@ export function FoxProGridCard<T extends Record<string, any>>({
 
   return (
     <div
-      className={`rounded-[12px] border overflow-hidden transition-colors ${
+      className={`rounded-[12px] border overflow-hidden transition-colors flex flex-col w-full h-full min-h-0 flex-1 ${
         isDark
           ? 'bg-slate-800 border-slate-700/80 shadow-md'
           : 'bg-white border-2 border-blue-900 shadow-md'
@@ -144,7 +144,7 @@ export function FoxProGridCard<T extends Record<string, any>>({
     >
       {/* Card Title Bar */}
       <div
-        className={`h-10 px-4 flex items-center justify-between border-b transition-colors ${
+        className={`h-10 px-4 flex items-center justify-between border-b shrink-0 transition-colors ${
           isDark
             ? 'bg-slate-800/90 border-slate-700 text-slate-200'
             : 'bg-[#1e3a8a] border-blue-800 text-white'
@@ -172,7 +172,7 @@ export function FoxProGridCard<T extends Record<string, any>>({
 
       {/* Grid Header */}
       <div
-        className={`text-[11px] font-bold uppercase tracking-wider hidden md:grid ${computedGridCols} h-8 items-center px-1 border-b transition-colors ${
+        className={`text-[11px] font-bold uppercase tracking-wider hidden md:grid ${computedGridCols} h-8 items-center px-1 border-b shrink-0 transition-colors ${
           isDark
             ? 'bg-slate-900/90 border-slate-700/80 text-slate-400'
             : 'bg-[#1e3a8a] border-blue-900 text-white'
@@ -200,7 +200,7 @@ export function FoxProGridCard<T extends Record<string, any>>({
         tabIndex={0}
         onKeyDown={onKeyDown}
         onScroll={handleScroll}
-        className={`relative outline-none ${maxHeight} overflow-auto divide-y focus:ring-2 focus:ring-blue-500/20 focus:ring-inset ${
+        className={`relative outline-none flex-1 min-h-0 ${maxHeight} overflow-auto divide-y focus:ring-2 focus:ring-blue-500/20 focus:ring-inset ${
           isDark ? 'divide-slate-700/50 bg-slate-900' : 'divide-gray-200 bg-[#f8fafc]'
         }`}
         aria-label={`${title} Grid`}

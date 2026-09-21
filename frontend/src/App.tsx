@@ -9,9 +9,9 @@ function App() {
 
   return (
     <ThemeProvider>
-      <div className="w-full min-h-screen bg-gray-100 flex flex-col font-mono">
+      <div className="w-full h-screen overflow-hidden bg-gray-100 flex flex-col font-mono">
         {/* Top Navigation Bar */}
-        <header className="bg-slate-950 text-white px-6 py-2 border-b-2 border-yellow-400 flex items-center justify-between shadow-lg">
+        <header className="bg-slate-950 text-white px-6 py-2 border-b-2 border-yellow-400 flex items-center justify-between shadow-lg shrink-0">
           <div className="flex items-center space-x-3">
             <span className="bg-yellow-400 text-black font-extrabold px-2 py-0.5 rounded text-sm tracking-wider">
               Wx3000
@@ -48,7 +48,7 @@ function App() {
         </header>
 
         {/* Main Page Area */}
-        <main className="flex-1">
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {activeTab === 'wbase' ? <WbaseMainPage /> : <PurchaseOrderPage />}
         </main>
       </div>

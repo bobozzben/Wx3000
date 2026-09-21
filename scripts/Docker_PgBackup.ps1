@@ -21,7 +21,7 @@ $errorOutput = & "$PG_BIN\pg_dump.exe" -h $DB_HOST -p $DB_PORT -U $DB_USER      
 if ($LASTEXITCODE -ne 0) { 
     Write-Host "error,$schema,$errorOutput,$LASTEXITCODE "
 } else {
-    Write-Host "OK" -ForegroundColor Yellow
+    Write-Host "A3000 備份完成!" -ForegroundColor Yellow
 } 
 # 清除密碼變數 
 $env:PGPASSWORD = $null 

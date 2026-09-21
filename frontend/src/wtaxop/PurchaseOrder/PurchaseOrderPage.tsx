@@ -69,12 +69,14 @@ export const PurchaseOrderPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100 p-4 font-mono">
+    <div className="h-full min-h-0 flex-1 flex flex-col bg-gray-100 p-4 font-mono overflow-hidden">
       {/* Top Header Form */}
-      <PurchaseOrderHeader />
+      <div className="shrink-0">
+        <PurchaseOrderHeader />
+      </div>
 
       {/* Detail Grid */}
-      <div className="flex-1 mb-3">
+      <div className="flex-1 min-h-0 mb-3 flex flex-col overflow-hidden">
         <FoxProGridBill
           rows={lines}
           onRowsChange={setLines}
@@ -84,7 +86,7 @@ export const PurchaseOrderPage: React.FC = () => {
       </div>
 
       {/* Action Buttons Bar */}
-      <div className="bg-white border-2 border-blue-900 rounded-lg p-3 flex items-center justify-between shadow-md">
+      <div className="shrink-0 bg-white border-2 border-blue-900 rounded-lg p-3 flex items-center justify-between shadow-md">
         <div className="flex items-center space-x-2 text-sm text-gray-700">
           <span className="font-bold">盲打提示：</span>
           <span>按 [Enter] 右移，[F2] 開窗或編輯，[F12] 一鍵存檔。</span>

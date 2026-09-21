@@ -5,8 +5,8 @@
 
 @layer base {
   body {
-    background-color: #f3f4f6;
-    color: #1f2937;
+    background-color: #f1f5f9;
+    color: #0f172a;
     font-family: Consolas, Monaco, "Courier New", monospace;
     margin: 0;
     padding: 0;
@@ -23,10 +23,10 @@
   --ag-header-height: 38px;
   --ag-header-background-color: #1e3a8a;
   --ag-header-foreground-color: #ffffff;
-  --ag-odd-row-background-color: rgb(255, 255, 255);
-  --ag-even-row-background-color: rgb(255, 236, 217);
+  --ag-odd-row-background-color: #ffffff;
+  --ag-even-row-background-color: #f8fafc;
   --ag-row-hover-color: #fef08a;
-  --ag-cell-horizontal-border: 1px solid #e5e7eb;
+  --ag-cell-horizontal-border: 1px solid #cbd5e1;
 }
 
 /* Header style override */
