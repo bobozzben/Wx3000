@@ -11,6 +11,7 @@ import {
   Moon,
   Building2,
   MapPin,
+  Eye,
 } from 'lucide-react';
 import { getSystemParam } from '../../services/systemParamService';
 import {
@@ -49,6 +50,7 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isXlsxModalOpen, setIsXlsxModalOpen] = useState<boolean>(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState<boolean>(false);
   const [queriedData, setQueriedData] = useState<InvoicePurchaseItem[]>([]);
 
   // F2 Search Modal
@@ -79,6 +81,7 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
   const [xlsxFields, setXlsxFields] = useState<XlsxFieldItem[]>(defaultXlsxFields);
 
   // Element Refs for Keyboard Focus Navigation
+  const btnPreviewRef = useRef<HTMLButtonElement>(null);
   const yearRef = useRef<HTMLInputElement>(null);
   const startMonthRef = useRef<HTMLInputElement>(null);
   const endMonthRef = useRef<HTMLInputElement>(null);
@@ -104,6 +107,7 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
 
   // 1. Fetch Year/Month period from Database: a3000 schema: e3000__comm Table: 總帳參數設定
   useEffect(() => {
+    let isMounted = true;
     const loadSystemPeriod = async () => {
       try {
         const savedPeriod = await getSystemParam(
@@ -112,7 +116,7 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
           '營業稅發票購買期別',
           '11505-06'
         );
-        if (savedPeriod && savedPeriod.includes('-')) {
+        if (isMounted && savedPeriod && savedPeriod.includes('-')) {
           const parts = savedPeriod.split('-');
           if (parts[0].length >= 3) {
             setYear(parts[0].substring(0, parts[0].length - 2));
@@ -122,11 +126,13 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
         }
       } catch (err) {
         console.error('Failed to load system period param:', err);
-      } finally {
-        focusAndSelect(yearRef);
       }
     };
     loadSystemPeriod();
+    focusAndSelect(yearRef);
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // 2. QueryData Function: Fetch data from Postgresql Database: a3000 schema: e3000__comm Table: 基本發票購買
@@ -150,7 +156,13 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     return data;
   }, [year, startMonth, endMonth, mode, cityCond, placeCond, sortOrder]);
 
-  // 3. F7. 列印 Action
+  // 3. F4. 預覽資料 Action (除錯用)
+  const handlePreviewData = useCallback(async () => {
+    await QueryData();
+    setIsPreviewModalOpen(true);
+  }, [QueryData]);
+
+  // 4. F7. 列印 Action
   const handlePrint = useCallback(async () => {
     const data = await QueryData();
     if (data.length === 0) {
@@ -166,13 +178,13 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     } else {
       setStatusMessage(`⚠️ 報表呼叫回應: ${res.error || 'localagent 未啟動，即將開啟網頁印表機預覽'}`);
       alert(
-        `[F7.列印提示]\nLocalAgent (wbaseRP.dll -> waccrep3101_b) 呼叫結果: ${res.error || '連線中'}\n系統將直接進行網頁列印預覽！`
+        `[F7.列印提示]\nLocalAgent (wbaseRP.dll -> waccrep3101_b) 呼叫結果: ${res.error || '連線中'}\n系統將將直接進行網頁列印預覽！`
       );
       window.print();
     }
   }, [QueryData]);
 
-  // 4. F8. 匯出 Action
+  // 5. F8. 匯出 Action
   const handleExport = useCallback(async () => {
     const data = await QueryData();
     if (data.length === 0) {
@@ -227,9 +239,12 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
   // Global Hotkeys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isXlsxModalOpen || isF2ModalOpen) return;
+      if (isXlsxModalOpen || isF2ModalOpen || isPreviewModalOpen) return;
 
-      if (e.key === 'F7') {
+      if (e.key === 'F4') {
+        e.preventDefault();
+        handlePreviewData();
+      } else if (e.key === 'F7') {
         e.preventDefault();
         handlePrint();
       } else if (e.key === 'F8') {
@@ -727,10 +742,30 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
 
         {/* Footer Action Bar */}
         <div
-          className={`px-4 py-2.5 sm:px-5 sm:py-3 flex items-center justify-end gap-2.5 border-t transition-colors ${
+          className={`px-4 py-2.5 sm:px-5 sm:py-3 flex items-center justify-between gap-2.5 border-t transition-colors ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200/90'
           }`}
         >
+          {/* Left Side: Debug / Preview Button */}
+          <div>
+            <button
+              ref={btnPreviewRef}
+              onClick={handlePreviewData}
+              disabled={isLoading}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handlePreviewData();
+                }
+              }}
+              className="flex items-center space-x-1.5 px-4 sm:px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-extrabold rounded-xl shadow-md transition active:scale-95 disabled:opacity-50 focus:outline-none focus:ring-4 focus:ring-amber-400 text-xs sm:text-sm"
+            >
+              <Eye className="w-4 h-4 text-white" />
+              <span>F4. 預覽資料</span>
+            </button>
+          </div>
+
+          {/* Right Side: Action Buttons */}
           <div className="flex items-center space-x-2.5 font-bold text-xs sm:text-sm">
             <button
               ref={btnPrintRef}
@@ -819,6 +854,121 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
         onSelect={handleSelectPlaceItem}
         onClose={() => setIsF2ModalOpen(false)}
       />
+
+      {/* Debug Data Preview Modal */}
+      {isPreviewModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 font-mono select-none">
+          <div
+            className={`w-full max-w-4xl max-h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border ${
+              isDark
+                ? 'bg-slate-900 text-white border-slate-700'
+                : 'bg-white text-slate-800 border-slate-300'
+            }`}
+          >
+            {/* Modal Header */}
+            <div
+              className={`px-5 py-3 flex items-center justify-between border-b ${
+                isDark
+                  ? 'bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 border-slate-800'
+                  : 'bg-gradient-to-r from-sky-700 to-indigo-700 text-white shadow-md'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Eye className="w-5 h-5 text-amber-300" />
+                <h3 className="font-black text-lg tracking-wide text-white">
+                  除錯用資料預覽 (共 {queriedData.length} 筆紀錄)
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsPreviewModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-white/20 text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Table Body */}
+            <div className="p-4 overflow-auto flex-1">
+              {queriedData.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 font-bold text-base">
+                  ⚠️ 依目前設定條件查詢無相符之發票購買資料！
+                </div>
+              ) : (
+                <div className="overflow-x-auto border rounded-xl shadow-xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr
+                        className={`border-b ${
+                          isDark
+                            ? 'bg-slate-800 text-amber-300 border-slate-700'
+                            : 'bg-indigo-50 text-indigo-900 border-indigo-200'
+                        }`}
+                      >
+                        <th className="p-2.5 font-bold border-r text-center">#</th>
+                        <th className="p-2.5 font-bold border-r">公司編號</th>
+                        <th className="p-2.5 font-bold border-r">公司簡稱</th>
+                        <th className="p-2.5 font-bold border-r">統一編號</th>
+                        <th className="p-2.5 font-bold border-r">稅籍編號</th>
+                        <th className="p-2.5 font-bold border-r">購票地點</th>
+                        <th className="p-2.5 font-bold border-r">期別</th>
+                        <th className="p-2.5 font-bold">縣市/地點</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
+                      {queriedData.map((item, idx) => (
+                        <tr
+                          key={idx}
+                          className={`hover:bg-amber-400/10 transition ${
+                            idx % 2 === 0
+                              ? isDark
+                                ? 'bg-slate-900/60'
+                                : 'bg-white'
+                              : isDark
+                              ? 'bg-slate-800/40'
+                              : 'bg-slate-50'
+                          }`}
+                        >
+                          <td className="p-2 font-mono text-center border-r font-bold text-slate-400">
+                            {idx + 1}
+                          </td>
+                          <td className="p-2 font-mono font-bold text-sky-400 border-r">
+                            {item.companyCode || '-'}
+                          </td>
+                          <td className="p-2 font-bold border-r">
+                            {item.companyShortName || '-'}
+                          </td>
+                          <td className="p-2 font-mono border-r">{item.unifiedNo || '-'}</td>
+                          <td className="p-2 font-mono border-r">{item.taxNo || '-'}</td>
+                          <td className="p-2 border-r">{item.placeCode || '-'}</td>
+                          <td className="p-2 font-mono border-r">{item.period || '-'}</td>
+                          <td className="p-2 truncate max-w-xs">{item.city || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              className={`px-5 py-3 flex items-center justify-between border-t ${
+                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+              }`}
+            >
+              <div className="text-xs text-slate-400 font-bold">
+                查詢條件: {year}年{startMonth}-{endMonth}月 | 轉出模式: {mode === '1' ? '依地址縣市(' + cityCond + ')' : '依購買地點(' + placeCond + ')'} | 排序: {sortOrder === '1' ? '統一編號' : '稅籍編號'}
+              </div>
+              <button
+                onClick={() => setIsPreviewModalOpen(false)}
+                className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-xs transition shadow-sm active:scale-95"
+              >
+                關閉預覽 (Esc)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
