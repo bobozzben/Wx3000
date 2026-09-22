@@ -165,13 +165,17 @@ export const Wbase3010Page: React.FC<Wbase3010PageProps> = ({ onBackToMenu }) =>
           onShowSummary={() => {
             if (onBackToMenu) onBackToMenu();
           }}
-          statusBarInfo={
-            selectedRow ? (
+          statusBarInfo={(row) =>
+            row && row.placeCode ? (
               <span className="text-xs">
-                目前選取：[{selectedRow.placeCode}] {selectedRow.placeName || '未命名'} | 連絡人：{selectedRow.contactPerson || '(無)'} | 電話：{selectedRow.contactTel || '(無)'}
+                目前選取：[{row.placeCode}] {row.placeName || '未命名'} | 連絡人：{row.contactPerson || '(無)'} | 電話：{row.contactTel || '(無)'}
               </span>
             ) : null
           }
+          onSelectRow={(_row, idx) => {
+            const { setSelectedIndex } = useWbase3010.getState();
+            setSelectedIndex(idx);
+          }}
           onInsertRow={() => {
             const newRow = { placeCode: '', placeName: '', placeAddress: '', contactPerson: '', contactTel: '', memo: '' };
             setRows([...rows, newRow]);

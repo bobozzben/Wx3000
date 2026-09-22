@@ -165,14 +165,18 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
           onShowSummary={() => {
             if (onBackToMenu) onBackToMenu();
           }}
-          statusBarInfo={
-            selectedRow ? (
+          statusBarInfo={(row) =>
+            row && row.feeCode ? (
               <span className="text-xs">
-                目前選取：[{selectedRow.feeCode}] {selectedRow.feeName} | 收費金額：NT${' '}
-                {Number(selectedRow.price || 0).toLocaleString('zh-TW', { minimumFractionDigits: 2 })}
+                目前選取：[{row.feeCode}] {row.feeName} | 收費金額：NT${' '}
+                {Number(row.price || 0).toLocaleString('zh-TW', { minimumFractionDigits: 2 })}
               </span>
             ) : null
           }
+          onSelectRow={(_row, idx) => {
+            const { setSelectedIndex } = useWbase1060.getState();
+            setSelectedIndex(idx);
+          }}
           onInsertRow={() => {
             const newRow = { feeCode: '', feeName: '', price: 0, memo: '' };
             setRows([...rows, newRow]);

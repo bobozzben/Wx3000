@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import type { TaxOfficerItem } from '../../services/wbase1050';
 import { FoxProGridV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { ColumnDefV2 } from '../../components/FoxProGrid/FoxProGridV2';
@@ -10,7 +10,8 @@ interface Wbase1050FormProps {
   onSaveRow: (row: TaxOfficerItem) => Promise<void>;
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
-  statusBarInfo?: React.ReactNode;
+  statusBarInfo?: React.ReactNode | ((row: TaxOfficerItem | undefined, rowIndex: number) => React.ReactNode);
+  onSelectRow?: (row: TaxOfficerItem | undefined, rowIndex: number) => void;
   onInsertRow?: () => void;
   onDeleteRow?: () => void;
   onRefreshData?: () => void;
@@ -36,12 +37,13 @@ export const Wbase1050Form: React.FC<Wbase1050FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onSelectRow,
   onInsertRow,
   onDeleteRow,
   onRefreshData,
   onExit,
 }) => {
-  const createEmptyRow = (): TaxOfficerItem => ({
+  const createEmptyRow = useCallback((): TaxOfficerItem => ({
     taxCode: '',
     taxName: '',
     taxBureau: '',
@@ -51,7 +53,7 @@ export const Wbase1050Form: React.FC<Wbase1050FormProps> = ({
     mobile: '',
     email: '',
     memo: '',
-  });
+  }), []);
 
   const handleF3Search = async (query: string): Promise<SearchItem[]> => {
     return rows
@@ -78,6 +80,7 @@ export const Wbase1050Form: React.FC<Wbase1050FormProps> = ({
       onOpenPrint={onOpenPrint}
       onShowSummary={onShowSummary}
       statusBarInfo={statusBarInfo}
+      onSelectRow={onSelectRow}
       onF3Search={handleF3Search}
       f3SearchTitle="稅務人員開窗搜尋 [F3]"
       getRowKey={(row, idx) => row.taxCode || idx}

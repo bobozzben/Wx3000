@@ -38,8 +38,10 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
   onOpenPrint?: () => void;
   /** ESC Save summary & return trigger (receives hasModified boolean flag) */
   onShowSummary?: (hasModified: boolean) => void;
-  /** Custom status bar left info */
-  statusBarInfo?: React.ReactNode;
+  /** Custom status bar left info (node or function receiving current selected row and index) */
+  statusBarInfo?: React.ReactNode | ((row: T | undefined, rowIndex: number) => React.ReactNode);
+  /** Callback triggered whenever active row selection changes */
+  onSelectRow?: (row: T | undefined, rowIndex: number) => void;
   /** F3 Search modal query handler */
   onF3Search?: (query: string, colKey: keyof T & string) => Promise<SearchItem[]>;
   /** F3 Search modal title */
@@ -78,6 +80,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onSelectRow,
   onF3Search,
   f3SearchTitle = '資料搜尋 [F3]',
   minRows = 15,
@@ -111,15 +114,41 @@ export function FoxProGridV2<T extends Record<string, any>>({
   const inputRef = useRef<HTMLInputElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
+  const createEmptyRowRef = useRef(createEmptyRow);
+  useEffect(() => {
+    createEmptyRowRef.current = createEmptyRow;
+  }, [createEmptyRow]);
+
   // Pad display rows up to minRows (15 rows) for seamless Excel experience
   const displayRows = useMemo(() => {
     if (rows.length >= minRows) return rows;
     const padded = [...rows];
     while (padded.length < minRows) {
-      padded.push(createEmptyRow());
+      padded.push(createEmptyRowRef.current());
     }
     return padded;
-  }, [rows, minRows, createEmptyRow]);
+  }, [rows, minRows]);
+
+  const currentSelectedRow = displayRows[selectedCell.r];
+
+  const onSelectRowRef = useRef(onSelectRow);
+  useEffect(() => {
+    onSelectRowRef.current = onSelectRow;
+  }, [onSelectRow]);
+
+  useEffect(() => {
+    if (onSelectRowRef.current) {
+      const selectedRow = displayRows[selectedCell.r];
+      onSelectRowRef.current(selectedRow, selectedCell.r);
+    }
+  }, [selectedCell.r, rows]);
+
+  const evaluatedStatusBarInfo = useMemo(() => {
+    if (typeof statusBarInfo === 'function') {
+      return statusBarInfo(currentSelectedRow, selectedCell.r);
+    }
+    return statusBarInfo;
+  }, [statusBarInfo, currentSelectedRow, selectedCell.r]);
 
   // Primary Key existence check helper for Grid Editing
   const checkPrimaryKeyDuplicate = useCallback(
@@ -602,7 +631,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
               第 {selectedCell.r + 1} 列 / 第 {selectedCell.c + 1} 欄
             </span>
           </span>
-          {statusBarInfo && <span className="text-gray-300 text-xs">{statusBarInfo}</span>}
+          {evaluatedStatusBarInfo && <span className="text-gray-300 text-xs">{evaluatedStatusBarInfo}</span>}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs font-normal">
           {/* Action buttons if callbacks provided */}

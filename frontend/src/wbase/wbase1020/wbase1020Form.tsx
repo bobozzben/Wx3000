@@ -10,7 +10,8 @@ interface Wbase1020FormProps {
   onSaveRow: (row: CpaItem) => Promise<void>;
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
-  statusBarInfo?: React.ReactNode;
+  statusBarInfo?: React.ReactNode | ((row: CpaItem | undefined, rowIndex: number) => React.ReactNode);
+  onSelectRow?: (row: CpaItem | undefined, rowIndex: number) => void;
   onInsertRow?: () => void;
   onDeleteRow?: () => void;
   onRefreshData?: () => void;
@@ -34,6 +35,7 @@ export const Wbase1020Form: React.FC<Wbase1020FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onSelectRow,
   onInsertRow,
   onDeleteRow,
   onRefreshData,
@@ -76,6 +78,7 @@ export const Wbase1020Form: React.FC<Wbase1020FormProps> = ({
       onOpenPrint={onOpenPrint}
       onShowSummary={onShowSummary}
       statusBarInfo={statusBarInfo}
+      onSelectRow={onSelectRow}
       onF3Search={handleF3Search}
       f3SearchTitle="會計師開窗搜尋 [F3]"
       getRowKey={(row, idx) => row?.cpaCode || idx}

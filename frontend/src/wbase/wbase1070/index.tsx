@@ -164,13 +164,17 @@ export const Wbase1070Page: React.FC<Wbase1070PageProps> = ({ onBackToMenu }) =>
           onShowSummary={() => {
             if (onBackToMenu) onBackToMenu();
           }}
-          statusBarInfo={
-            selectedRow ? (
+          statusBarInfo={(row) =>
+            row && row.noteCode ? (
               <span className="text-xs">
-                目前選取：[{selectedRow.noteCode}] {selectedRow.noteName} | 備註內容：{selectedRow.content || '-'}
+                目前選取：[{row.noteCode}] {row.noteName} | 備註內容：{row.content || '-'}
               </span>
             ) : null
           }
+          onSelectRow={(_row, idx) => {
+            const { setSelectedIndex } = useWbase1070.getState();
+            setSelectedIndex(idx);
+          }}
           onInsertRow={() => {
             const newRow = { noteCode: '', noteName: '', content: '' };
             setRows([...rows, newRow]);

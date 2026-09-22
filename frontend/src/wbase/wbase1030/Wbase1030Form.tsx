@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import type { EmpItem } from '../../services/wbase1030';
 import { FoxProGridV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { ColumnDefV2 } from '../../components/FoxProGrid/FoxProGridV2';
@@ -10,7 +10,8 @@ interface Wbase1030FormProps {
   onSaveRow: (row: EmpItem) => Promise<void>;
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
-  statusBarInfo?: React.ReactNode;
+  statusBarInfo?: React.ReactNode | ((row: EmpItem | undefined, rowIndex: number) => React.ReactNode);
+  onSelectRow?: (row: EmpItem | undefined, rowIndex: number) => void;
   onInsertRow?: () => void;
   onDeleteRow?: () => void;
   onRefreshData?: () => void;
@@ -34,12 +35,13 @@ export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onSelectRow,
   onInsertRow,
   onDeleteRow,
   onRefreshData,
   onExit,
 }) => {
-  const createEmptyRow = (): EmpItem => ({
+  const createEmptyRow = useCallback((): EmpItem => ({
     empCode: '',
     empName: '',
     depName: '',
@@ -47,7 +49,7 @@ export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
     email: '',
     oneUserId: '',
     onePassNo: '',
-  });
+  }), []);
 
   const handleF3Search = async (query: string): Promise<SearchItem[]> => {
     return rows
@@ -73,6 +75,7 @@ export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
       onOpenPrint={onOpenPrint}
       onShowSummary={onShowSummary}
       statusBarInfo={statusBarInfo}
+      onSelectRow={onSelectRow}
       onF3Search={handleF3Search}
       f3SearchTitle="人員開窗搜尋 [F3]"
       getRowKey={(row, idx) => row.empCode || idx}

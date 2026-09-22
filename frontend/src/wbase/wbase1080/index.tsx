@@ -164,13 +164,17 @@ export const Wbase1080Page: React.FC<Wbase1080PageProps> = ({ onBackToMenu }) =>
           onShowSummary={() => {
             if (onBackToMenu) onBackToMenu();
           }}
-          statusBarInfo={
-            selectedRow ? (
+          statusBarInfo={(row) =>
+            row && row.summaryCode ? (
               <span className="text-xs">
-                目前選取：[{selectedRow.summaryCode}] {selectedRow.summaryName} | 摘要內容：{selectedRow.content || '-'}
+                目前選取：[{row.summaryCode}] {row.summaryName} | 摘要內容：{row.content || '-'}
               </span>
             ) : null
           }
+          onSelectRow={(_row, idx) => {
+            const { setSelectedIndex } = useWbase1080.getState();
+            setSelectedIndex(idx);
+          }}
           onInsertRow={() => {
             const newRow = { summaryCode: '', summaryName: '', content: '' };
             setRows([...rows, newRow]);

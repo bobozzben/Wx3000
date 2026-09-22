@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import type { NoteItem } from '../../services/wbase1070';
 import { FoxProGridV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { ColumnDefV2 } from '../../components/FoxProGrid/FoxProGridV2';
@@ -10,7 +10,8 @@ interface Wbase1070FormProps {
   onSaveRow: (row: NoteItem) => Promise<void>;
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
-  statusBarInfo?: React.ReactNode;
+  statusBarInfo?: React.ReactNode | ((row: NoteItem | undefined, rowIndex: number) => React.ReactNode);
+  onSelectRow?: (row: NoteItem | undefined, rowIndex: number) => void;
   onInsertRow?: () => void;
   onDeleteRow?: () => void;
   onRefreshData?: () => void;
@@ -30,16 +31,17 @@ export const Wbase1070Form: React.FC<Wbase1070FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onSelectRow,
   onInsertRow,
   onDeleteRow,
   onRefreshData,
   onExit,
 }) => {
-  const createEmptyRow = (): NoteItem => ({
+  const createEmptyRow = useCallback((): NoteItem => ({
     noteCode: '',
     noteName: '',
     content: '',
-  });
+  }), []);
 
   const handleF3Search = async (query: string): Promise<SearchItem[]> => {
     return rows
@@ -66,6 +68,7 @@ export const Wbase1070Form: React.FC<Wbase1070FormProps> = ({
       onOpenPrint={onOpenPrint}
       onShowSummary={onShowSummary}
       statusBarInfo={statusBarInfo}
+      onSelectRow={onSelectRow}
       onF3Search={handleF3Search}
       f3SearchTitle="收費項目備註開窗搜尋 [F3]"
       getRowKey={(row, idx) => row.noteCode || idx}

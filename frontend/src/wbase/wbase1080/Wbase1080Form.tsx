@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import type { FeeSummary } from '../../services/wbase1080';
 import { FoxProGridV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { ColumnDefV2 } from '../../components/FoxProGrid/FoxProGridV2';
@@ -10,7 +10,8 @@ interface Wbase1080FormProps {
   onSaveRow: (row: FeeSummary) => Promise<void>;
   onOpenPrint: () => void;
   onShowSummary: (hasModified: boolean) => void;
-  statusBarInfo?: React.ReactNode;
+  statusBarInfo?: React.ReactNode | ((row: FeeSummary | undefined, rowIndex: number) => React.ReactNode);
+  onSelectRow?: (row: FeeSummary | undefined, rowIndex: number) => void;
   onInsertRow?: () => void;
   onDeleteRow?: () => void;
   onRefreshData?: () => void;
@@ -30,16 +31,17 @@ export const Wbase1080Form: React.FC<Wbase1080FormProps> = ({
   onOpenPrint,
   onShowSummary,
   statusBarInfo,
+  onSelectRow,
   onInsertRow,
   onDeleteRow,
   onRefreshData,
   onExit,
 }) => {
-  const createEmptyRow = (): FeeSummary => ({
+  const createEmptyRow = useCallback((): FeeSummary => ({
     summaryCode: '',
     summaryName: '',
     content: '',
-  });
+  }), []);
 
   const handleF3Search = async (query: string): Promise<SearchItem[]> => {
     return rows
@@ -66,6 +68,7 @@ export const Wbase1080Form: React.FC<Wbase1080FormProps> = ({
       onOpenPrint={onOpenPrint}
       onShowSummary={onShowSummary}
       statusBarInfo={statusBarInfo}
+      onSelectRow={onSelectRow}
       onF3Search={handleF3Search}
       f3SearchTitle="基本收費摘要開窗搜尋 [F3]"
       getRowKey={(row, idx) => row.summaryCode || idx}

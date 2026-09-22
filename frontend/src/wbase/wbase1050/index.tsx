@@ -164,13 +164,17 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
           onShowSummary={() => {
             if (onBackToMenu) onBackToMenu();
           }}
-          statusBarInfo={
-            selectedRow ? (
+          statusBarInfo={(row) =>
+            row && row.taxCode ? (
               <span className="text-xs">
-                目前選取：[{selectedRow.taxCode}] {selectedRow.taxName} | 分機：{selectedRow.ext || '-'}
+                目前選取：[{row.taxCode}] {row.taxName} | 分機：{row.ext || '-'}
               </span>
             ) : null
           }
+          onSelectRow={(_row, idx) => {
+            const { setSelectedIndex } = useWbase1050.getState();
+            setSelectedIndex(idx);
+          }}
           onInsertRow={() => {
             const newRow = { taxCode: '', taxName: '', taxBureau: '', unit: '', tel: '', ext: '', mobile: '', email: '', memo: '' };
             setRows([...rows, newRow]);
