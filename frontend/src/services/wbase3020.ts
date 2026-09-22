@@ -138,3 +138,149 @@ export const fetchPrintInvoicePurchaseList = async (
   const response = await axios.post<InvoicePurchaseItem[]>(`${API_BASE}/print`, query);
   return response.data;
 };
+
+export interface BuyinvPrintQueryRequest {
+  period?: string;
+  times?: string;
+  mode?: string; // "1": 依地址縣市, "2": 依購買地點
+  cityCondition?: string;
+  placeCondition?: string;
+  sortOrder?: string; // "1": 依統一編號, "2": 依稅籍編號
+}
+
+/**
+ * 依條件從 PostgreSQL Database: a3000 schema: e3000__comm Table: 基本發票購買 取得列印資料
+ */
+export const queryBuyinvPrintData = async (
+  req: BuyinvPrintQueryRequest
+): Promise<InvoicePurchaseItem[]> => {
+  try {
+    const response = await axios.post<InvoicePurchaseItem[]>(`${API_BASE}/buyinv-print-query`, req);
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (err) {
+    console.error('queryBuyinvPrintData error:', err);
+    return [];
+  }
+};
+
+/**
+ * 呼叫 localagent_koffi 裏的 wbaseRP.dll 的 waccrep3101_b 函數顯示報表預覽畫面
+ */
+export const callLocalagentReport = async (
+  hs_chk: number = 1,
+  top_mag: number = 10,
+  left_mag: number = 10,
+  prtIndex: number = 0,
+  isPrint: number = 0,
+  savePath: string = 'C:\\temp\\buyinv_print.pdf'
+): Promise<{ success: boolean; message?: string; retCode?: number; error?: string }> => {
+  try {
+    const response = await axios.post('http://localhost:18889/api/call', {
+      dll: 'wbaseRP',
+      func: 'waccrep3101_b',
+      args: [hs_chk, top_mag, left_mag, prtIndex, isPrint, savePath],
+    });
+    return response.data;
+  } catch (err: any) {
+    console.error('callLocalagentReport error:', err);
+    return {
+      success: false,
+      error: err?.response?.data?.error || err?.message || '呼叫 localagent_koffi 失敗',
+    };
+  }
+};
+
+/**
+ * 將查詢資料匯出至 EXCEL (.xlsx)
+ */
+export const exportToXlsx = async (
+  data: InvoicePurchaseItem[],
+  selectedFields: Array<{ key: string; label: string; customTitle: string }>,
+  fileName: string = '預購統一發票清冊.xlsx'
+): Promise<boolean> => {
+  try {
+    const XLSX = await import('xlsx');
+
+    // 建立映射欄位資料
+    const exportRows = data.map((item: any, index: number) => {
+      const rowObj: Record<string, any> = {};
+      selectedFields.forEach((field) => {
+        const title = field.customTitle || field.label;
+        switch (field.key) {
+          case 'seq':
+            rowObj[title] = index + 1;
+            break;
+          case 'serialNo':
+            rowObj[title] = item.guid || index + 1;
+            break;
+          case 'companyCode':
+            rowObj[title] = item.companyCode || '';
+            break;
+          case 'companyShortName':
+            rowObj[title] = item.companyShortName || '';
+            break;
+          case 'unifiedNo':
+            rowObj[title] = item.unifiedNo || '';
+            break;
+          case 'taxNo':
+            rowObj[title] = item.taxNo || '';
+            break;
+          case 'manualTwoDup':
+            rowObj[title] = item.manualTwoDup || 0;
+            break;
+          case 'manualTwoDupSub':
+            rowObj[title] = item.manualTwoDupSub || 0;
+            break;
+          case 'manualThreeDup':
+            rowObj[title] = item.manualThreeDup || 0;
+            break;
+          case 'manualThreeDupSub':
+            rowObj[title] = item.manualThreeDupSub || 0;
+            break;
+          case 'manualSpecial':
+            rowObj[title] = item.manualSpecial || 0;
+            break;
+          case 'cashTwoDup':
+            rowObj[title] = item.cashTwoDup || 0;
+            break;
+          case 'cashThreeDup':
+            rowObj[title] = item.cashThreeDup || 0;
+            break;
+          case 'cashThreeDupSub':
+            rowObj[title] = item.cashThreeDupSub || 0;
+            break;
+          case 'city':
+            rowObj[title] = item.city || '';
+            break;
+          case 'placeCode':
+            rowObj[title] = item.placeCode || '';
+            break;
+          case 'empCode':
+            rowObj[title] = item.empCode || '';
+            break;
+          case 'period':
+            rowObj[title] = item.period || '';
+            break;
+          case 'times':
+            rowObj[title] = item.times || '1';
+            break;
+          default:
+            rowObj[title] = item[field.key] ?? '';
+            break;
+        }
+      });
+      return rowObj;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '預購統一發票清冊');
+
+    XLSX.writeFile(workbook, fileName);
+    return true;
+  } catch (err) {
+    console.error('exportToXlsx error:', err);
+    return false;
+  }
+};
+

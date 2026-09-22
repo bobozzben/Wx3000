@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useWbase3020 } from './useWbase3020';
-import { Wbase3020Print } from './wbase3020Print';
+import { Wbase3020_buyinv_print } from './wbase3020_buyinv_print';
 import { FoxProGridV2, type ColumnDefV2, type HeaderGroupDef } from '../../components/FoxProGrid/FoxProGridV2';
 import type { SearchItem } from '../../components/FoxProGrid/SearchModal';
 import type { InvoicePurchaseItem } from '../../services/wbase3020';
@@ -413,8 +413,8 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
         </div>
       )}
 
-      {/* Print Preview Dialog */}
-      <Wbase3020Print />
+      {/* Print Preview Dialog (wbase3020_buyinv_print) */}
+      {isPrintOpen && <Wbase3020_buyinv_print onClose={closePrint} />}
     </div>
   );
 };

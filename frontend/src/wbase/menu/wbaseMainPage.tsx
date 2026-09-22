@@ -14,6 +14,7 @@ import { Wbase2010Page } from '../wbase2010';
 import { Wbase2010SplitPage } from '../wbase2010/Wbase2010SplitPage';
 import { Wbase3010Page } from '../wbase3010';
 import { Wbase3020Page } from '../wbase3020';
+import { Wbase3020_buyinv_print } from '../wbase3020/wbase3020_buyinv_print';
 import { ArrowLeft, LayoutGrid, Sun, Moon } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 
@@ -43,6 +44,8 @@ export const WbaseMainPage: React.FC = () => {
       setActiveModule('wbase3010');
     } else if (item.code === 'wbase3020') {
       setActiveModule('wbase3020');
+    } else if (item.code === 'wbase3030' || item.code === 'wbase3020_buyinv_print') {
+      setActiveModule('wbase3020_buyinv_print');
     } else if (item.code === 'A00') {
       // 結束離開
       if (window.confirm('確定要離開系統嗎？')) {
@@ -219,6 +222,8 @@ export const WbaseMainPage: React.FC = () => {
             <Wbase3010Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase3020' ? (
             <Wbase3020Page onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase3020_buyinv_print' ? (
+            <Wbase3020_buyinv_print onClose={() => setActiveModule(null)} />
           ) : (
             <Wbase1030Page onBackToMenu={() => setActiveModule(null)} />
           )}

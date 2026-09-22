@@ -517,6 +517,69 @@ namespace Wx3000.Backend.Controllers
             public string? CodeEnd { get; set; }
         }
 
+        public class BuyinvPrintQueryRequest
+        {
+            public string? Period { get; set; }          // 依列印期別 (e.g. "11505-06")
+            public string? Times { get; set; }           // 次數 (e.g. "1")
+            public string? Mode { get; set; }            // "1": 依地址縣市, "2": 依購買地點
+            public string? CityCondition { get; set; }   // e.g. "*" 代表全部, 或特定縣市
+            public string? PlaceCondition { get; set; }  // e.g. 購買地點代碼/名稱
+            public string? SortOrder { get; set; }       // "1": 依統一編號, "2": 依稅籍編號
+        }
+
+        // POST: api/wbase3020/buyinv-print-query
+        [HttpPost("buyinv-print-query")]
+        public async Task<ActionResult<IEnumerable<InvoicePurchaseMaster>>> BuyinvPrintQuery([FromBody] BuyinvPrintQueryRequest req)
+        {
+            try
+            {
+                var period = string.IsNullOrWhiteSpace(req.Period) ? "11505-06" : req.Period.Trim();
+                var times = string.IsNullOrWhiteSpace(req.Times) ? "1" : req.Times.Trim();
+
+                await EnsureTableCreatedAndSeededAsync(period, times);
+
+                var queryable = _context.InvoicePurchaseMasters
+                    .AsNoTracking()
+                    .Where(x => x.Period == period && x.Times == times);
+
+                var mode = (req.Mode ?? "1").Trim();
+                if (mode == "1") // 1.依地址縣市
+                {
+                    var city = (req.CityCondition ?? "*").Trim();
+                    if (city != "*" && !string.IsNullOrWhiteSpace(city))
+                    {
+                        queryable = queryable.Where(x => x.City != null && x.City.Contains(city));
+                    }
+                }
+                else if (mode == "2") // 2.依購買地點
+                {
+                    var place = (req.PlaceCondition ?? "").Trim();
+                    if (!string.IsNullOrWhiteSpace(place))
+                    {
+                        queryable = queryable.Where(x => x.PlaceCode != null && x.PlaceCode.Contains(place));
+                    }
+                }
+
+                var sortOrder = (req.SortOrder ?? "1").Trim();
+                if (sortOrder == "2") // 2.依稅籍編號
+                {
+                    queryable = queryable.OrderBy(x => x.TaxNo).ThenBy(x => x.CompanyCode);
+                }
+                else // 1.依統一編號 (預設)
+                {
+                    queryable = queryable.OrderBy(x => x.UnifiedNo).ThenBy(x => x.CompanyCode);
+                }
+
+                var list = await queryable.ToListAsync();
+                return Ok(list);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"BuyinvPrintQuery error: {ex.Message}");
+                return StatusCode(500, new { message = $"查詢預購統一發票資料失敗: {ex.Message}" });
+            }
+        }
+
         // POST: api/wbase3020/print
         [HttpPost("print")]
         public async Task<ActionResult<IEnumerable<InvoicePurchaseMaster>>> PrintRange([FromBody] PrintRangeQuery query)
