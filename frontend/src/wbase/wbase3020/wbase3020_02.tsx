@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useWbase3020 } from './useWbase3020';
 import { Wbase3020_buyinv_print } from './wbase3020_buyinv_print';
 import { FoxProGridV2, type ColumnDefV2, type HeaderGroupDef } from '../../components/FoxProGrid/FoxProGridV2';
-import type { SearchItem } from '../../components/FoxProGrid/SearchModal';
 import type { InvoicePurchaseItem } from '../../services/wbase3020';
 import {
   Receipt,
@@ -46,14 +45,17 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
     loading,
     errorToast,
     setErrorToast,
+    toastMessage,
     showAutoCloseToast,
     isDeleteConfirmOpen,
     setIsDeleteConfirmOpen,
     isPrintOpen,
     closePrint,
     selectedIndex,
+    setSelectedIndex,
     refreshData,
     handleSaveRow,
+    handleTransferCompanyData,
     openDeleteConfirm,
     confirmDelete,
     openPrint,
@@ -67,10 +69,16 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
     refreshData();
   }, [refreshData]);
 
-  // Global Keyboard Shortcuts (F7: Print, Esc: Exit/Close, Ins: Add)
+  // Global Keyboard Shortcuts (F3: Transfer, F7: Print, Esc: Exit/Close, Ins: Add)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
+
+      if (e.key === 'F3') {
+        e.preventDefault();
+        handleTransferCompanyData();
+        return;
+      }
 
       if (e.key === 'F7') {
         e.preventDefault();
@@ -122,21 +130,6 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
     cashThreeDup: 0,
     cashThreeDupSub: 0,
   });
-
-  const handleF3Search = async (query: string): Promise<SearchItem[]> => {
-    return rows
-      .filter(
-        (x) =>
-          x.companyCode.toLowerCase().includes(query.toLowerCase()) ||
-          x.companyShortName.toLowerCase().includes(query.toLowerCase()) ||
-          x.unifiedNo.toLowerCase().includes(query.toLowerCase())
-      )
-      .map((x) => ({
-        code: x.companyCode,
-        name: x.companyShortName,
-        spec: `統編:${x.unifiedNo || '無'} | 稅籍:${x.taxNo || '無'}`,
-      }));
-  };
 
   const headerGroups: HeaderGroupDef[] = useMemo(
     () => [
@@ -266,18 +259,17 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
           statusBarInfo={
             selectedRow ? (
               <span className="text-xs">
-                目前選取公司：[{selectedRow.companyCode}] {selectedRow.companyShortName} | 統編：{selectedRow.unifiedNo || '無'}
+                目前選取公司：[{selectedRow.companyCode}] {selectedRow.companyShortName} | 統編：{selectedRow.unifiedNo || ''}
               </span>
             ) : null
           }
-          onF3Search={handleF3Search}
-          f3SearchTitle="發票購買公司開窗查詢 [F3]"
           getRowKey={(row, idx) => `${row.companyCode}_${idx}`}
+          onSelectRow={(_row, idx) => setSelectedIndex(idx)}
           onInsertRow={() => {
             const newRow = createEmptyRow();
             setRows([...rows, newRow]);
           }}
-          onDeleteRow={() => openDeleteConfirm()}
+          onDeleteRow={(_row, idx) => openDeleteConfirm(idx !== undefined ? idx : selectedIndex)}
           onExit={onBackToSele || onBackToMenu}
           hideKeyboardHints={true}
           escLabel="儲存/離開"
@@ -286,8 +278,10 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
               {/* F3 轉檔 */}
               <button
                 type="button"
-                onClick={() => alert('F3 轉檔功能：已完成預購轉檔準備')}
-                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
+                onClick={() => handleTransferCompanyData()}
+                disabled={loading}
+                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer disabled:opacity-50"
+                title="從公司資料轉入基本發票購買 (F3)"
               >
                 <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F3</span>
                 <span>轉檔</span>
@@ -389,11 +383,11 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
         </div>
       )}
 
-      {/* Auto-Close Toast (Saved) */}
+      {/* Auto-Close Toast (Saved / Transferred) */}
       {showAutoCloseToast && (
         <div className="fixed bottom-12 right-6 z-50 flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xl border border-emerald-400 animate-bounce font-bold text-sm">
           <CheckCircle className="w-5 h-5" />
-          <span>已成功儲存至 PostgreSQL 資料庫 (基本發票購買)！</span>
+          <span>{toastMessage || '已成功儲存至 PostgreSQL 資料庫 (基本發票購買)！'}</span>
         </div>
       )}
 

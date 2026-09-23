@@ -282,6 +282,39 @@ export const exportToXlsx = async (
     });
 
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
+
+    // 計算自動欄寬 (最寬欄寬不超過 557 像素)
+    const MAX_PX = 557;
+    const MIN_PX = 60;
+
+    const colWidths = selectedFields.map((field) => {
+      const title = field.customTitle || field.label;
+
+      const calcPx = (str: any): number => {
+        const text = str != null ? String(str) : '';
+        let len = 0;
+        for (let i = 0; i < text.length; i++) {
+          len += text.charCodeAt(i) > 255 ? 2 : 1;
+        }
+        return len * 8 + 16;
+      };
+
+      let maxPx = calcPx(title);
+
+      exportRows.forEach((row) => {
+        const valPx = calcPx(row[title]);
+        if (valPx > maxPx) maxPx = valPx;
+      });
+
+      const finalPx = Math.max(MIN_PX, Math.min(maxPx, MAX_PX));
+      return {
+        wpx: finalPx,
+        wch: Math.round(finalPx / 8),
+      };
+    });
+
+    worksheet['!cols'] = colWidths;
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, '預購統一發票清冊');
 
@@ -291,5 +324,19 @@ export const exportToXlsx = async (
     console.error('exportToXlsx error:', err);
     return false;
   }
+};
+
+export const transferCompanyData = async (
+  period: string,
+  times: string
+): Promise<{ success: boolean; message: string; totalCount?: number }> => {
+  const response = await axios.post<{ success: boolean; message: string; totalCount?: number }>(
+    `${API_BASE}/transfer-company-data`,
+    {
+      period,
+      times,
+    }
+  );
+  return response.data;
 };
 

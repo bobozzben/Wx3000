@@ -6,6 +6,7 @@ import {
   batchSaveInvoicePurchaseItems,
   deleteInvoicePurchaseItem,
   fetchPrintInvoicePurchaseList,
+  transferCompanyData,
 } from '../../services/wbase3020';
 
 interface Wbase3020State {
@@ -22,6 +23,8 @@ interface Wbase3020State {
   loading: boolean;
   errorToast: string | null;
   setErrorToast: (msg: string | null) => void;
+  toastMessage: string | null;
+  setToastMessage: (msg: string | null) => void;
   showAutoCloseToast: boolean;
   setShowAutoCloseToast: (show: boolean) => void;
   isDeleteConfirmOpen: boolean;
@@ -32,6 +35,7 @@ interface Wbase3020State {
   refreshData: (keyword?: string) => Promise<void>;
   handleSaveRow: (updatedRow: InvoicePurchaseItem) => Promise<void>;
   handleSaveAll: () => Promise<void>;
+  handleTransferCompanyData: () => Promise<boolean>;
   openDeleteConfirm: (idx?: number) => void;
   confirmDelete: () => Promise<boolean>;
   openPrint: () => void;
@@ -56,6 +60,8 @@ export const useWbase3020 = create<Wbase3020State>((set, get) => ({
   loading: false,
   errorToast: null,
   setErrorToast: (errorToast) => set({ errorToast }),
+  toastMessage: null,
+  setToastMessage: (toastMessage) => set({ toastMessage }),
   showAutoCloseToast: false,
   setShowAutoCloseToast: (showAutoCloseToast) => set({ showAutoCloseToast }),
   isDeleteConfirmOpen: false,
@@ -82,6 +88,35 @@ export const useWbase3020 = create<Wbase3020State>((set, get) => ({
     }
   },
 
+  handleTransferCompanyData: async () => {
+    set({ loading: true });
+    try {
+      const { period, times } = get();
+      const result = await transferCompanyData(period, times);
+      if (result.success) {
+        set({
+          toastMessage: result.message || 'F3 轉檔成功！已轉入基本發票購買資料',
+          showAutoCloseToast: true,
+        });
+        setTimeout(() => {
+          set({ showAutoCloseToast: false, toastMessage: null });
+        }, 3000);
+        await get().refreshData();
+        return true;
+      } else {
+        set({ errorToast: result.message || '轉檔作業失敗' });
+        return false;
+      }
+    } catch (e: any) {
+      console.error('Transfer company data error:', e);
+      const msg = e?.response?.data?.message || '轉檔作業失敗，請確認資料庫連線';
+      set({ errorToast: msg });
+      return false;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
   handleSaveRow: async (updatedRow) => {
     if (!updatedRow.companyCode.trim()) return;
     try {
@@ -90,8 +125,8 @@ export const useWbase3020 = create<Wbase3020State>((set, get) => ({
       const rowToSave = { ...updatedRow, period, times };
       const success = await saveInvoicePurchaseItem(rowToSave, isNew);
       if (success) {
-        set({ showAutoCloseToast: true });
-        setTimeout(() => set({ showAutoCloseToast: false }), 2000);
+        set({ toastMessage: '已成功儲存至 PostgreSQL 資料庫 (基本發票購買)！', showAutoCloseToast: true });
+        setTimeout(() => set({ showAutoCloseToast: false, toastMessage: null }), 2000);
         await get().refreshData();
       }
     } catch (e) {
@@ -105,8 +140,8 @@ export const useWbase3020 = create<Wbase3020State>((set, get) => ({
     try {
       const success = await batchSaveInvoicePurchaseItems(get().rows);
       if (success) {
-        set({ showAutoCloseToast: true });
-        setTimeout(() => set({ showAutoCloseToast: false }), 2000);
+        set({ toastMessage: '批次儲存成功！', showAutoCloseToast: true });
+        setTimeout(() => set({ showAutoCloseToast: false, toastMessage: null }), 2000);
         await get().refreshData();
       } else {
         set({ errorToast: '批次儲存失敗' });
@@ -138,9 +173,12 @@ export const useWbase3020 = create<Wbase3020State>((set, get) => ({
       const res = await deleteInvoicePurchaseItem(period, times, target.companyCode);
       if (res) {
         set({
+          toastMessage: `已成功刪除 [${target.companyCode}] 的發票購買紀錄！`,
+          showAutoCloseToast: true,
           selectedIndex: Math.max(0, selectedIndex - 1),
           isDeleteConfirmOpen: false,
         });
+        setTimeout(() => set({ showAutoCloseToast: false, toastMessage: null }), 2000);
         await refreshData();
         return true;
       }

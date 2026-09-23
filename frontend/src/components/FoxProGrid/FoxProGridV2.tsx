@@ -55,7 +55,7 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
   /** Callback on Ins key / Add Row button click */
   onInsertRow?: () => void;
   /** Callback on Del key / Delete Row button click */
-  onDeleteRow?: () => void;
+  onDeleteRow?: (row?: T, rowIndex?: number) => void;
   /** Callback on F6 / Refresh button click */
   onRefreshData?: () => void;
   /** Callback on Esc button click */
@@ -113,11 +113,22 @@ export function FoxProGridV2<T extends Record<string, any>>({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
+  const tableBodyRef = useRef<HTMLDivElement>(null);
 
   const createEmptyRowRef = useRef(createEmptyRow);
   useEffect(() => {
     createEmptyRowRef.current = createEmptyRow;
   }, [createEmptyRow]);
+
+  // Auto scroll table body to keep active row in visible range
+  useEffect(() => {
+    if (tableBodyRef.current) {
+      const rowEl = tableBodyRef.current.children[selectedCell.r] as HTMLElement | undefined;
+      if (rowEl) {
+        rowEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedCell.r]);
 
   // Pad display rows up to minRows (15 rows) for seamless Excel experience
   const displayRows = useMemo(() => {
@@ -336,6 +347,30 @@ export function FoxProGridV2<T extends Record<string, any>>({
           }
           return;
         }
+        if (e.key === 'PageUp') {
+          e.preventDefault();
+          const success = commitEdit(r, c, editValue);
+          if (success) {
+            const containerHeight = tableBodyRef.current?.clientHeight || 0;
+            const pageSize = containerHeight > 0 ? Math.max(1, Math.floor(containerHeight / 38)) : 10;
+            const nr = Math.max(0, r - pageSize);
+            setSelectedCell({ r: nr, c });
+            setIsEditing(false);
+          }
+          return;
+        }
+        if (e.key === 'PageDown') {
+          e.preventDefault();
+          const success = commitEdit(r, c, editValue);
+          if (success) {
+            const containerHeight = tableBodyRef.current?.clientHeight || 0;
+            const pageSize = containerHeight > 0 ? Math.max(1, Math.floor(containerHeight / 38)) : 10;
+            const nr = Math.min(displayRows.length - 1, r + pageSize);
+            setSelectedCell({ r: Math.max(0, nr), c });
+            setIsEditing(false);
+          }
+          return;
+        }
         return;
       }
 
@@ -377,6 +412,45 @@ export function FoxProGridV2<T extends Record<string, any>>({
           return;
         }
 
+        if (e.key === 'PageUp') {
+          e.preventDefault();
+          const containerHeight = tableBodyRef.current?.clientHeight || 0;
+          const pageSize = containerHeight > 0 ? Math.max(1, Math.floor(containerHeight / 38)) : 10;
+          const nr = Math.max(0, r - pageSize);
+          setSelectedCell({ r: nr, c });
+          return;
+        }
+        if (e.key === 'PageDown') {
+          e.preventDefault();
+          const containerHeight = tableBodyRef.current?.clientHeight || 0;
+          const pageSize = containerHeight > 0 ? Math.max(1, Math.floor(containerHeight / 38)) : 10;
+          const nr = Math.min(displayRows.length - 1, r + pageSize);
+          setSelectedCell({ r: Math.max(0, nr), c });
+          return;
+        }
+
+        if (e.key === 'Home') {
+          e.preventDefault();
+          setSelectedCell({ r: e.ctrlKey ? 0 : r, c: 0 });
+          return;
+        }
+        if (e.key === 'End') {
+          e.preventDefault();
+          setSelectedCell({
+            r: e.ctrlKey ? Math.max(0, displayRows.length - 1) : r,
+            c: columns.length - 1,
+          });
+          return;
+        }
+
+        if (e.key === 'Delete') {
+          e.preventDefault();
+          if (onDeleteRow) {
+            onDeleteRow(currentSelectedRow, r);
+          }
+          return;
+        }
+
         // Direct typing trigger
         if (
           /^[a-zA-Z0-9\u4e00-\u9fa5\-]$/.test(e.key) &&
@@ -410,6 +484,8 @@ export function FoxProGridV2<T extends Record<string, any>>({
     onF3Search,
     onOpenPrint,
     onShowSummary,
+    onDeleteRow,
+    currentSelectedRow,
   ]);
 
   const handleModalSelect = (item: SearchItem) => {
@@ -505,7 +581,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
         </div>
 
         {/* Rows Body */}
-        <div className={`flex-1 min-h-0 overflow-y-auto ${isDark ? 'bg-slate-900' : 'bg-[#f8fafc]'}`}>
+        <div ref={tableBodyRef} className={`flex-1 min-h-0 overflow-y-auto ${isDark ? 'bg-slate-900' : 'bg-[#f8fafc]'}`}>
           {displayRows.map((row, rIdx) => {
             const isRowSelected = selectedCell.r === rIdx;
             const isEven = rIdx % 2 === 1;
@@ -649,7 +725,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
           {onDeleteRow && (
             <button
               type="button"
-              onClick={onDeleteRow}
+              onClick={() => onDeleteRow(currentSelectedRow, selectedCell.r)}
               disabled={rows.length === 0}
               className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer disabled:opacity-50"
             >

@@ -16,6 +16,13 @@ export interface XlsxFieldItem {
   color?: string;
 }
 
+export interface XlsxSerializedConfig {
+  vFieldList: string;
+  vCaptionList: string;
+  vDisplayFormat: string;
+  vColorList: string;
+}
+
 interface FormUtilSelectXlsxFieldsListProps {
   isOpen: boolean;
   title?: string;
@@ -25,9 +32,27 @@ interface FormUtilSelectXlsxFieldsListProps {
   vCaptionList?: string;
   vDisplayFormat?: string;
   vColorList?: string;
-  onConfirm: (selectedFields: XlsxFieldItem[]) => void;
+  onConfirm: (selectedFields: XlsxFieldItem[], savedConfig?: XlsxSerializedConfig) => void;
   onClose: () => void;
 }
+
+/**
+ * 將當前選擇的欄位狀態序列化為 vFieldList, vCaptionList, vDisplayFormat, vColorList 逗號分隔字串
+ */
+export const serializeXlsxConfigParams = (fields: XlsxFieldItem[]): XlsxSerializedConfig => {
+  const selected = fields.filter((f) => f.selected);
+  const vFieldList = selected.map((f) => f.label || f.key).join(',');
+  const vCaptionList = selected.map((f) => f.customTitle || f.label).join(',');
+  const vDisplayFormat = selected.map((f) => f.displayFormat || '').join(',');
+  const vColorList = selected.map((f) => f.color || '').join(',');
+
+  return {
+    vFieldList,
+    vCaptionList,
+    vDisplayFormat,
+    vColorList,
+  };
+};
 
 /**
  * 依據傳入的逗號分隔字串對比候選欄位並重構清單與自訂標題
@@ -145,8 +170,19 @@ export const FormUtilSelectXlsxFieldsList: React.FC<FormUtilSelectXlsxFieldsList
   // Reset to default (F8)
   const handleResetDefaults = useCallback(() => {
     const base = defaultFields || initialFields;
-    setFields(base.map((f) => ({ ...f })));
-  }, [defaultFields, initialFields]);
+    if (vFieldList && vFieldList.trim() && base && base.length > 0) {
+      const parsed = parseXlsxConfigParams(
+        base,
+        vFieldList,
+        vCaptionList,
+        vDisplayFormat,
+        vColorList
+      );
+      setFields(parsed);
+    } else {
+      setFields(base.map((f) => ({ ...f })));
+    }
+  }, [defaultFields, initialFields, vFieldList, vCaptionList, vDisplayFormat, vColorList]);
 
   // Move row UP
   const moveUp = useCallback((idx: number) => {
@@ -194,7 +230,8 @@ export const FormUtilSelectXlsxFieldsList: React.FC<FormUtilSelectXlsxFieldsList
 
   // Confirm changes (F9)
   const handleConfirm = useCallback(() => {
-    onConfirm(fields);
+    const savedConfig = serializeXlsxConfigParams(fields);
+    onConfirm(fields, savedConfig);
   }, [fields, onConfirm]);
 
   // Keyboard navigation

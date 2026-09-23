@@ -54,9 +54,12 @@ namespace Wx3000.Backend.Controllers
                     DO $$ BEGIN ALTER TABLE ""e3000__comm"".""基本發票購買"" ALTER COLUMN ""guid"" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN END $$;
                     DO $$ BEGIN ALTER TABLE ""e3000__comm"".""基本發票購買"" ALTER COLUMN ""guid"" TYPE character varying(100); EXCEPTION WHEN OTHERS THEN END $$;
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""次數"" character varying(10) NOT NULL DEFAULT '1';
+                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""購買次數"" character varying(10) NOT NULL DEFAULT '1';
+                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""公司名稱"" character varying(255) DEFAULT '';
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""公司簡稱"" character varying(255) DEFAULT '';
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""公司統編"" character varying(20) DEFAULT '';
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""稅籍編號"" character varying(30) DEFAULT '';
+                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""公司地址"" character varying(255) DEFAULT '';
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""手開二聯"" integer NOT NULL DEFAULT 0;
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""手開二聯副"" integer NOT NULL DEFAULT 0;
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""手開三聯"" integer NOT NULL DEFAULT 0;
@@ -67,8 +70,16 @@ namespace Wx3000.Backend.Controllers
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""收銀三聯副"" integer NOT NULL DEFAULT 0;
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""縣市別"" character varying(50) DEFAULT '';
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""購買地點"" character varying(50) DEFAULT '';
+                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""購票地點編號"" character varying(50) DEFAULT '';
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""建檔人員"" character varying(50) DEFAULT '';
+                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""登打人員編號"" character varying(50) DEFAULT '';
+                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""序"" integer DEFAULT 1;
+                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""流水號"" integer DEFAULT 1;
+                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""上次順序"" integer DEFAULT 0;
                     ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""guid"" character varying(50) DEFAULT '';
+
+                    ALTER TABLE ""e3000__comm"".""公司資料"" ADD COLUMN IF NOT EXISTS ""購票地點編號"" character varying(50) DEFAULT '';
+                    ALTER TABLE ""e3000__comm"".""公司資料"" ADD COLUMN IF NOT EXISTS ""登打人員編號"" character varying(50) DEFAULT '';
 
                     DELETE FROM ""e3000__comm"".""基本發票購買"" a
                     USING ""e3000__comm"".""基本發票購買"" b
@@ -77,98 +88,6 @@ namespace Wx3000.Backend.Controllers
                       AND a.""次數"" = b.""次數""
                       AND a.""公司編號"" = b.""公司編號"";
                 ");
-
-                // Check if any record exists for this period & times
-                var hasRecords = await _context.InvoicePurchaseMasters
-                    .AnyAsync(x => x.Period == period && x.Times == times);
-
-                if (!hasRecords)
-                {
-                    var newItems = new List<InvoicePurchaseMaster>();
-                    var existingCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                    try
-                    {
-                        var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
-                        foreach (var c in companies)
-                        {
-                            if (string.IsNullOrWhiteSpace(c.CompanyCode)) continue;
-                            var code = c.CompanyCode.Trim();
-                            if (existingCodes.Contains(code)) continue;
-                            existingCodes.Add(code);
-
-                            newItems.Add(new InvoicePurchaseMaster
-                            {
-                                Period = period,
-                                Times = times,
-                                CompanyCode = code,
-                                CompanyShortName = c.ShortName?.Trim() ?? c.CompanyName?.Trim() ?? string.Empty,
-                                UnifiedNo = c.UnifiedNo?.Trim() ?? string.Empty,
-                                TaxNo = c.TaxNo?.Trim() ?? string.Empty,
-                                Guid = Guid.NewGuid().ToString("N"),
-                            });
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"CompanyMasters fetch info: {ex.Message}");
-                    }
-
-                    // Demo sample seed data matching standard specification
-                    var defaultCompanies = new[]
-                    {
-                        new { Code = "H-002", Name = "", Ban = "48973517", Tax = "", M2 = 0, M2S = 0, M3 = 0, M3S = 0, MS = 13, C2 = 2, C3 = 17, C3S = 1 },
-                        new { Code = "104", Name = "", Ban = "", Tax = "", M2 = 0, M2S = 0, M3 = 0, M3S = 5, MS = 16, C2 = 0, C3 = 0, C3S = 8 },
-                        new { Code = "000", Name = "財法人", Ban = "", Tax = "", M2 = 0, M2S = 0, M3 = 0, M3S = 0, MS = 0, C2 = 0, C3 = 5, C3S = 0 },
-                        new { Code = "3-902", Name = "", Ban = "", Tax = "", M2 = 17, M2S = 1, M3 = 8, M3S = 0, MS = 2, C2 = 0, C3 = 0, C3S = 9 },
-                        new { Code = "0003", Name = "", Ban = "", Tax = "", M2 = 0, M2S = 18, M3 = 1, M3S = 4, MS = 2, C2 = 8, C3 = 27, C3S = 4 },
-                        new { Code = "117", Name = "", Ban = "", Tax = "", M2 = 19, M2S = 9, M3 = 0, M3S = 0, MS = 0, C2 = 0, C3 = 0, C3S = 13 },
-                        new { Code = "A02", Name = "", Ban = "00292977", Tax = "", M2 = 0, M2S = 6, M3 = 0, M3S = 3, MS = 16, C2 = 0, C3 = 12, C3S = 3 },
-                        new { Code = "0008-1", Name = "", Ban = "28327787", Tax = "", M2 = 0, M2S = 0, M3 = 6, M3S = 0, MS = 19, C2 = 10, C3 = 7, C3S = 0 },
-                        new { Code = "0008-5", Name = "", Ban = "72830125", Tax = "", M2 = 15, M2S = 0, M3 = 0, M3S = 9, MS = 0, C2 = 5, C3 = 0, C3S = 5 },
-                        new { Code = "001", Name = "", Ban = "", Tax = "", M2 = 9, M2S = 5, M3 = 0, M3S = 9, MS = 0, C2 = 0, C3 = 0, C3S = 9 },
-                        new { Code = "A01", Name = "", Ban = "27585532", Tax = "", M2 = 19, M2S = 9, M3 = 0, M3S = 0, MS = 0, C2 = 0, C3 = 0, C3S = 14 },
-                        new { Code = "A0088", Name = "", Ban = "", Tax = "", M2 = 18, M2S = 1, M3 = 0, M3S = 0, MS = 6, C2 = 14, C3 = 25, C3S = 7 },
-                        new { Code = "A003", Name = "", Ban = "", Tax = "", M2 = 13, M2S = 0, M3 = 0, M3S = 0, MS = 0, C2 = 0, C3 = 7, C3S = 10 },
-                        new { Code = "005", Name = "", Ban = "", Tax = "", M2 = 0, M2S = 15, M3 = 8, M3S = 8, MS = 16, C2 = 0, C3 = 0, C3S = 0 },
-                        new { Code = "005-1", Name = "", Ban = "86941142", Tax = "", M2 = 0, M2S = 0, M3 = 8, M3S = 4, MS = 11, C2 = 15, C3 = 0, C3S = 0 },
-                        new { Code = "1-1209", Name = "", Ban = "27670559", Tax = "", M2 = 15, M2S = 0, M3 = 5, M3S = 0, MS = 12, C2 = 0, C3 = 9, C3S = 10 },
-                        new { Code = "1-1215", Name = "", Ban = "69725578", Tax = "", M2 = 18, M2S = 0, M3 = 0, M3S = 0, MS = 4, C2 = 0, C3 = 0, C3S = 13 },
-                        new { Code = "40042", Name = "", Ban = "", Tax = "", M2 = 1, M2S = 0, M3 = 9, M3S = 0, MS = 0, C2 = 9, C3 = 0, C3S = 5 },
-                        new { Code = "41", Name = "", Ban = "", Tax = "", M2 = 0, M2S = 17, M3 = 0, M3S = 1, MS = 0, C2 = 17, C3 = 5, C3S = 0 }
-                    };
-
-                    foreach (var d in defaultCompanies)
-                    {
-                        if (!existingCodes.Contains(d.Code))
-                        {
-                            newItems.Add(new InvoicePurchaseMaster
-                            {
-                                Period = period,
-                                Times = times,
-                                CompanyCode = d.Code,
-                                CompanyShortName = d.Name,
-                                UnifiedNo = d.Ban,
-                                TaxNo = d.Tax,
-                                ManualTwoDup = d.M2,
-                                ManualTwoDupSub = d.M2S,
-                                ManualThreeDup = d.M3,
-                                ManualThreeDupSub = d.M3S,
-                                ManualSpecial = d.MS,
-                                CashTwoDup = d.C2,
-                                CashThreeDup = d.C3,
-                                CashThreeDupSub = d.C3S,
-                                Guid = Guid.NewGuid().ToString("N"),
-                            });
-                        }
-                    }
-
-                    if (newItems.Count > 0)
-                    {
-                        _context.InvoicePurchaseMasters.AddRange(newItems);
-                        await _context.SaveChangesAsync();
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -280,6 +199,32 @@ namespace Wx3000.Backend.Controllers
                     .GroupBy(x => x.CompanyCode.Trim().ToUpper())
                     .Select(g => g.First())
                     .ToList();
+
+                var companyDict = await _context.CompanyMasters.AsNoTracking()
+                    .ToDictionaryAsync(c => c.CompanyCode.Trim().ToUpper(), c => c);
+
+                foreach (var item in deduplicatedList)
+                {
+                    var code = item.CompanyCode.Trim().ToUpper();
+
+                    if (companyDict.TryGetValue(code, out var comp))
+                    {
+                        item.CompanyName = comp.CompanyName?.Trim() ?? string.Empty;
+                        item.CompanyAddr = comp.Address?.Trim() ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(item.CompanyShortName))
+                            item.CompanyShortName = comp.ShortName?.Trim() ?? comp.CompanyName?.Trim() ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(item.UnifiedNo))
+                            item.UnifiedNo = comp.UnifiedNo?.Trim() ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(item.TaxNo))
+                            item.TaxNo = comp.TaxNo?.Trim() ?? string.Empty;
+                    }
+                    else
+                    {
+                        item.CompanyName = string.Empty;
+                        item.CompanyAddr = string.Empty;
+                    }
+                }
+
                 return Ok(deduplicatedList);
             }
             catch (Exception ex)
@@ -509,6 +454,103 @@ namespace Wx3000.Backend.Controllers
             }
         }
 
+        public class TransferCompanyDataRequest
+        {
+            public string? Period { get; set; }
+            public string? Times { get; set; }
+        }
+
+        // POST: api/wbase3020/transfer-company-data
+        [HttpPost("transfer-company-data")]
+        public async Task<IActionResult> TransferCompanyData([FromBody] TransferCompanyDataRequest req)
+        {
+            try
+            {
+                var targetPeriod = string.IsNullOrWhiteSpace(req.Period) ? "11505-06" : req.Period.Trim();
+                var targetTimes = string.IsNullOrWhiteSpace(req.Times) ? "1" : req.Times.Trim();
+
+                await EnsureTableCreatedAndSeededAsync(targetPeriod, targetTimes);
+
+                var cleanPeriod = targetPeriod.Replace("'", "''");
+                var cleanTimes = targetTimes.Replace("'", "''");
+
+                var sql = $@"
+DO $$ 
+DECLARE
+  myRec RECORD;
+  aa text := '';
+BEGIN
+  FOR myRec IN 
+    SELECT 
+      ""公司編號"", 
+      COALESCE(""公司名稱"", '') AS ""公司名稱"", 
+      COALESCE(""公司簡稱"", '') AS ""公司簡稱"", 
+      COALESCE(""公司統編"", '') AS ""公司統編"", 
+      COALESCE(""稅籍編號"", '') AS ""稅籍編號"", 
+      COALESCE(""公司地址"", '') AS ""公司地址"", 
+      COALESCE(""購票地點編號"", '') AS ""購票地點編號"", 
+      COALESCE(""登打人員編號"", '') AS ""登打人員編號""
+    FROM ""e3000__comm"".""公司資料"" 
+    WHERE ""公司編號"" IS NOT NULL AND TRIM(""公司編號"") <> ''
+    ORDER BY ""公司編號""
+  LOOP
+    SELECT ""公司編號"" FROM ""e3000__comm"".""基本發票購買"" 
+    WHERE ""公司編號"" = myRec.""公司編號"" 
+      AND ""期別"" = '{cleanPeriod}' 
+      AND (""購買次數"" = '{cleanTimes}' OR ""次數"" = '{cleanTimes}') 
+    INTO aa; 
+
+    IF NOT FOUND THEN 
+      INSERT INTO ""e3000__comm"".""基本發票購買"" (
+        ""序"", ""流水號"", ""上次順序"", ""期別"", ""次數"", ""購買次數"", 
+        ""公司編號"", ""公司名稱"", ""公司簡稱"", ""公司統編"", ""稅籍編號"", 
+        ""公司地址"", ""購票地點編號"", ""購買地點"", ""登打人員編號"", ""建檔人員"", ""guid""
+      ) VALUES (
+        1, 1, 0, '{cleanPeriod}', '{cleanTimes}', '{cleanTimes}', 
+        myRec.""公司編號"", myRec.""公司名稱"", myRec.""公司簡稱"", myRec.""公司統編"", myRec.""稅籍編號"", 
+        myRec.""公司地址"", myRec.""購票地點編號"", myRec.""購票地點編號"", myRec.""登打人員編號"", myRec.""登打人員編號"",
+        md5(random()::text || clock_timestamp()::text)
+      ); 
+    ELSE 
+      UPDATE ""e3000__comm"".""基本發票購買"" 
+      SET 
+        ""公司名稱"" = myRec.""公司名稱"", 
+        ""公司簡稱"" = myRec.""公司簡稱"", 
+        ""公司統編"" = myRec.""公司統編"", 
+        ""稅籍編號"" = myRec.""稅籍編號"", 
+        ""公司地址"" = myRec.""公司地址"", 
+        ""購票地點編號"" = myRec.""購票地點編號"", 
+        ""購買地點"" = myRec.""購票地點編號"", 
+        ""登打人員編號"" = myRec.""登打人員編號"", 
+        ""建檔人員"" = myRec.""登打人員編號"",
+        ""次數"" = '{cleanTimes}',
+        ""購買次數"" = '{cleanTimes}'
+      WHERE ""公司編號"" = myRec.""公司編號"" 
+        AND ""期別"" = '{cleanPeriod}' 
+        AND (""購買次數"" = '{cleanTimes}' OR ""次數"" = '{cleanTimes}');
+    END IF; 
+  END LOOP; 
+END; 
+$$;
+";
+
+                await _context.Database.ExecuteSqlRawAsync(sql);
+
+                var totalCount = await _context.InvoicePurchaseMasters
+                    .CountAsync(x => x.Period == targetPeriod && x.Times == targetTimes);
+
+                return Ok(new { 
+                    success = true, 
+                    message = $"F3 轉檔成功！已將公司資料轉入【基本發票購買】(期別: {targetPeriod}, 次數: {targetTimes})", 
+                    totalCount 
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = $"F3 轉檔失敗: {ex.Message}" });
+            }
+        }
+
         public class PrintRangeQuery
         {
             public string? Period { get; set; }
@@ -580,19 +622,24 @@ namespace Wx3000.Backend.Controllers
                 {
                     var p = x.p;
                     var c = x.c;
-                    if (c != null)
-                    {
-                        if (!string.IsNullOrWhiteSpace(c.UnifiedNo)) p.UnifiedNo = c.UnifiedNo.Trim();
-                        if (!string.IsNullOrWhiteSpace(c.TaxNo)) p.TaxNo = c.TaxNo.Trim();
-                        if (!string.IsNullOrWhiteSpace(c.ShortName)) p.CompanyShortName = c.ShortName.Trim();
-                        else if (!string.IsNullOrWhiteSpace(c.CompanyName)) p.CompanyShortName = c.CompanyName.Trim();
-                        p.CompanyName = c.CompanyName?.Trim() ?? p.CompanyShortName;
-                        p.CompanyAddr = c.Address?.Trim() ?? string.Empty;
-                    }
-                    else
-                    {
-                        p.CompanyName = p.CompanyShortName;
-                    }
+
+                    p.UnifiedNo = !string.IsNullOrWhiteSpace(c?.UnifiedNo) ? c.UnifiedNo!.Trim()
+                        : (!string.IsNullOrWhiteSpace(p.UnifiedNo) ? p.UnifiedNo.Trim() : string.Empty);
+
+                    p.TaxNo = !string.IsNullOrWhiteSpace(c?.TaxNo) ? c.TaxNo!.Trim()
+                        : (!string.IsNullOrWhiteSpace(p.TaxNo) ? p.TaxNo.Trim() : string.Empty);
+
+                    p.CompanyShortName = !string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim()
+                        : (!string.IsNullOrWhiteSpace(p.CompanyShortName) ? p.CompanyShortName.Trim() : string.Empty));
+
+                    p.CompanyName = !string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
+                        : (!string.IsNullOrWhiteSpace(p.CompanyShortName) ? p.CompanyShortName.Trim() : string.Empty));
+
+                    p.CompanyAddr = !string.IsNullOrWhiteSpace(c?.Address) ? c.Address!.Trim()
+                        : (!string.IsNullOrWhiteSpace(p.City) ? p.City.Trim() : string.Empty);
+
                     return p;
                 }).ToList();
 
@@ -640,19 +687,24 @@ namespace Wx3000.Backend.Controllers
                 {
                     var p = x.p;
                     var c = x.c;
-                    if (c != null)
-                    {
-                        if (!string.IsNullOrWhiteSpace(c.UnifiedNo)) p.UnifiedNo = c.UnifiedNo.Trim();
-                        if (!string.IsNullOrWhiteSpace(c.TaxNo)) p.TaxNo = c.TaxNo.Trim();
-                        if (!string.IsNullOrWhiteSpace(c.ShortName)) p.CompanyShortName = c.ShortName.Trim();
-                        else if (!string.IsNullOrWhiteSpace(c.CompanyName)) p.CompanyShortName = c.CompanyName.Trim();
-                        p.CompanyName = c.CompanyName?.Trim() ?? p.CompanyShortName;
-                        p.CompanyAddr = c.Address?.Trim() ?? string.Empty;
-                    }
-                    else
-                    {
-                        p.CompanyName = p.CompanyShortName;
-                    }
+
+                    p.UnifiedNo = !string.IsNullOrWhiteSpace(c?.UnifiedNo) ? c.UnifiedNo!.Trim()
+                        : (!string.IsNullOrWhiteSpace(p.UnifiedNo) ? p.UnifiedNo.Trim() : string.Empty);
+
+                    p.TaxNo = !string.IsNullOrWhiteSpace(c?.TaxNo) ? c.TaxNo!.Trim()
+                        : (!string.IsNullOrWhiteSpace(p.TaxNo) ? p.TaxNo.Trim() : string.Empty);
+
+                    p.CompanyShortName = !string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim()
+                        : (!string.IsNullOrWhiteSpace(p.CompanyShortName) ? p.CompanyShortName.Trim() : string.Empty));
+
+                    p.CompanyName = !string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
+                        : (!string.IsNullOrWhiteSpace(p.CompanyShortName) ? p.CompanyShortName.Trim() : string.Empty));
+
+                    p.CompanyAddr = !string.IsNullOrWhiteSpace(c?.Address) ? c.Address!.Trim()
+                        : (!string.IsNullOrWhiteSpace(p.City) ? p.City.Trim() : string.Empty);
+
                     return p;
                 }).ToList();
 

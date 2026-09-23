@@ -24,6 +24,7 @@ import {
   FormUtilSelectXlsxFieldsList,
   parseXlsxConfigParams,
   type XlsxFieldItem,
+  type XlsxSerializedConfig,
 } from '../../components/SelectXlsxField';
 import { SearchModal, type SearchItem } from '../../components/FoxProGrid/SearchModal';
 import { useTheme } from '../menu/ThemeContext';
@@ -33,14 +34,38 @@ interface Wbase3020BuyinvPrintProps {
   onClose?: () => void;
 }
 
+const STORAGE_KEY = 'wbase3020_xlsx_export_config';
+
+const DEFAULT_V_FIELD_LIST =
+  '公司編號,公司統編,公司名稱,稅籍編號,手開二聯,手開二聯副,手開三聯,手開三聯副,特種,收銀二聯,收銀三聯,收銀三聯副';
+const DEFAULT_V_CAPTION_LIST =
+  '客戶,統一編號,客戶名稱,稅籍編號,二聯,二聯副,三聯,三聯副,特種,二收,三收,四收';
+const DEFAULT_V_DISPLAY_FORMAT = ',,,,金額,金額,金額,金額,金額,金額,金額,金額';
+const DEFAULT_V_COLOR_LIST = ',,,,,,,,,,灰色,灰色';
+
 export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ onClose }) => {
   const { isDark, toggleTheme } = useTheme();
 
-  // 畫面動態定義匯出欄位參數 (逗號分隔)
-  const vFieldList = '公司編號,公司統編,公司名稱,稅籍編號,手開二聯,手開二聯副,手開三聯,手開三聯副,特種,收銀二聯,收銀三聯,收銀三聯副';
-  const vCaptionList = '客戶,統一編號,客戶名稱,稅籍編號,二聯,二聯副,三聯,三聯副,特種,二收,三收,四收';
-  const vDisplayFormat = ',,,,金額,金額,金額,金額,金額,金額,金額,金額';
-  const vColorList = ',,,,,,,,,,灰色,灰色';
+  // 畫面匯出欄位設定 (優先讀取 localStorage 歷史變更)
+  const [xlsxConfig, setXlsxConfig] = useState<XlsxSerializedConfig>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.vFieldList) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load saved xlsx config from localStorage:', e);
+    }
+    return {
+      vFieldList: DEFAULT_V_FIELD_LIST,
+      vCaptionList: DEFAULT_V_CAPTION_LIST,
+      vDisplayFormat: DEFAULT_V_DISPLAY_FORMAT,
+      vColorList: DEFAULT_V_COLOR_LIST,
+    };
+  });
 
   // Form Field States
   const [year, setYear] = useState('115');
@@ -210,14 +235,14 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
       // 沒有勾選匯出XLS設定則依預設的欄位比對並匯出
       const defaultConfigured = parseXlsxConfigParams(
         defaultXlsxFields,
-        vFieldList,
-        vCaptionList,
-        vDisplayFormat,
-        vColorList
+        xlsxConfig.vFieldList,
+        xlsxConfig.vCaptionList,
+        xlsxConfig.vDisplayFormat,
+        xlsxConfig.vColorList
       );
       executeExportExcel(data, defaultConfigured);
     }
-  }, [QueryData, exportXlsxConfig, defaultXlsxFields, vFieldList, vCaptionList, vDisplayFormat, vColorList]);
+  }, [QueryData, exportXlsxConfig, defaultXlsxFields, xlsxConfig]);
 
   // Execute Excel file export
   const executeExportExcel = async (data: InvoicePurchaseItem[], fields: XlsxFieldItem[]) => {
@@ -236,7 +261,18 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     }
   };
 
-  const handleConfirmXlsxFields = (updatedFields: XlsxFieldItem[]) => {
+  const handleConfirmXlsxFields = (
+    updatedFields: XlsxFieldItem[],
+    savedConfig?: XlsxSerializedConfig
+  ) => {
+    if (savedConfig) {
+      setXlsxConfig(savedConfig);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedConfig));
+      } catch (e) {
+        console.error('Failed to save xlsx export config to localStorage:', e);
+      }
+    }
     setIsXlsxModalOpen(false);
     executeExportExcel(queriedData, updatedFields);
   };
@@ -845,10 +881,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
         isOpen={isXlsxModalOpen}
         fields={defaultXlsxFields}
         defaultFields={defaultXlsxFields}
-        vFieldList={vFieldList}
-        vCaptionList={vCaptionList}
-        vDisplayFormat={vDisplayFormat}
-        vColorList={vColorList}
+        vFieldList={xlsxConfig.vFieldList}
+        vCaptionList={xlsxConfig.vCaptionList}
+        vDisplayFormat={xlsxConfig.vDisplayFormat}
+        vColorList={xlsxConfig.vColorList}
         onConfirm={handleConfirmXlsxFields}
         onClose={() => setIsXlsxModalOpen(false)}
       />
