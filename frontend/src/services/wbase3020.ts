@@ -5,6 +5,8 @@ export interface InvoicePurchaseItem {
   times: string;
   companyCode: string;
   companyShortName: string;
+  companyName?: string;
+  companyAddr?: string;
   unifiedNo: string;
   taxNo: string;
   manualTwoDup: number;
@@ -217,7 +219,14 @@ export const exportToXlsx = async (
             rowObj[title] = item.companyCode || '';
             break;
           case 'companyShortName':
-            rowObj[title] = item.companyShortName || '';
+            rowObj[title] = item.companyShortName || item.companyName || '';
+            break;
+          case 'companyName':
+            rowObj[title] = item.companyName || item.companyShortName || '';
+            break;
+          case 'companyAddr':
+          case 'address':
+            rowObj[title] = item.companyAddr || item.city || '';
             break;
           case 'unifiedNo':
             rowObj[title] = item.unifiedNo || '';

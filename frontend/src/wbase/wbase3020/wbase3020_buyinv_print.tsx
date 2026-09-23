@@ -22,6 +22,7 @@ import {
 } from '../../services/wbase3020';
 import {
   FormUtilSelectXlsxFieldsList,
+  parseXlsxConfigParams,
   type XlsxFieldItem,
 } from '../../components/SelectXlsxField';
 import { SearchModal, type SearchItem } from '../../components/FoxProGrid/SearchModal';
@@ -34,6 +35,12 @@ interface Wbase3020BuyinvPrintProps {
 
 export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ onClose }) => {
   const { isDark, toggleTheme } = useTheme();
+
+  // 畫面動態定義匯出欄位參數 (逗號分隔)
+  const vFieldList = '公司編號,公司統編,公司名稱,稅籍編號,手開二聯,手開二聯副,手開三聯,手開三聯副,特種,收銀二聯,收銀三聯,收銀三聯副';
+  const vCaptionList = '客戶,統一編號,客戶名稱,稅籍編號,二聯,二聯副,三聯,三聯副,特種,二收,三收,四收';
+  const vDisplayFormat = ',,,,金額,金額,金額,金額,金額,金額,金額,金額';
+  const vColorList = ',,,,,,,,,,灰色,灰色';
 
   // Form Field States
   const [year, setYear] = useState('115');
@@ -56,15 +63,22 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
   // F2 Search Modal
   const [isF2ModalOpen, setIsF2ModalOpen] = useState<boolean>(false);
 
-  // Default XLSX export fields definition (Matching Image 2)
+  // 候選全量 XLSX 匯出欄位定義
   const defaultXlsxFields: XlsxFieldItem[] = [
+    { key: 'companyCode', label: '公司編號', customTitle: '公司編號', selected: true },
+    { key: 'unifiedNo', label: '公司統編', customTitle: '公司統編', selected: true },
+    { key: 'companyShortName', label: '公司名稱', customTitle: '公司名稱', selected: true },
+    { key: 'taxNo', label: '稅籍編號', customTitle: '稅籍編號', selected: true },
+    { key: 'manualTwoDup', label: '手開二聯', customTitle: '手開二聯', selected: true },
+    { key: 'manualTwoDupSub', label: '手開二聯副', customTitle: '手開二聯副', selected: true },
+    { key: 'manualThreeDup', label: '手開三聯', customTitle: '手開三聯', selected: true },
+    { key: 'manualThreeDupSub', label: '手開三聯副', customTitle: '手開三聯副', selected: true },
     { key: 'manualSpecial', label: '特種', customTitle: '特種', selected: true },
     { key: 'cashTwoDup', label: '收銀二聯', customTitle: '二收', selected: true },
     { key: 'cashThreeDup', label: '收銀三聯', customTitle: '三收', selected: true },
     { key: 'cashThreeDupSub', label: '收銀三聯副', customTitle: '四收', selected: true },
     { key: 'seq', label: '序', customTitle: '序', selected: false },
     { key: 'serialNo', label: '流水號', customTitle: '流水號', selected: false },
-    { key: 'companyShortName', label: '公司簡稱', customTitle: '公司簡稱', selected: false },
     { key: 'companyAddr', label: '公司地址', customTitle: '公司地址', selected: false },
     { key: 'placeCode', label: '購票地點編號', customTitle: '購票地點編號', selected: false },
     { key: 'empCode', label: '登打人員編號', customTitle: '登打人員編號', selected: false },
@@ -77,8 +91,6 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     { key: 'manualTwoStartNo', label: '手開二聯起號', customTitle: '手開二聯起號', selected: false },
     { key: 'manualTwoEndNo', label: '手開二聯迄號', customTitle: '手開二聯迄號', selected: false },
   ];
-
-  const [xlsxFields, setXlsxFields] = useState<XlsxFieldItem[]>(defaultXlsxFields);
 
   // Element Refs for Keyboard Focus Navigation
   const btnPreviewRef = useRef<HTMLButtonElement>(null);
@@ -195,9 +207,17 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     if (exportXlsxConfig) {
       setIsXlsxModalOpen(true);
     } else {
-      executeExportExcel(data, xlsxFields);
+      // 沒有勾選匯出XLS設定則依預設的欄位比對並匯出
+      const defaultConfigured = parseXlsxConfigParams(
+        defaultXlsxFields,
+        vFieldList,
+        vCaptionList,
+        vDisplayFormat,
+        vColorList
+      );
+      executeExportExcel(data, defaultConfigured);
     }
-  }, [QueryData, exportXlsxConfig, xlsxFields]);
+  }, [QueryData, exportXlsxConfig, defaultXlsxFields, vFieldList, vCaptionList, vDisplayFormat, vColorList]);
 
   // Execute Excel file export
   const executeExportExcel = async (data: InvoicePurchaseItem[], fields: XlsxFieldItem[]) => {
@@ -217,7 +237,6 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
   };
 
   const handleConfirmXlsxFields = (updatedFields: XlsxFieldItem[]) => {
-    setXlsxFields(updatedFields);
     setIsXlsxModalOpen(false);
     executeExportExcel(queriedData, updatedFields);
   };
@@ -824,8 +843,12 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
       {/* Shared XLSX Field Selection Modal (FormUtilSelectXlsxFieldsList) */}
       <FormUtilSelectXlsxFieldsList
         isOpen={isXlsxModalOpen}
-        fields={xlsxFields}
+        fields={defaultXlsxFields}
         defaultFields={defaultXlsxFields}
+        vFieldList={vFieldList}
+        vCaptionList={vCaptionList}
+        vDisplayFormat={vDisplayFormat}
+        vColorList={vColorList}
         onConfirm={handleConfirmXlsxFields}
         onClose={() => setIsXlsxModalOpen(false)}
       />

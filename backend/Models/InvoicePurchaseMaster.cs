@@ -70,5 +70,11 @@ namespace Wx3000.Backend.Models
         [Column("guid")]
         [StringLength(50)]
         public string? Guid { get; set; }
+
+        [NotMapped]
+        public string? CompanyName { get; set; }
+
+        [NotMapped]
+        public string? CompanyAddr { get; set; }
     }
 }

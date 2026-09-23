@@ -538,9 +538,12 @@ namespace Wx3000.Backend.Controllers
 
                 await EnsureTableCreatedAndSeededAsync(period, times);
 
-                var queryable = _context.InvoicePurchaseMasters
-                    .AsNoTracking()
-                    .Where(x => x.Period == period && x.Times == times);
+                var query = from p in _context.InvoicePurchaseMasters.AsNoTracking()
+                            where p.Period == period && p.Times == times
+                            join c in _context.CompanyMasters.AsNoTracking()
+                            on p.CompanyCode equals c.CompanyCode into gc
+                            from c in gc.DefaultIfEmpty()
+                            select new { p, c };
 
                 var mode = (req.Mode ?? "1").Trim();
                 if (mode == "1") // 1.依地址縣市
@@ -548,7 +551,7 @@ namespace Wx3000.Backend.Controllers
                     var city = (req.CityCondition ?? "*").Trim();
                     if (city != "*" && !string.IsNullOrWhiteSpace(city))
                     {
-                        queryable = queryable.Where(x => x.City != null && x.City.Contains(city));
+                        query = query.Where(x => (x.p.City != null && x.p.City.Contains(city)) || (x.c != null && x.c.Address != null && x.c.Address.Contains(city)));
                     }
                 }
                 else if (mode == "2") // 2.依購買地點
@@ -556,22 +559,44 @@ namespace Wx3000.Backend.Controllers
                     var place = (req.PlaceCondition ?? "").Trim();
                     if (!string.IsNullOrWhiteSpace(place))
                     {
-                        queryable = queryable.Where(x => x.PlaceCode != null && x.PlaceCode.Contains(place));
+                        query = query.Where(x => x.p.PlaceCode != null && x.p.PlaceCode.Contains(place));
                     }
                 }
 
                 var sortOrder = (req.SortOrder ?? "1").Trim();
                 if (sortOrder == "2") // 2.依稅籍編號
                 {
-                    queryable = queryable.OrderBy(x => x.TaxNo).ThenBy(x => x.CompanyCode);
+                    query = query.OrderBy(x => x.c != null && !string.IsNullOrWhiteSpace(x.c.TaxNo) ? x.c.TaxNo : x.p.TaxNo)
+                                 .ThenBy(x => x.p.CompanyCode);
                 }
                 else // 1.依統一編號 (預設)
                 {
-                    queryable = queryable.OrderBy(x => x.UnifiedNo).ThenBy(x => x.CompanyCode);
+                    query = query.OrderBy(x => x.c != null && !string.IsNullOrWhiteSpace(x.c.UnifiedNo) ? x.c.UnifiedNo : x.p.UnifiedNo)
+                                 .ThenBy(x => x.p.CompanyCode);
                 }
 
-                var list = await queryable.ToListAsync();
-                return Ok(list);
+                var rawList = await query.ToListAsync();
+                var resultList = rawList.Select(x =>
+                {
+                    var p = x.p;
+                    var c = x.c;
+                    if (c != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(c.UnifiedNo)) p.UnifiedNo = c.UnifiedNo.Trim();
+                        if (!string.IsNullOrWhiteSpace(c.TaxNo)) p.TaxNo = c.TaxNo.Trim();
+                        if (!string.IsNullOrWhiteSpace(c.ShortName)) p.CompanyShortName = c.ShortName.Trim();
+                        else if (!string.IsNullOrWhiteSpace(c.CompanyName)) p.CompanyShortName = c.CompanyName.Trim();
+                        p.CompanyName = c.CompanyName?.Trim() ?? p.CompanyShortName;
+                        p.CompanyAddr = c.Address?.Trim() ?? string.Empty;
+                    }
+                    else
+                    {
+                        p.CompanyName = p.CompanyShortName;
+                    }
+                    return p;
+                }).ToList();
+
+                return Ok(resultList);
             }
             catch (Exception ex)
             {
@@ -591,24 +616,47 @@ namespace Wx3000.Backend.Controllers
 
                 await EnsureTableCreatedAndSeededAsync(period, times);
 
-                var queryable = _context.InvoicePurchaseMasters
-                    .AsNoTracking()
-                    .Where(x => x.Period == period && x.Times == times);
+                var q = from p in _context.InvoicePurchaseMasters.AsNoTracking()
+                        where p.Period == period && p.Times == times
+                        join c in _context.CompanyMasters.AsNoTracking()
+                        on p.CompanyCode equals c.CompanyCode into gc
+                        from c in gc.DefaultIfEmpty()
+                        select new { p, c };
 
                 if (!string.IsNullOrWhiteSpace(query.CodeStart))
                 {
                     var start = query.CodeStart.Trim();
-                    queryable = queryable.Where(f => f.CompanyCode.Trim().CompareTo(start) >= 0);
+                    q = q.Where(x => x.p.CompanyCode.Trim().CompareTo(start) >= 0);
                 }
 
                 if (!string.IsNullOrWhiteSpace(query.CodeEnd))
                 {
                     var end = query.CodeEnd.Trim();
-                    queryable = queryable.Where(f => f.CompanyCode.Trim().CompareTo(end) <= 0);
+                    q = q.Where(x => x.p.CompanyCode.Trim().CompareTo(end) <= 0);
                 }
 
-                var list = await queryable.OrderBy(f => f.CompanyCode).ToListAsync();
-                return Ok(list);
+                var rawList = await q.OrderBy(x => x.p.CompanyCode).ToListAsync();
+                var resultList = rawList.Select(x =>
+                {
+                    var p = x.p;
+                    var c = x.c;
+                    if (c != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(c.UnifiedNo)) p.UnifiedNo = c.UnifiedNo.Trim();
+                        if (!string.IsNullOrWhiteSpace(c.TaxNo)) p.TaxNo = c.TaxNo.Trim();
+                        if (!string.IsNullOrWhiteSpace(c.ShortName)) p.CompanyShortName = c.ShortName.Trim();
+                        else if (!string.IsNullOrWhiteSpace(c.CompanyName)) p.CompanyShortName = c.CompanyName.Trim();
+                        p.CompanyName = c.CompanyName?.Trim() ?? p.CompanyShortName;
+                        p.CompanyAddr = c.Address?.Trim() ?? string.Empty;
+                    }
+                    else
+                    {
+                        p.CompanyName = p.CompanyShortName;
+                    }
+                    return p;
+                }).ToList();
+
+                return Ok(resultList);
             }
             catch (Exception ex)
             {

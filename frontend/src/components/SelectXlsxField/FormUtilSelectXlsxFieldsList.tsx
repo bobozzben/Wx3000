@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  ChevronUp,
-  ChevronDown,
   X,
   FileSpreadsheet,
   Check,
@@ -14,6 +12,8 @@ export interface XlsxFieldItem {
   label: string;
   customTitle: string;
   selected: boolean;
+  displayFormat?: string;
+  color?: string;
 }
 
 interface FormUtilSelectXlsxFieldsListProps {
@@ -21,15 +21,82 @@ interface FormUtilSelectXlsxFieldsListProps {
   title?: string;
   fields: XlsxFieldItem[];
   defaultFields?: XlsxFieldItem[];
+  vFieldList?: string;
+  vCaptionList?: string;
+  vDisplayFormat?: string;
+  vColorList?: string;
   onConfirm: (selectedFields: XlsxFieldItem[]) => void;
   onClose: () => void;
 }
+
+/**
+ * 依據傳入的逗號分隔字串對比候選欄位並重構清單與自訂標題
+ */
+export const parseXlsxConfigParams = (
+  baseFields: XlsxFieldItem[],
+  vFieldList?: string,
+  vCaptionList?: string,
+  vDisplayFormat?: string,
+  vColorList?: string
+): XlsxFieldItem[] => {
+  if (!baseFields || baseFields.length === 0) return [];
+
+  if (!vFieldList || !vFieldList.trim()) {
+    return baseFields.map((f) => ({ ...f }));
+  }
+
+  const fieldList = vFieldList.split(',').map((s) => s.trim());
+  const captionList = vCaptionList ? vCaptionList.split(',').map((s) => s.trim()) : [];
+  const displayFormatList = vDisplayFormat ? vDisplayFormat.split(',').map((s) => s.trim()) : [];
+  const colorList = vColorList ? vColorList.split(',').map((s) => s.trim()) : [];
+
+  const matchedItems: XlsxFieldItem[] = [];
+  const matchedKeys = new Set<string>();
+
+  fieldList.forEach((targetName, idx) => {
+    if (!targetName) return;
+    const found = baseFields.find((f) => f.label === targetName || f.key === targetName);
+    if (found && !matchedKeys.has(found.key)) {
+      matchedKeys.add(found.key);
+      const customTitle =
+        captionList[idx] !== undefined && captionList[idx] !== ''
+          ? captionList[idx]
+          : found.customTitle || found.label;
+      const displayFormat =
+        displayFormatList[idx] !== undefined ? displayFormatList[idx] : found.displayFormat;
+      const color = colorList[idx] !== undefined ? colorList[idx] : found.color;
+
+      matchedItems.push({
+        ...found,
+        selected: true,
+        customTitle,
+        displayFormat,
+        color,
+      });
+    }
+  });
+
+  // 未比中欄位
+  const unmatchedItems: XlsxFieldItem[] = baseFields
+    .filter((f) => !matchedKeys.has(f.key))
+    .map((f) => ({
+      ...f,
+      selected: false,
+      customTitle: f.label, // 沒有比中的欄位自訂匯出標題填入實際欄位名稱
+    }));
+
+  return [...matchedItems, ...unmatchedItems];
+};
 
 export const FormUtilSelectXlsxFieldsList: React.FC<FormUtilSelectXlsxFieldsListProps> = ({
   isOpen,
   title = '選擇匯出欄位 (FormUtilSelectXlsxFieldsList)',
   fields: initialFields,
   defaultFields,
+  vFieldList,
+  vCaptionList,
+  vDisplayFormat,
+  vColorList,
   onConfirm,
   onClose,
 }) => {
@@ -39,13 +106,24 @@ export const FormUtilSelectXlsxFieldsList: React.FC<FormUtilSelectXlsxFieldsList
   const [filterQuery, setFilterQuery] = useState<string>('');
   const [editingTitleIndex, setEditingTitleIndex] = useState<number | null>(null);
 
-  // Synchronize when initialFields changes
+  // Synchronize when initialFields / vFieldList / isOpen changes
   useEffect(() => {
-    if (initialFields && initialFields.length > 0) {
-      setFields(initialFields.map((f) => ({ ...f })));
+    if (isOpen && initialFields && initialFields.length > 0) {
+      if (vFieldList && vFieldList.trim()) {
+        const parsed = parseXlsxConfigParams(
+          initialFields,
+          vFieldList,
+          vCaptionList,
+          vDisplayFormat,
+          vColorList
+        );
+        setFields(parsed);
+      } else {
+        setFields(initialFields.map((f) => ({ ...f })));
+      }
       setSelectedIndex(0);
     }
-  }, [initialFields, isOpen]);
+  }, [initialFields, isOpen, vFieldList, vCaptionList, vDisplayFormat, vColorList]);
 
   // Toggle selection (Y/N)
   const toggleSelect = useCallback((idx: number) => {
@@ -159,6 +237,10 @@ export const FormUtilSelectXlsxFieldsList: React.FC<FormUtilSelectXlsxFieldsList
           e.preventDefault();
           handleConfirm();
           break;
+        case 'F11':
+          e.preventDefault();
+          moveUp(selectedIndex);
+          break;
         case 'F12':
           e.preventDefault();
           moveDown(selectedIndex);
@@ -185,6 +267,7 @@ export const FormUtilSelectXlsxFieldsList: React.FC<FormUtilSelectXlsxFieldsList
     handleSearchPrompt,
     handleResetDefaults,
     handleConfirm,
+    moveUp,
     moveDown,
     onClose,
   ]);
@@ -228,7 +311,7 @@ export const FormUtilSelectXlsxFieldsList: React.FC<FormUtilSelectXlsxFieldsList
                   </span>
                 </h1>
                 <p className="text-[11px] text-blue-100 font-mono font-bold">
-                  [Space] 切換選取 | [Up/Down] 上下移動焦點 | [F12] 調整順序
+                  [Space] 切換選取 | [Up/Down] 上下移動焦點 | [F11] 上移 | [F12] 下移
                 </p>
               </div>
             </div>
@@ -399,28 +482,6 @@ export const FormUtilSelectXlsxFieldsList: React.FC<FormUtilSelectXlsxFieldsList
             isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-slate-100 border-slate-200'
           }`}
         >
-          {/* Order UP/DOWN Action Buttons */}
-          <div className="flex items-center space-x-1.5">
-            <button
-              type="button"
-              onClick={() => moveUp(selectedIndex)}
-              title="向上移動欄位順序 [Up]"
-              className="h-8 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition shadow-xs active:scale-95 cursor-pointer flex items-center gap-1 text-xs"
-            >
-              <ChevronUp className="w-3.5 h-3.5 stroke-[3]" />
-              <span className="hidden sm:inline">上移</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => moveDown(selectedIndex)}
-              title="向下移動欄位順序 [Down / F12]"
-              className="h-8 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition shadow-xs active:scale-95 cursor-pointer flex items-center gap-1 text-xs"
-            >
-              <ChevronDown className="w-3.5 h-3.5 stroke-[3]" />
-              <span className="hidden sm:inline">下移</span>
-            </button>
-          </div>
-
           {/* Quick Action Hotkeys Bar */}
           <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
             <button
@@ -500,6 +561,21 @@ export const FormUtilSelectXlsxFieldsList: React.FC<FormUtilSelectXlsxFieldsList
 
             <button
               type="button"
+              onClick={() => moveUp(selectedIndex)}
+              className={`h-8 px-2.5 rounded-lg border flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
+                isDark
+                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                  : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-800'
+              }`}
+            >
+              <span className="bg-amber-400 text-slate-950 font-mono font-black px-1.5 py-0.5 rounded text-[10px]">
+                F11
+              </span>
+              <span>上移</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => moveDown(selectedIndex)}
               className={`h-8 px-2.5 rounded-lg border flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
                 isDark
@@ -510,7 +586,7 @@ export const FormUtilSelectXlsxFieldsList: React.FC<FormUtilSelectXlsxFieldsList
               <span className="bg-amber-400 text-slate-950 font-mono font-black px-1.5 py-0.5 rounded text-[10px]">
                 F12
               </span>
-              <span>順序</span>
+              <span>下移</span>
             </button>
           </div>
 
