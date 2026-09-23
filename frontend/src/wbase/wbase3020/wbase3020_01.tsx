@@ -12,7 +12,6 @@ import {
   Building2,
   FileSpreadsheet,
   ArrowRight,
-  CornerDownLeft,
 } from 'lucide-react';
 import { getSystemParam, setSystemParam } from '../../services/systemParamService';
 import { SearchModal, type SearchItem } from '../../components/FoxProGrid/SearchModal';
@@ -261,34 +260,34 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
 
   return (
     <div
-      className={`min-h-[calc(100vh-3rem)] w-full flex flex-col items-center justify-center p-2 sm:p-4 font-sans select-none overflow-y-auto transition-colors duration-300 ${isDark
+      className={`min-h-[calc(100vh-3rem)] w-full flex flex-col items-center justify-start p-2 sm:p-3 font-sans select-none overflow-y-auto transition-colors duration-300 ${isDark
         ? 'bg-slate-950 text-slate-100 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-950/40 via-slate-950 to-slate-950'
         : 'bg-slate-100 text-slate-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-100/50 via-slate-100 to-slate-100'
         }`}
     >
       {/* Main Container Card */}
       <div
-        className={`w-full max-w-2xl max-h-full flex flex-col my-auto rounded-2xl shadow-2xl overflow-hidden transition-all border-2 ${isDark
+        className={`w-full max-w-2xl flex flex-col mt-1 sm:mt-2 rounded-2xl shadow-2xl overflow-hidden transition-all border-2 ${isDark
           ? 'bg-slate-900/90 border-slate-800/80 shadow-indigo-950/20 backdrop-blur-xl'
           : 'bg-white border-slate-300 shadow-slate-400/30 backdrop-blur-xl'
           }`}
       >
         {/* Header Banner */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-[#1e3a8a] via-[#1e40af] to-[#2563eb] px-5 py-3 sm:py-3.5 text-white shrink-0">
+        <div className="relative overflow-hidden bg-gradient-to-r from-[#1e3a8a] via-[#1e40af] to-[#2563eb] px-4 py-2.5 sm:py-3 text-white shrink-0">
           <div className="absolute -right-6 -top-6 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
           <div className="flex items-center justify-between relative z-10">
-            <div className="flex items-center space-x-2.5">
-              <div className="p-2 bg-white/15 backdrop-blur-md rounded-xl border border-white/20 shadow-inner">
-                <Receipt className="w-5 h-5 text-white" />
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 bg-white/15 backdrop-blur-md rounded-lg border border-white/20 shadow-inner">
+                <Receipt className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h1 className="text-lg sm:text-xl font-black tracking-wide drop-shadow-sm flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-black tracking-wide drop-shadow-sm flex items-center gap-2">
                   <span>發票購買期別設定</span>
-                  <span className="text-[11px] px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-mono font-extrabold shadow-2xs">
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-mono font-extrabold shadow-2xs">
                     Enter/F8 送出
                   </span>
                 </h1>
-                <p className="text-[11px] text-blue-100 font-mono font-bold">
+                <p className="text-[10px] text-blue-100 font-mono font-bold">
                   FormWBase430BuyinvSele
                 </p>
               </div>
@@ -305,13 +304,13 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
         </div>
 
         {/* Form Body */}
-        <div className="p-4 sm:p-5 space-y-3 sm:space-y-3.5 overflow-y-auto">
+        <div className="p-2.5 sm:p-3.5 space-y-2 sm:space-y-2.5 overflow-y-auto">
           {/* Section 1: 發票購買期別 */}
           <div
-            className={`p-3 sm:p-3.5 rounded-xl border-2 transition-colors ${isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/90 shadow-2xs'
+            className={`p-2 sm:p-2.5 rounded-xl border-2 transition-colors ${isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/90 shadow-2xs'
               }`}
           >
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center space-x-2">
                 <Calendar className={`w-4 h-4 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
                 <label className={`text-sm font-extrabold tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
@@ -335,7 +334,7 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setYear(e.target.value)}
                   onKeyDown={(e) => handleInputKeyDown(e, 'year')}
-                  className={`w-20 sm:w-24 px-3 py-2 rounded-lg font-mono text-center font-black text-base border-2 transition-all outline-none ${isDark
+                  className={`w-20 sm:w-24 px-2.5 py-1.5 rounded-lg font-mono text-center font-black text-base border-2 transition-all outline-none ${isDark
                     ? 'bg-slate-900 border-slate-700 text-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30'
                     : 'bg-white border-slate-300 text-slate-950 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-2xs'
                     }`}
@@ -352,7 +351,7 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setStartMonth(e.target.value)}
                   onKeyDown={(e) => handleInputKeyDown(e, 'startMonth')}
-                  className={`w-16 px-3 py-2 rounded-lg font-mono text-center font-black text-base border-2 transition-all outline-none ${isDark
+                  className={`w-16 px-2.5 py-1.5 rounded-lg font-mono text-center font-black text-base border-2 transition-all outline-none ${isDark
                     ? 'bg-slate-900 border-slate-700 text-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30'
                     : 'bg-white border-slate-300 text-slate-950 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-2xs'
                     }`}
@@ -366,7 +365,7 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setEndMonth(e.target.value)}
                   onKeyDown={(e) => handleInputKeyDown(e, 'endMonth')}
-                  className={`w-16 px-3 py-2 rounded-lg font-mono text-center font-black text-base border-2 transition-all outline-none ${isDark
+                  className={`w-16 px-2.5 py-1.5 rounded-lg font-mono text-center font-black text-base border-2 transition-all outline-none ${isDark
                     ? 'bg-slate-900 border-slate-700 text-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30'
                     : 'bg-white border-slate-300 text-slate-950 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-2xs'
                     }`}
@@ -377,7 +376,7 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
 
               {/* Formatted Badge */}
               <div
-                className={`ml-auto px-3.5 py-1.5 rounded-lg font-mono text-xs font-black ${isDark
+                className={`ml-auto px-3 py-1 rounded-lg font-mono text-xs font-black ${isDark
                   ? 'bg-indigo-950/60 text-indigo-300 border border-indigo-800/50'
                   : 'bg-indigo-600 text-white shadow-xs border border-indigo-700'
                   }`}
@@ -390,10 +389,10 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
 
           {/* Section 2: 購買次數 */}
           <div
-            className={`p-3 sm:p-3.5 rounded-xl border-2 transition-colors ${isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/90 shadow-2xs'
+            className={`p-2.5 sm:p-3 rounded-xl border-2 transition-colors ${isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/90 shadow-2xs'
               }`}
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center space-x-2">
                 <Sparkles className={`w-4 h-4 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
                 <label className={`text-sm font-extrabold tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
@@ -459,10 +458,10 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
 
           {/* Section 3: 輸入方式 */}
           <div
-            className={`p-3 sm:p-3.5 rounded-xl border-2 transition-colors ${isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/90 shadow-2xs'
+            className={`p-2.5 sm:p-3 rounded-xl border-2 transition-colors ${isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/90 shadow-2xs'
               }`}
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center space-x-2">
                 <Layers className={`w-4 h-4 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
                 <label className={`text-sm font-extrabold tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
@@ -542,7 +541,7 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
           {/* Dynamic Condition Field (Mode 5, 6, 7) */}
           {(inputMode === '5' || inputMode === '6' || inputMode === '7') && (
             <div
-              className={`p-3 sm:p-3.5 rounded-xl border-2 transition-colors ${isDark ? 'bg-indigo-950/30 border-indigo-800/50' : 'bg-indigo-50/70 border-indigo-200 shadow-2xs'
+              className={`p-2.5 sm:p-3 rounded-xl border-2 transition-colors ${isDark ? 'bg-indigo-950/30 border-indigo-800/50' : 'bg-indigo-50/70 border-indigo-200 shadow-2xs'
                 }`}
             >
               <div className="flex items-center justify-between mb-1.5">

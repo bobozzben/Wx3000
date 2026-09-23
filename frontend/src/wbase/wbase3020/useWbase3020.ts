@@ -75,7 +75,7 @@ export const useWbase3020 = create<Wbase3020State>((set, get) => ({
           uniqueMap.set(key, item);
         }
       });
-      set({ rows: Array.from(uniqueMap.values()), loading: false });
+      set({ rows: Array.from(uniqueMap.values()), loading: false, errorToast: null });
     } catch (e) {
       console.error('Failed to load invoice purchase items:', e);
       set({ errorToast: '載入發票購買資料失敗，請確認連線', loading: false });

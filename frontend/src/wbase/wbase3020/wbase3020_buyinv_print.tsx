@@ -23,7 +23,7 @@ import {
 import {
   FormUtilSelectXlsxFieldsList,
   type XlsxFieldItem,
-} from '../../components/FormUtilSelectXlsxFieldsList';
+} from '../../components/SelectXlsxField';
 import { SearchModal, type SearchItem } from '../../components/FoxProGrid/SearchModal';
 import { useTheme } from '../menu/ThemeContext';
 import axios from 'axios';
