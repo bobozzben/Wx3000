@@ -3,9 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:web\"",
+    "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:web\" \"pnpm dev:agent\"",
     "dev:web": "pnpm --filter frontend dev",
     "dev:api": "dotnet run --project backend/Wx3000.Backend.csproj",
+    "dev:agent": "node localagent_koffi/agent.js",
     "build:api": "dotnet publish backend/Wx3000.Backend.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true",
     "ngrok": "ngrok http 5173"
   },

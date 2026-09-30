@@ -73,22 +73,56 @@ export interface Waccrep3101bParams {
 export const callWaccrep3101b = async (
   params: Waccrep3101bParams = {}
 ): Promise<{ success: boolean; result: string; raw?: string; error?: string }> => {
-  const response = await axios.post(
-    'http://localhost:18889/report',
-    {
-      dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
-      hs_chk: params.hs_chk ?? 0.125,
-      top_mag: params.top_mag ?? 0.0,
-      left_mag: params.left_mag ?? 0.0,
-      PrtIndex: params.PrtIndex ?? 0,
-      IsPrint: params.IsPrint ?? 0,
-      path: params.path ?? '',
-    },
-    {
+  const payload = {
+    dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
+    hs_chk: params.hs_chk ?? 0.125,
+    top_mag: params.top_mag ?? 0.0,
+    left_mag: params.left_mag ?? 0.0,
+    PrtIndex: params.PrtIndex ?? 0,
+    IsPrint: params.IsPrint ?? 0,
+    path: params.path ?? '',
+  };
+
+  try {
+    const response = await axios.post('http://localhost:18889/report', payload, {
       headers: { 'Content-Type': 'application/json' },
+      timeout: 10000,
+    });
+    return response.data;
+  } catch (err: any) {
+    console.warn('POST /report failed, attempting fallback to POST /api/call...', err?.message);
+    try {
+      const fallbackRes = await axios.post(
+        'http://localhost:18889/api/call',
+        {
+          dll: 'wbaseRP',
+          func: 'waccrep3101_b',
+          args: [
+            payload.hs_chk,
+            payload.top_mag,
+            payload.left_mag,
+            payload.PrtIndex,
+            payload.IsPrint,
+            payload.path,
+          ],
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000,
+        }
+      );
+      return {
+        success: fallbackRes.data?.success ?? true,
+        result: String(fallbackRes.data?.retCode ?? '0'),
+        raw: JSON.stringify(fallbackRes.data),
+      };
+    } catch (fallbackErr: any) {
+      console.error('LocalAgent error:', fallbackErr);
+      throw new Error(
+        '無法連線至 LocalAgent 本地列印元件 (http://localhost:18889)，請確認 LocalAgent 服務已啟動。'
+      );
     }
-  );
-  return response.data;
+  }
 };
 
 export type Waccrep3106bParams = Waccrep3101bParams;

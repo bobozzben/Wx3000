@@ -1,291 +1,293 @@
-const { WebSocketServer } = require('ws');
-const { exec } = require('child_process');
+const WebSocket = require('ws');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const http = require('http');
+const { execFile } = require('child_process');
 
-const WS_PORT = 18888;
-const HTTP_PORT = 18889;
-
-console.log('========================================');
-console.log('  Wx3000 LocalAgent v19.3 - Bitness Fixed');
-console.log('========================================');
-
-function getPowerShellExe(bitness = 64) {
-  if (bitness === 32) {
-    const p32 = 'C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe';
-    if (fs.existsSync(p32)) return p32;
+// ========== 通用設定檔 ==========
+let DLL_CONFIG = { dlls: {} };
+try {
+  const cfgPath = path.join(__dirname, 'dlls.json');
+  if (fs.existsSync(cfgPath)) {
+    DLL_CONFIG = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    console.log('[CONFIG] 載入 dlls.json', Object.keys(DLL_CONFIG.dlls || {}));
   }
-  const p64 = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
-  if (fs.existsSync(p64)) return p64;
-  return 'powershell.exe';
+} catch (e) { console.error('dlls.json 載入失敗', e.message); }
+
+const CONFIG = {
+  MODE: process.env.WBASE_MODE || 'koffi',
+  PORT: 18889,
+  getDllPath(dllKey) {
+    if (process.env.WBASE_DLL_PATH && fs.existsSync(process.env.WBASE_DLL_PATH)) return process.env.WBASE_DLL_PATH;
+    const info = (DLL_CONFIG.dlls || {})[dllKey];
+    if (!info) return null;
+    const cands = [
+      path.join(path.dirname(process.execPath), info.path),
+      path.join(__dirname, info.path),
+      ...(info.fallback_paths || [])
+    ];
+    for (const p of cands) if (fs.existsSync(p)) return p;
+    return cands[0];
+  },
+  getBridgePath() {
+    const cands = [
+      "F:\\ADSProject\\Wx3000\\localagent\\bridge\\lazarus\\WbaseBridge.exe",
+      path.join(path.dirname(process.execPath), 'WbaseBridge.exe'),
+      path.join(__dirname, 'WbaseBridge.exe'),
+      path.join(__dirname, 'bridge', 'WbaseBridge.exe'),
+    ];
+    for (const p of cands) if (fs.existsSync(p)) return p;
+    return cands[0];
+  }
+};
+
+let koffi = null;
+try { koffi = require('koffi'); } catch (e) { console.warn('koffi not installed, 請 npm install koffi 或用 bridge 模式'); }
+
+const loadedLibs = {}; // dllKey -> { lib, funcs: {name: func} }
+
+function loadDllKoffi(dllKey) {
+  if (!koffi) return { success: false, error: 'koffi not installed' };
+  const info = DLL_CONFIG.dlls[dllKey];
+  if (!info) return { success: false, error: `dll ${dllKey} not in dlls.json` };
+  const dllPath = CONFIG.getDllPath(dllKey);
+  if (!fs.existsSync(dllPath)) return { success: false, error: `DLL not found: ${dllPath}` };
+
+  try {
+    if (!loadedLibs[dllKey]) {
+      const lib = koffi.load(dllPath);
+      loadedLibs[dllKey] = { lib, path: dllPath, funcs: {}, info };
+    }
+    const entry = loadedLibs[dllKey];
+    // 載入所有函數
+    for (const [funcName, funcDef] of Object.entries(info.functions || {})) {
+      if (!entry.funcs[funcName]) {
+        entry.funcs[funcName] = entry.lib.func('__stdcall', funcDef.func || funcName, funcDef.ret || 'int', funcDef.params || []);
+        console.log(`[koffi] ${dllKey}.${funcName} 載入成功`);
+      }
+    }
+    return { success: true, dllPath };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 }
 
-function callTsdll2(dllPath, hs) {
-  return new Promise((resolve, reject) => {
-    dllPath = dllPath.replace(/\//g, '\\');
-    const psExe = getPowerShellExe(32); // tsdll2.dll is 32-bit (x86)
-    const safeDllPath = dllPath.replace(/'/g, "''");
-    const safeHs = String(hs);
-
-    const psFinal = `
-$OutputEncoding = [System.Text.Encoding]::UTF8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$ErrorActionPreference='Stop'
-$dllPath = '${safeDllPath}'
-$hs = ${safeHs}
-if (-not (Test-Path $dllPath)) { Write-Output "ERR_DLL_NOT_FOUND:$dllPath"; exit 1 }
-$code = @'
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-public class TsDll2 {
-  [DllImport(@"MYDLL", CharSet=CharSet.Ansi, CallingConvention=CallingConvention.StdCall)]
-  public static extern IntPtr GetALLLocalIPMAC(double hs_chk, StringBuilder cstring);
+// 預先載入
+if (CONFIG.MODE === 'koffi') {
+  for (const k of Object.keys(DLL_CONFIG.dlls || {})) loadDllKoffi(k);
 }
-'@
-$code = $code.Replace('MYDLL', $dllPath)
-Add-Type -TypeDefinition $code
-$sb = New-Object System.Text.StringBuilder 500
-[void]$sb.Append(' ' * 250)
-$ptr = [TsDll2]::GetALLLocalIPMAC($hs, $sb)
-$result = [Runtime.InteropServices.Marshal]::PtrToStringAnsi($ptr)
-if ([string]::IsNullOrEmpty($result)) { $result = $sb.ToString() }
-$clean = $result.Replace("-","").Trim()
-Write-Output $clean
-`;
 
-    const tmpPs = path.join(os.tmpdir(), 'rx_mac_' + Date.now() + '.ps1');
-    fs.writeFileSync(tmpPs, '\uFEFF' + psFinal, 'utf8'); // UTF-8 BOM to preserve Chinese and allow debugging
+function callViaKoffi(dllKey, funcName, args) {
+  const entry = loadedLibs[dllKey];
+  if (!entry || !entry.funcs[funcName]) {
+    const r = loadDllKoffi(dllKey);
+    if (!r.success) return r;
+  }
+  try {
+    const fn = loadedLibs[dllKey].funcs[funcName];
+    if (!fn) return { success: false, error: `func ${funcName} not found` };
+    // 確保目錄存在 (如果最後一個參數是路徑)
+    const last = args[args.length - 1];
+    if (typeof last === 'string' && (last.includes(':\\') || last.includes('/'))) {
+      try { const dir = path.dirname(last); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (e) { }
+    }
+    const ret = fn(...args);
+    return { success: true, mode: 'koffi', dll: dllKey, func: funcName, retCode: ret };
+  } catch (e) {
+    return { success: false, mode: 'koffi', error: e.message };
+  }
+}
 
-    console.log('[DEBUG] Retained PS script:', tmpPs);
+function callViaBridge(dllKey, funcName, args) {
+  return new Promise((resolve) => {
+    const bridgePath = CONFIG.getBridgePath();
+    console.log(`bridgePath: ${bridgePath}`);
+    if (!fs.existsSync(bridgePath)) {
+      resolve({ success: false, mode: 'bridge', error: `Bridge not found: ${bridgePath}` });
+      return;
+    }
+    // 通用參數格式: --dll wbaseRP --func waccrep3101_b --args JSON
+    const argsJson = JSON.stringify(args);
+    const dllPath = CONFIG.getDllPath(dllKey) || dllKey;
+    const cmdArgs = ['--dll', dllPath, '--func', funcName, '--args', argsJson, '--dllkey', dllKey];
 
-    exec(`"${psExe}" -ExecutionPolicy Bypass -File "${tmpPs}"`, { maxBuffer: 2 * 1024 * 1024, encoding: 'utf8' }, (err, stdout, stderr) => {
-      // Retain temporary PS script file for debugging as requested by user
-      if (err) reject((stderr || stdout || err.message).trim());
-      else {
-        const clean = stdout.trim();
-        if (clean.startsWith('ERR_')) reject(clean);
-        else resolve({ result: clean, psPath: tmpPs });
+    execFile(bridgePath, cmdArgs, { timeout: 60000, windowsHide: false }, (err, stdout, stderr) => {
+      if (err) {
+        resolve({ success: false, mode: 'bridge', error: err.message, stderr, stdout });
+        return;
+      }
+      const out = stdout.toString().trim();
+      if (out.includes('OK:')) {
+        const m = out.match(/OK:(-?\d+)/);
+        resolve({ success: true, mode: 'bridge', retCode: m ? parseInt(m[1]) : 0, raw: out });
+      } else {
+        resolve({ success: false, mode: 'bridge', error: out || stderr });
       }
     });
   });
 }
 
-/**
- * Call waccrep3101_b in wbaseRP.dll (64-bit DLL)
- * Signature: Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const path: ansistring): integer; stdcall;
- */
-function callWbaseRP(dllPath, params = {}) {
-  return new Promise((resolve, reject) => {
-    dllPath = (dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll').replace(/\//g, '\\');
-    const psExe = getPowerShellExe(64); // wbaseRP.dll is 64-bit (x64)
-    const safeDllPath = dllPath.replace(/'/g, "''");
+async function genericCall(dllKey, funcName, args) {
+  if (CONFIG.MODE === 'bridge') return await callViaBridge(dllKey, funcName, args);
+  return callViaKoffi(dllKey, funcName, args);
+}
 
-    const hs_chk = params.hs_chk !== undefined ? Number(params.hs_chk) : 0.125;
-    const top_mag = params.top_mag !== undefined ? Number(params.top_mag) : 0.0;
-    const left_mag = params.left_mag !== undefined ? Number(params.left_mag) : 0.0;
-    const PrtIndex = params.PrtIndex !== undefined ? Number(params.PrtIndex) : 0;
-    const IsPrint = params.IsPrint !== undefined ? Number(params.IsPrint) : 0;
-    const pathVal = String(params.path || '').replace(/'/g, "''").replace(/\//g, '\\');
-
-    const psFinal = `
-$OutputEncoding = [System.Text.Encoding]::UTF8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$ErrorActionPreference='Stop'
-$dllPath = '${safeDllPath}'
-if (-not (Test-Path $dllPath)) { Write-Output "ERR_DLL_NOT_FOUND:$dllPath"; exit 1 }
-$code = @'
-using System;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-
-public class WbaseRP {
-  [DllImport(@"MYDLL", CharSet=CharSet.Ansi, CallingConvention=CallingConvention.StdCall)]
-  public static extern int waccrep3101_b(
-    double hs_chk,
-    double top_mag,
-    double left_mag,
-    int PrtIndex,
-    int IsPrint,
-    [MarshalAs(UnmanagedType.LPStr)] string path
-  );
-
-  [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int dwProcessId);
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
-  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-
-  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
-
-  public static void FocusWindow() {
-    try {
-      AllowSetForegroundWindow(-1);
-      int pid = Process.GetCurrentProcess().Id;
-      Task.Run(async () => {
-        for (int i = 0; i < 50; i++) {
-          await Task.Delay(100);
-          IntPtr targetHWnd = IntPtr.Zero;
-          EnumWindows((hWnd, lParam) => {
-            if (IsWindowVisible(hWnd)) {
-              uint wPid = 0;
-              GetWindowThreadProcessId(hWnd, out wPid);
-              if (wPid == pid) {
-                targetHWnd = hWnd;
-                return false;
-              }
-            }
-            return true;
-          }, IntPtr.Zero);
-
-          if (targetHWnd != IntPtr.Zero) {
-            ShowWindow(targetHWnd, 9); // SW_RESTORE
-            SetWindowPos(targetHWnd, (IntPtr)(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040); // HWND_TOPMOST
-            SetForegroundWindow(targetHWnd);
-            SetWindowPos(targetHWnd, (IntPtr)(-2), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040); // HWND_NOTOPMOST
-            break;
-          }
-        }
-      });
-    } catch {}
+function getMacs() {
+  const interfaces = os.networkInterfaces();
+  const macs = [];
+  for (const k of Object.keys(interfaces)) for (const iface of interfaces[k]) {
+    if (iface.mac && iface.mac !== '00:00:00:00:00:00' && !iface.internal) macs.push(iface.mac);
   }
-}
-'@
-$code = $code.Replace('MYDLL', $dllPath)
-Add-Type -TypeDefinition $code
-[WbaseRP]::FocusWindow()
-$result = [WbaseRP]::waccrep3101_b(${hs_chk}, ${top_mag}, ${left_mag}, ${PrtIndex}, ${IsPrint}, '${pathVal}')
-Write-Output "RET:$result"
-`;
-
-    const tmpPs = path.join(os.tmpdir(), 'wx_report_' + Date.now() + '.ps1');
-    fs.writeFileSync(tmpPs, '\uFEFF' + psFinal, 'utf8'); // UTF-8 BOM to preserve Chinese and allow debugging
-
-    console.log('[DEBUG] Retained PS script:', tmpPs);
-
-    exec(`"${psExe}" -ExecutionPolicy Bypass -File "${tmpPs}"`, { maxBuffer: 2 * 1024 * 1024, encoding: 'utf8' }, (err, stdout, stderr) => {
-      // Retain temporary PS script file for debugging as requested by user
-      if (err) reject((stderr || stdout || err.message).trim());
-      else {
-        const clean = stdout.trim();
-        if (clean.startsWith('ERR_')) reject(clean);
-        else resolve({ result: clean, psPath: tmpPs });
-      }
-    });
-  });
+  return [...new Set(macs)];
 }
 
-const wss = new WebSocketServer({ port: WS_PORT });
-wss.on('connection', (ws) => {
-  ws.send(JSON.stringify({ type: 'connected', message: 'v19.3 ready', arch: getPowerShellExe(64) }));
-  ws.on('message', async (raw) => {
-    try {
-      const msg = JSON.parse(raw);
-
-      // Handle tsdll2.dll MAC address check (32-bit)
-      if (msg.action === 'CALL_DLL_TSDLL2' || msg.action === 'GET_MAC') {
-        try {
-          const resObj = await callTsdll2(msg.dllPath || 'F:\\W3000\\Dll\\tsdll2.dll', msg.hs_chk || 0.125);
-          const macs = resObj.result.split(',').map(s => s.trim()).filter(Boolean);
-          ws.send(JSON.stringify({ type: 'success', macs, raw: resObj.result, psPath: resObj.psPath, message: `RESULT:${resObj.result}` }));
-        } catch (e) {
-          ws.send(JSON.stringify({ type: 'error', message: String(e) }));
-        }
-        return;
-      }
-
-      // Handle wbaseRP.dll Report generation (waccrep3101_b) (64-bit)
-      if (msg.action === 'CALL_WBASE_RP' || msg.action === 'CALL_WACCREP3101_B') {
-        try {
-          const dllPath = msg.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll';
-          const resObj = await callWbaseRP(dllPath, msg);
-          const retCode = resObj.result.replace(/^RET:/, '').trim();
-          ws.send(JSON.stringify({ type: 'success', result: retCode, raw: resObj.result, psPath: resObj.psPath, message: `RESULT:${retCode}` }));
-        } catch (e) {
-          ws.send(JSON.stringify({ type: 'error', message: String(e) }));
-        }
-        return;
-      }
-
-    } catch (e) { ws.send(JSON.stringify({ type: 'error', message: e.message })); }
-  });
-});
-
+// ========== HTTP + WS ==========
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
-  // HTTP endpoint for GET_MAC (32-bit)
-  if (req.url.startsWith('/mac')) {
-    try {
-      const dllPath = 'F:\\W3000\\Dll\\tsdll2.dll';
-      const resObj = await callTsdll2(dllPath, 0.125);
-      const macs = resObj.result.split(',').map(s => s.trim()).filter(Boolean);
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: true, macs, raw: resObj.result, psPath: resObj.psPath, timestamp: new Date().toISOString(), psArch: getPowerShellExe(32) }));
-    } catch (e) {
-      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: false, error: String(e) }));
-    }
+  const url = new URL(req.url, `http://localhost:${CONFIG.PORT}`);
+
+  if (url.pathname === '/mac') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, macs: getMacs() }));
     return;
   }
-
-  // HTTP endpoint for wbaseRP.dll report call (waccrep3101_b) (64-bit)
-  if (req.url.startsWith('/report') || req.url.startsWith('/waccrep3101_b')) {
-    try {
-      let params = {};
-      if (req.method === 'POST') {
-        const bodyText = await new Promise((resolve, reject) => {
-          let data = '';
-          req.on('data', chunk => data += chunk);
-          req.on('end', () => resolve(data));
-          req.on('error', reject);
-        });
-        try { params = JSON.parse(bodyText); } catch (e) { }
-      } else {
-        const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
-        for (const [k, v] of parsedUrl.searchParams.entries()) {
-          params[k] = v;
-        }
+  if (url.pathname === '/config') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ mode: CONFIG.MODE, dlls: DLL_CONFIG, bridgeExists: fs.existsSync(CONFIG.getBridgePath()) }));
+    return;
+  }
+  if (url.pathname === '/dllList') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(DLL_CONFIG));
+    return;
+  }
+  // 相容 POST /report 及 /waccrep3101_b
+  if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b') && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const args = [
+          data.hs_chk !== undefined ? Number(data.hs_chk) : 0.125,
+          data.top_mag !== undefined ? Number(data.top_mag) : 0.0,
+          data.left_mag !== undefined ? Number(data.left_mag) : 0.0,
+          data.PrtIndex !== undefined ? Number(data.PrtIndex) : 0,
+          data.IsPrint !== undefined ? Number(data.IsPrint) : 0,
+          data.path || ''
+        ];
+        const result = await genericCall('wbaseRP', 'waccrep3101_b', args);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(result));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
       }
-      const dllPath = params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll';
-      const resObj = await callWbaseRP(dllPath, params);
-      const retCode = resObj.result.replace(/^RET:/, '').trim();
+    });
+    return;
+  }
+  // 相容 GET /report 及 /waccrep3101_b
+  if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b') && req.method === 'GET') {
+    try {
+      const args = [
+        parseFloat(url.searchParams.get('hs_chk') || '0.125'),
+        parseFloat(url.searchParams.get('top_mag') || '0'),
+        parseFloat(url.searchParams.get('left_mag') || '0'),
+        parseInt(url.searchParams.get('PrtIndex') || '0'),
+        parseInt(url.searchParams.get('IsPrint') || '0'),
+        url.searchParams.get('path') || ''
+      ];
+      const result = await genericCall('wbaseRP', 'waccrep3101_b', args);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: true, result: retCode, raw: resObj.result, psPath: resObj.psPath, timestamp: new Date().toISOString(), psArch: getPowerShellExe(64) }));
+      res.end(JSON.stringify(result));
+      return;
     } catch (e) {
-      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: false, error: String(e) }));
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: e.message }));
+      return;
     }
+  }
+  // 舊相容
+  if (url.pathname === '/wbaseReport') {
+    const args = [
+      parseFloat(url.searchParams.get('hs_chk') || '0'),
+      parseFloat(url.searchParams.get('top_mag') || '0'),
+      parseFloat(url.searchParams.get('left_mag') || '0'),
+      parseInt(url.searchParams.get('PrtIndex') || '0'),
+      parseInt(url.searchParams.get('IsPrint') || '0'),
+      url.searchParams.get('path') || 'C:\\temp\\wbase_report.pdf'
+    ];
+    const result = await genericCall('wbaseRP', 'waccrep3101_b', args);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(result));
     return;
   }
-
-  if (req.url === '/' || req.url.startsWith('/test')) {
-    const testPath = path.join(__dirname, 'test.html');
-    if (fs.existsSync(testPath)) {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(fs.readFileSync(testPath, 'utf8'));
-    } else {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end('<h1>Wx3000 Agent v19.3 Running</h1><p>API http://localhost:' + HTTP_PORT + '/mac</p>');
-    }
+  // 通用 POST /api/call
+  if (url.pathname === '/api/call' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const result = await genericCall(data.dll, data.func, data.args || []);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(result));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    });
     return;
   }
-
-  res.writeHead(404); res.end('Not found');
+  // 通用 GET /api/call?dll=...&func=...&args=JSON
+  if (url.pathname === '/api/call' && req.method === 'GET') {
+    try {
+      const dll = url.searchParams.get('dll');
+      const func = url.searchParams.get('func');
+      const argsStr = url.searchParams.get('args') || '[]';
+      const args = JSON.parse(argsStr);
+      const result = await genericCall(dll, func, args);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(result));
+      return;
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: e.message }));
+      return;
+    }
+  }
+  if (url.pathname === '/' || url.pathname === '/test.html') {
+    const p = path.join(__dirname, 'test.html');
+    if (fs.existsSync(p)) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(fs.readFileSync(p)); return; }
+  }
+  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Not Found');
 });
 
-server.listen(HTTP_PORT, () => {
-  console.log(`WS   ws://localhost:${WS_PORT}`);
-  console.log(`HTTP http://localhost:${HTTP_PORT}/mac`);
-  console.log(`HTTP http://localhost:${HTTP_PORT}/report`);
-  console.log(`PS64 ${getPowerShellExe(64)}`);
-  console.log(`PS32 ${getPowerShellExe(32)}`);
+const wss = new WebSocket.Server({ server });
+wss.on('connection', (ws) => {
+  ws.on('message', async (msg) => {
+    try {
+      const data = JSON.parse(msg.toString());
+      if (data.cmd === 'mac') ws.send(JSON.stringify({ cmd: 'mac', success: true, macs: getMacs() }));
+      if (data.cmd === 'dllList') ws.send(JSON.stringify({ cmd: 'dllList', ...DLL_CONFIG }));
+      if (data.cmd === 'setMode') { CONFIG.MODE = data.mode; ws.send(JSON.stringify({ cmd: 'setMode', success: true, mode: CONFIG.MODE })); }
+      if (data.cmd === 'call') {
+        const r = await genericCall(data.dll, data.func, data.args || []);
+        ws.send(JSON.stringify({ cmd: 'call', ...r }));
+      }
+      if (data.cmd === 'wbaseReport') {
+        const r = await genericCall('wbaseRP', 'waccrep3101_b', [data.hs_chk, data.top_mag, data.left_mag, data.PrtIndex, data.IsPrint, data.path]);
+        ws.send(JSON.stringify({ cmd: 'wbaseReport', ...r }));
+      }
+    } catch (e) { ws.send(JSON.stringify({ success: false, error: e.message })); }
+  });
+});
+
+server.listen(CONFIG.PORT, () => {
+  console.log(`Rx3000Agent v26 generic http://localhost:${CONFIG.PORT} MODE=${CONFIG.MODE}`);
 });

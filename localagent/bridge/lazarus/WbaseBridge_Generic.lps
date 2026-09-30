@@ -10,8 +10,7 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="WbaseBridge"/>
         <IsVisibleTab Value="True"/>
-        <TopLine Value="183"/>
-        <CursorPos X="86" Y="208"/>
+        <CursorPos X="70" Y="26"/>
         <UsageCount Value="20"/>
         <Loaded Value="True"/>
       </Unit>
