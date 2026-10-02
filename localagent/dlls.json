@@ -21,14 +21,18 @@
           "comment": "hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path - 已移除 handle",
           "bringToFront": true
         },
-        "waccrep3102_b": {
+        "wbase320_buyinv": {
           "ret": "int",
           "params": [
             "double",
+            "double",
+            "double",
+            "int",
+            "int",
             "str"
           ],
-          "comment": "範例：新增函數只要這樣加一行",
-          "bringToFront": false
+          "comment": "hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path - 已移除 handle",
+          "bringToFront": true
         }
       }
     },

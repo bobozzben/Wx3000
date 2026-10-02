@@ -5,7 +5,8 @@ Uses
   Windows,
   Classes,
   fpjson,
-  jsonparser;
+  jsonparser,
+  base64;
 
 Type
   Twaccrep3101_b = Function(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const path: ansistring): integer; stdcall;
@@ -17,19 +18,23 @@ Var
 
   Function GetDllPathFromKey(dllKey: string; explicitPath: string): string;
   Var
-    exePath: string;
+    exePath, cleanExplicit: string;
   Begin
-    If (explicitPath <> '') And FileExists(explicitPath) Then Exit(explicitPath);
+    cleanExplicit := SetDirSeparators(explicitPath);
+    If (cleanExplicit <> '') And FileExists(cleanExplicit) Then Exit(cleanExplicit);
+
     exePath := ExtractFilePath(ParamStr(0));
-    If FileExists(exePath + 'wbase' + PathDelim + dllKey + '.dll') Then Result := exePath + 'wbase' + PathDelim + dllKey + '.dll'
-    Else If FileExists(exePath + dllKey + '.dll') Then Result := exePath + dllKey + '.dll'
-    Else If FileExists(exePath + 'wbase' + PathDelim + 'wbaseRP.dll') Then Result := exePath + 'wbase' + PathDelim + 'wbaseRP.dll'
-    Else If FileExists('F:\ADSProject\Wx3000\report\wbase\wbaseRP.dll') Then Result := 'F:\ADSProject\Wx3000\report\wbase\wbaseRP.dll'
-    Else
-      Result := explicitPath;
+    If (dllKey <> '') And FileExists(exePath + 'wbase' + PathDelim + dllKey + '.dll') Then Exit(exePath + 'wbase' + PathDelim + dllKey + '.dll');
+    If (dllKey <> '') And FileExists(exePath + dllKey + '.dll') Then Exit(exePath + dllKey + '.dll');
+    If (dllKey <> '') And FileExists('F:\ADSProject\Wx3000\report\wbase\' + dllKey + '.dll') Then Exit('F:\ADSProject\Wx3000\report\wbase\' + dllKey + '.dll');
+    If FileExists(exePath + 'wbase' + PathDelim + 'wbaseRP.dll') Then Exit(exePath + 'wbase' + PathDelim + 'wbaseRP.dll');
+    If FileExists(exePath + 'wbaseRP.dll') Then Exit(exePath + 'wbaseRP.dll');
+    If FileExists('F:\ADSProject\Wx3000\report\wbase\wbaseRP.dll') Then Exit('F:\ADSProject\Wx3000\report\wbase\wbaseRP.dll');
+
+    Result := cleanExplicit;
   End;
 
-  // --- 搶焦點執行緒 (同之前) ---
+  // --- 搶焦點執行緒 ---
   Function ForceForeground(hWnd: HWND): boolean;
   Var
     ForeThread, CurThread: DWORD;
@@ -85,20 +90,84 @@ Type
     End;
   End;
 
+  // --- 安全取出 JSON 參數輔助函式 ---
+  Function GetFloatArg(arr: TJSONArray; idx: integer; defaultVal: double = 0.0): double;
+  Begin
+    If (arr = nil) Or (idx < 0) Or (idx >= arr.Count) Then Exit(defaultVal);
+    Try
+      If arr.Types[idx] = jtNumber Then
+        Result := arr.Floats[idx]
+      Else If arr.Types[idx] = jtString Then
+        Result := StrToFloatDef(arr.Strings[idx], defaultVal)
+      Else
+        Result := defaultVal;
+    Except
+      Result := defaultVal;
+    End;
+  End;
+
+  Function GetIntArg(arr: TJSONArray; idx: integer; defaultVal: integer = 0): integer;
+  Begin
+    If (arr = nil) Or (idx < 0) Or (idx >= arr.Count) Then Exit(defaultVal);
+    Try
+      If arr.Types[idx] = jtNumber Then
+        Result := arr.Integers[idx]
+      Else If arr.Types[idx] = jtString Then
+        Result := StrToIntDef(arr.Strings[idx], defaultVal)
+      Else
+        Result := defaultVal;
+    Except
+      Result := defaultVal;
+    End;
+  End;
+
+  Function GetStrArg(arr: TJSONArray; idx: integer; defaultVal: string = ''): string;
+  Begin
+    If (arr = nil) Or (idx < 0) Or (idx >= arr.Count) Then Exit(defaultVal);
+    Try
+      If arr.Types[idx] = jtNull Then
+        Result := ''
+      Else
+        Result := arr.Strings[idx];
+    Except
+      Result := defaultVal;
+    End;
+  End;
+
   // --- 參數解析 ---
   Function ParseArgs(Const jsonStr: string): TJSONArray;
   Var
     parser: TJSONParser;
     Data: TJSONData;
+    s: string;
   Begin
-    parser := TJSONParser.Create(jsonStr);
+    Result := TJSONArray.Create;
+    s := Trim(jsonStr);
+    If s = '' Then Exit;
+    // 若傳入為 Base64 字串，先進行解碼
+    If (Length(s) > 0) And (s[1] <> '[') And (s[1] <> '{') And (s[1] <> '"') Then Begin
+      Try
+        s := DecodeStringBase64(s);
+      Except
+      End;
+    End;
+
+    If (Length(s) >= 2) And (s[1] = '"') And (s[Length(s)] = '"') And (s[2] = '[') Then
+      s := Copy(s, 2, Length(s) - 2);
+
     Try
-      Data := parser.Parse;
-      If Data Is TJSONArray Then Result := TJSONArray(Data)
-      Else
-        Result := TJSONArray.Create;
-    Finally
-      parser.Free;
+      parser := TJSONParser.Create(s, True);
+      Try
+        Data := parser.Parse;
+        If Data Is TJSONArray Then Begin
+          Result.Free;
+          Result := TJSONArray(Data);
+        End Else If Data <> nil Then
+          Data.Free;
+      Finally
+        parser.Free;
+      End;
+    Except
     End;
   End;
 
@@ -108,7 +177,9 @@ Var
   i: integer;
   BringThread: TBringThread;
   ret: integer;
-  p: Twaccrep3101_b;
+  p6: Twaccrep3101_b;
+  p2: TGeneric2;
+  pIntStr: TGenericIntStr;
   needBring: boolean;
 Begin
   Try
@@ -117,6 +188,8 @@ Begin
     funcName := '';
     argsJsonStr := '';
     dllKey := '';
+    needBring := False;
+
     // 解析 --dll --func --args
     i := 1;
     While i <= ParamCount Do Begin
@@ -141,13 +214,13 @@ Begin
     End;
 
     // 如果沒有 -- 參數，視為舊版 waccrep3101_b 6參數相容
-    If funcName = '' Then  Begin
-      If ParamCount >= 6 Then  Begin
+    If funcName = '' Then Begin
+      If ParamCount >= 6 Then Begin
         funcName := 'waccrep3101_b';
+        dllKey := 'wbaseRP';
         dllPath := GetDllPathFromKey('wbaseRP', dllPath);
         // 舊版轉 JSON
         argsJsonStr := Format('[%s,%s,%s,%s,%s,"%s"]', [ParamStr(1), ParamStr(2), ParamStr(3), ParamStr(4), ParamStr(5), StringReplace(ParamStr(6), '"', '\"', [rfReplaceAll])]);
-        dllKey := 'wbaseRP';
       End Else Begin
         Writeln('Usage: WbaseBridge.exe --dll <path> --func <name> --args "[...]"');
         Writeln('   or: WbaseBridge.exe hs_chk top_mag left_mag PrtIndex IsPrint path  (legacy waccrep3101_b)');
@@ -155,7 +228,7 @@ Begin
       End;
     End;
 
-    If dllPath = '' Then dllPath := GetDllPathFromKey(dllKey, '');
+    dllPath := GetDllPathFromKey(dllKey, dllPath);
     If Not FileExists(dllPath) Then Begin
       Writeln('ERROR: DLL not found: ' + dllPath);
       Halt(2);
@@ -170,37 +243,32 @@ Begin
     args := ParseArgs(argsJsonStr);
 
     // ========== 通用分發表：加新函數只在這裡加 ==========
-    If funcName = 'waccrep3101_b' Then  Begin
-      // 6參數版: double,double,double,int,int,str
-      Pointer(p) := GetProcAddress(hLib, PChar(funcName));
-      If Not Assigned(p) Then Begin
+    If (funcName = 'waccrep3101_b') Or (funcName = 'wbase320_buyinv') Or (args.Count >= 5) Then Begin
+      // 6參數標準報表版: double, double, double, int, int, str
+      Pointer(p6) := GetProcAddress(hLib, PChar(funcName));
+      If Not Assigned(p6) Then Begin
         Writeln('ERROR: GetProcAddress ' + funcName);
         Halt(4);
       End;
 
-      // 判斷是否預覽 (IsPrint = 第5個參數)
-      If (args.Count >= 5) Then  Begin
-        Try
-          If args.Integers[4] = 0 Then needBring := True;
-        Except
-        End;
-      End;
+      // 判斷是否預覽 (IsPrint = 第5個參數, 0:預覽, 1:直接列印)
+      If GetIntArg(args, 4, 0) = 0 Then needBring := True;
 
-      If needBring Then  Begin
+      If needBring Then Begin
         BringThread := TBringThread.Create(True);
         BringThread.FreeOnTerminate := False;
         BringThread.Start;
       End Else
         BringThread := nil;
 
-      ret := p(
-        args.Floats[0],
-        args.Floats[1],
-        args.Floats[2],
-        args.Integers[3],
-        args.Integers[4],
-        ansistring(args.Strings[5])
-        );
+      ret := p6(
+        GetFloatArg(args, 0, 0.0),
+        GetFloatArg(args, 1, 0.0),
+        GetFloatArg(args, 2, 0.0),
+        GetIntArg(args, 3, 0),
+        GetIntArg(args, 4, 0),
+        ansistring(GetStrArg(args, 5, ''))
+      );
 
       If Assigned(BringThread) Then Begin
         BringThread.Terminate;
@@ -209,15 +277,18 @@ Begin
       End;
       Writeln('OK:' + IntToStr(ret));
 
+    End Else If args.Count = 2 Then Begin
+      // 2參數版: int, str 或 double, str
+      Pointer(pIntStr) := GetProcAddress(hLib, PChar(funcName));
+      If Not Assigned(pIntStr) Then Begin
+        Writeln('ERROR: GetProcAddress ' + funcName);
+        Halt(4);
+      End;
+      ret := pIntStr(GetIntArg(args, 0, 0), ansistring(GetStrArg(args, 1, '')));
+      Writeln('OK:' + IntToStr(ret));
+
     End Else Begin
-      // 範例：其他簽名可在此擴充
-      // 你只要複製上面一段，改成你的參數類型
       Writeln('ERROR: Function ' + funcName + ' not implemented in generic dispatcher. 請在 WbaseBridge.lpr 加上對應分支');
-      // 範本：
-      // if funcName = 'myFunc1' then begin
-      //   var p: TGenericIntStr; Pointer(p) := GetProcAddress...
-      //   ret := p(args.Integers[0], AnsiString(args.Strings[1]));
-      // end
       Halt(5);
     End;
 
@@ -230,3 +301,4 @@ Begin
     End;
   End;
 End.
+

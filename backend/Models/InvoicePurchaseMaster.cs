@@ -76,5 +76,14 @@ namespace Wx3000.Backend.Models
 
         [NotMapped]
         public string? CompanyAddr { get; set; }
+
+        [NotMapped]
+        public string? DataYear { get; set; }
+
+        [NotMapped]
+        public string? DataStartMonth { get; set; }
+
+        [NotMapped]
+        public string? DataEndMonth { get; set; }
     }
 }

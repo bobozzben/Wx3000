@@ -1,22 +1,11 @@
 object frmfrxRpt1: TfrmfrxRpt1
-  Left = 1814
-  Height = 464
-  Top = 190
-  Width = 895
+  Left = 2136
+  Height = 637
+  Top = 199
+  Width = 914
   Caption = 'frmfrxRpt1'
-  ClientHeight = 464
-  ClientWidth = 895
   DesignTimePPI = 144
-  LCLVersion = '4.6.0.0'
-  object Button1: TButton
-    Left = 486
-    Height = 38
-    Top = 332
-    Width = 113
-    Caption = 'Button1'
-    TabOrder = 0
-    OnClick = Button1Click
-  end
+  LCLVersion = '3.2.0.0'
   object frxDesigner1: TfrxDesigner
     DefaultScriptLanguage = 'PascalScript'
     DefaultFont.Height = -20
@@ -42,27 +31,1110 @@ object frmfrxRpt1: TfrmfrxRpt1
     Left = 64
     Top = 64
   end
-  object ZConnection1: TZConnection
-    ControlsCodePage = cCP_UTF8
-    Properties.Strings = (
-      'RawStringEncoding=DB_CP'
-    )
-    Connected = True
-    DisableSavepoints = False
-    HostName = '192.168.5.51'
-    Port = 0
-    Database = 'a3000'
-    User = 'postgres'
-    Password = '0000'
-    Protocol = 'postgresql'
-    LibraryLocation = 'C:\A3000\WHAN\PG16DLL\libpq.dll'
-    Left = 200
-    Top = 200
-  end
   object ZQuery1: TZQuery
     Params = <>
-    Left = 344
-    Top = 200
+    Left = 352
+    Top = 176
+  end
+  object ZConnection1: TZConnection
+    ControlsCodePage = cCP_UTF8
+    AutoEncodeStrings = True
+    Port = 0
+    Left = 64
+    Top = 184
+  end
+  object frxReport_320_buyinv: TfrxReport
+    Version = '2022.1.3'
+    DotMatrixReport = False
+    EngineOptions.DoublePass = True
+    EngineOptions.IgnoreDevByZero = True
+    IniFile = '\Software\Fast Reports'
+    PreviewOptions.Buttons = [pbPrint, pbLoad, pbSave, pbExport, pbZoom, pbFind, pbOutline, pbPageSetup, pbTools, pbEdit, pbNavigator, pbExportQuick, pbCopy, pbSelection]
+    PreviewOptions.Zoom = 1
+    PrintOptions.Printer = '預設'
+    PrintOptions.PrintOnSheet = 0
+    ReportOptions.CreateDate = 46177.7087765509
+    ReportOptions.LastChange = 46177.7087765509
+    ScriptLanguage = 'PascalScript'
+    ScriptText.Strings = (
+      'begin'
+      ''
+      'end.'
+    )
+    Left = 208
+    Top = 272
+    Datasets = <>
+    Variables = <>
+    Style = <>
+    object Data: TfrxDataPage
+      Height = 1000
+      Width = 1000
+    end
+    object Page1: TfrxReportPage
+      PaperWidth = 210
+      PaperHeight = 297
+      PaperSize = 9
+      LeftMargin = 10
+      RightMargin = 10
+      TopMargin = 10
+      BottomMargin = 10
+      Frame.Typ = []
+      MirrorMode = []
+      object PageHeader1: TfrxPageHeader
+        FillType = ftBrush
+        FillGap.Top = 0
+        FillGap.Left = 0
+        FillGap.Bottom = 0
+        FillGap.Right = 0
+        Frame.Typ = []
+        Height = 127
+        Top = 18.89765
+        Width = 718.1107
+        object Memo1: TfrxMemoView
+          AllowVectorExport = True
+          Left = 227
+          Top = 28
+          Width = 468
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -16
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haCenter
+          Memo.Strings = (
+            '月代理記帳業者接受營業人委託人工或媒體預購統一發票數量清單'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo2: TfrxMemoView
+          AllowVectorExport = True
+          Left = 255
+          Top = 104
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '二聯'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo3: TfrxMemoView
+          AllowVectorExport = True
+          Left = 311
+          Top = 104
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '二聯副'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo4: TfrxMemoView
+          AllowVectorExport = True
+          Left = 280
+          Top = 79
+          Width = 198
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haCenter
+          Memo.Strings = (
+            '(手 開 式 統 一 發 票)'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo5: TfrxMemoView
+          AllowVectorExport = True
+          Left = 539
+          Top = 79
+          Width = 161
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haCenter
+          Memo.Strings = (
+            '(收銀機專用統一發票)'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo6: TfrxMemoView
+          AllowVectorExport = True
+          Left = 6
+          Top = 104
+          Width = 76
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '統一編號'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo7: TfrxMemoView
+          AllowVectorExport = True
+          Left = 86
+          Top = 104
+          Width = 167
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '營業人名稱'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo8: TfrxMemoView
+          AllowVectorExport = True
+          Left = 366
+          Top = 104
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '三聯'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo9: TfrxMemoView
+          AllowVectorExport = True
+          Left = 477
+          Top = 104
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '特種'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo10: TfrxMemoView
+          AllowVectorExport = True
+          Left = 421
+          Top = 104
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '三聯副'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo11: TfrxMemoView
+          AllowVectorExport = True
+          Left = 543
+          Top = 104
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '二聯'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo12: TfrxMemoView
+          AllowVectorExport = True
+          Left = 598
+          Top = 104
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '三聯'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo13: TfrxMemoView
+          AllowVectorExport = True
+          Left = 653
+          Top = 104
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '三聯副'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo14: TfrxMemoView
+          AllowVectorExport = True
+          Left = 45
+          Top = 28
+          Width = 180
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -16
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[MTable."資料年度"]年[MTable."資料起月"]-[MTable."資料迄月"] '
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+          Formats = <          
+            item
+            end          
+            item
+            end          
+            item
+            end>
+        end
+      end
+      object MasterData1: TfrxMasterData
+        FillType = ftBrush
+        FillGap.Top = 0
+        FillGap.Left = 0
+        FillGap.Bottom = 0
+        FillGap.Right = 0
+        Frame.Typ = []
+        Height = 26
+        Top = 207.87415
+        Width = 718.1107
+        RowCount = 0
+        object Memo15: TfrxMemoView
+          AllowVectorExport = True
+          Left = 255
+          Top = 2
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[MTable."手開二聯"]'
+          )
+          ParentFont = False
+          WordWrap = False
+        end
+        object Memo16: TfrxMemoView
+          AllowVectorExport = True
+          Left = 311
+          Top = 2
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[MTable."手開二聯副"]'
+          )
+          ParentFont = False
+          WordWrap = False
+        end
+        object Memo17: TfrxMemoView
+          AllowVectorExport = True
+          Left = 6
+          Top = 2
+          Width = 76
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '[MTable."公司統編"]'
+          )
+          ParentFont = False
+          WordWrap = False
+        end
+        object Memo18: TfrxMemoView
+          AllowVectorExport = True
+          Left = 86
+          Top = 2
+          Width = 167
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '[MTable."公司簡稱"]'
+          )
+          ParentFont = False
+          WordWrap = False
+        end
+        object Memo19: TfrxMemoView
+          AllowVectorExport = True
+          Left = 366
+          Top = 2
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[MTable."手開三聯"]'
+          )
+          ParentFont = False
+          WordWrap = False
+        end
+        object Memo20: TfrxMemoView
+          AllowVectorExport = True
+          Left = 477
+          Top = 2
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[MTable."特種"]'
+          )
+          ParentFont = False
+          WordWrap = False
+        end
+        object Memo21: TfrxMemoView
+          AllowVectorExport = True
+          Left = 421
+          Top = 2
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[MTable."手開三聯副"]'
+          )
+          ParentFont = False
+          WordWrap = False
+        end
+        object Memo22: TfrxMemoView
+          AllowVectorExport = True
+          Left = 543
+          Top = 2
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[MTable."收銀二聯"]'
+          )
+          ParentFont = False
+          WordWrap = False
+        end
+        object Memo23: TfrxMemoView
+          AllowVectorExport = True
+          Left = 598
+          Top = 2
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[MTable."收銀三聯"]'
+          )
+          ParentFont = False
+          WordWrap = False
+        end
+        object Memo24: TfrxMemoView
+          AllowVectorExport = True
+          Left = 653
+          Top = 2
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[MTable."收銀三聯副"]'
+          )
+          ParentFont = False
+          WordWrap = False
+        end
+      end
+      object PageFooter1: TfrxPageFooter
+        FillType = ftBrush
+        FillGap.Top = 0
+        FillGap.Left = 0
+        FillGap.Bottom = 0
+        FillGap.Right = 0
+        Frame.Typ = []
+        Height = 116
+        Top = 396.85065
+        Width = 718.1107
+        object Memo25: TfrxMemoView
+          AllowVectorExport = True
+          Left = 6
+          Top = 9
+          Width = 94
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '事務所名稱:'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo26: TfrxMemoView
+          AllowVectorExport = True
+          Left = 6
+          Top = 30
+          Width = 94
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '事務所地址:'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo27: TfrxMemoView
+          AllowVectorExport = True
+          Left = 6
+          Top = 51
+          Width = 94
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '負責人姓名:'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo28: TfrxMemoView
+          AllowVectorExport = True
+          Left = 102
+          Top = 9
+          Width = 314
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '[事務所名稱]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo29: TfrxMemoView
+          AllowVectorExport = True
+          Left = 102
+          Top = 30
+          Width = 598
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '[事務所地址]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo30: TfrxMemoView
+          AllowVectorExport = True
+          Left = 102
+          Top = 51
+          Width = 318
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '[事務所負責人]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo31: TfrxMemoView
+          AllowVectorExport = True
+          Left = 472
+          Top = 9
+          Width = 66
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '電  話:'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo32: TfrxMemoView
+          AllowVectorExport = True
+          Left = 540
+          Top = 9
+          Width = 159
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '[事務所電話]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo33: TfrxMemoView
+          AllowVectorExport = True
+          Left = 472
+          Top = 53
+          Width = 122
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '事務所統一編號:'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo34: TfrxMemoView
+          AllowVectorExport = True
+          Left = 596
+          Top = 53
+          Width = 103
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '[事務所統編]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+      end
+      object ReportSummary1: TfrxReportSummary
+        FillType = ftBrush
+        FillGap.Top = 0
+        FillGap.Left = 0
+        FillGap.Bottom = 0
+        FillGap.Right = 0
+        Frame.Typ = []
+        Height = 80
+        Top = 294.80334
+        Width = 718.1107
+        object Memo35: TfrxMemoView
+          AllowVectorExport = True
+          Left = 255
+          Top = 29
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '二聯'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo36: TfrxMemoView
+          AllowVectorExport = True
+          Left = 311
+          Top = 29
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '二聯副'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo37: TfrxMemoView
+          AllowVectorExport = True
+          Left = 280
+          Top = 4
+          Width = 198
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haCenter
+          Memo.Strings = (
+            '(手 開 式 統 一 發 票)'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo38: TfrxMemoView
+          AllowVectorExport = True
+          Left = 539
+          Top = 4
+          Width = 161
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haCenter
+          Memo.Strings = (
+            '(收銀機專用統一發票)'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo39: TfrxMemoView
+          AllowVectorExport = True
+          Left = 366
+          Top = 29
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '三聯'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo40: TfrxMemoView
+          AllowVectorExport = True
+          Left = 477
+          Top = 29
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '特種'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo41: TfrxMemoView
+          AllowVectorExport = True
+          Left = 421
+          Top = 29
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '三聯副'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo42: TfrxMemoView
+          AllowVectorExport = True
+          Left = 543
+          Top = 29
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '二聯'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo43: TfrxMemoView
+          AllowVectorExport = True
+          Left = 598
+          Top = 29
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '三聯'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo44: TfrxMemoView
+          AllowVectorExport = True
+          Left = 653
+          Top = 29
+          Width = 52
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = [ftBottom]
+          Frame.BottomLine.Style = fsDouble
+          HAlign = haCenter
+          Memo.Strings = (
+            '三聯副'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo45: TfrxMemoView
+          AllowVectorExport = True
+          Left = 255
+          Top = 51
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[SUM(<MTable."手開二聯">)]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo46: TfrxMemoView
+          AllowVectorExport = True
+          Left = 311
+          Top = 51
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[SUM(<MTable."手開二聯副">)]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo47: TfrxMemoView
+          AllowVectorExport = True
+          Left = 366
+          Top = 51
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[SUM(<MTable."手開三聯">)]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo48: TfrxMemoView
+          AllowVectorExport = True
+          Left = 477
+          Top = 51
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[SUM(<MTable."特種">)]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo49: TfrxMemoView
+          AllowVectorExport = True
+          Left = 421
+          Top = 51
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[SUM(<MTable."手開三聯副">)]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo50: TfrxMemoView
+          AllowVectorExport = True
+          Left = 543
+          Top = 51
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[SUM(<MTable."收銀二聯">)]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo51: TfrxMemoView
+          AllowVectorExport = True
+          Left = 598
+          Top = 51
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[SUM(<MTable."收銀三聯">)]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo52: TfrxMemoView
+          AllowVectorExport = True
+          Left = 653
+          Top = 51
+          Width = 52
+          Height = 18
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          HAlign = haRight
+          Memo.Strings = (
+            '[SUM(<MTable."收銀三聯副">)]'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+        object Memo53: TfrxMemoView
+          AllowVectorExport = True
+          Left = 174
+          Top = 51
+          Width = 76
+          Height = 20
+          Font.CharSet = ANSI_CHARSET
+          Font.Color = clBlack
+          Font.Height = -15
+          Font.Name = '標楷體'
+          Frame.Typ = []
+          Memo.Strings = (
+            '合     計'
+          )
+          ParentFont = False
+          WordWrap = False
+          VAlign = vaCenter
+        end
+      end
+    end
   end
   object frxReport1: TfrxReport
     Version = '2022.1.3'
@@ -82,7 +1154,7 @@ object frmfrxRpt1: TfrmfrxRpt1
       ''
       'end.'
     )
-    Left = 200
+    Left = 208
     Top = 64
     Datasets = <>
     Variables = <>

@@ -17,6 +17,7 @@ type
     frxDBDataset1: TfrxDBDataset;
     frxDesigner1: TfrxDesigner;
     frxReport1: TfrxReport;
+    frxReport_320_buyinv: TfrxReport;
     ZConnection1: TZConnection;
     ZQuery1: TZQuery;
   private

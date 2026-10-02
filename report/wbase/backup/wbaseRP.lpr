@@ -28,6 +28,7 @@ Begin
   RequireDerivedFormResource:=True;
   Application.Scaled:=True;
   Application.Initialize;
+  Application.Name:='wbaseRP';
  // Application.CreateForm(TfrmfrxRpt1, frmfrxRpt1);
  // Application.Run;
 

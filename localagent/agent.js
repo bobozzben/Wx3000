@@ -16,7 +16,7 @@ try {
 } catch (e) { console.error('dlls.json 載入失敗', e.message); }
 
 const CONFIG = {
-  MODE: process.env.WBASE_MODE || 'koffi',
+  MODE: process.env.WBASE_MODE || 'bridge',
   PORT: 18889,
   getDllPath(dllKey) {
     if (process.env.WBASE_DLL_PATH && fs.existsSync(process.env.WBASE_DLL_PATH)) return process.env.WBASE_DLL_PATH;
@@ -33,8 +33,13 @@ const CONFIG = {
   getBridgePath() {
     const cands = [
       "F:\\ADSProject\\Wx3000\\localagent\\bridge\\lazarus\\WbaseBridge.exe",
+      "F:\\ADSProject\\Wx3000\\localagent\\bridge\\lazarus\\WbaseBridge_Generic.exe",
+      path.join(__dirname, 'bridge', 'lazarus', 'WbaseBridge.exe'),
+      path.join(__dirname, 'bridge', 'lazarus', 'WbaseBridge_Generic.exe'),
       path.join(path.dirname(process.execPath), 'WbaseBridge.exe'),
+      path.join(path.dirname(process.execPath), 'WbaseBridge_Generic.exe'),
       path.join(__dirname, 'WbaseBridge.exe'),
+      path.join(__dirname, 'WbaseBridge_Generic.exe'),
       path.join(__dirname, 'bridge', 'WbaseBridge.exe'),
     ];
     for (const p of cands) if (fs.existsSync(p)) return p;
@@ -107,17 +112,21 @@ function callViaBridge(dllKey, funcName, args) {
       resolve({ success: false, mode: 'bridge', error: `Bridge not found: ${bridgePath}` });
       return;
     }
-    // 通用參數格式: --dll wbaseRP --func waccrep3101_b --args JSON
-    const argsJson = JSON.stringify(args);
-    const dllPath = CONFIG.getDllPath(dllKey) || dllKey;
+    // 使用 Base64 編碼傳遞 JSON 參數，徹底避免 Windows 命令行引號與反斜線轉義問題
+    const argsJson = Buffer.from(JSON.stringify(args), 'utf8').toString('base64');
+    const dllPath = (CONFIG.getDllPath(dllKey) || dllKey).replace(/\\/g, '/');
     const cmdArgs = ['--dll', dllPath, '--func', funcName, '--args', argsJson, '--dllkey', dllKey];
 
-    execFile(bridgePath, cmdArgs, { timeout: 60000, windowsHide: false }, (err, stdout, stderr) => {
+    let resolved = false;
+    const child = execFile(bridgePath, cmdArgs, { timeout: 0, windowsHide: false }, (err, stdout, stderr) => {
+      if (resolved) return;
       if (err) {
+        resolved = true;
         resolve({ success: false, mode: 'bridge', error: err.message, stderr, stdout });
         return;
       }
-      const out = stdout.toString().trim();
+      const out = stdout ? stdout.toString().trim() : '';
+      resolved = true;
       if (out.includes('OK:')) {
         const m = out.match(/OK:(-?\d+)/);
         resolve({ success: true, mode: 'bridge', retCode: m ? parseInt(m[1]) : 0, raw: out });
@@ -125,6 +134,17 @@ function callViaBridge(dllKey, funcName, args) {
         resolve({ success: false, mode: 'bridge', error: out || stderr });
       }
     });
+
+    // 若為預覽模式 (IsPrint = 0)，進程啟動成功且穩定運作 600ms 後即先行回覆前端成功，避免 HTTP 連線長久等待
+    const isPreview = Array.isArray(args) && args.length >= 5 && Number(args[4]) === 0;
+    if (isPreview) {
+      setTimeout(() => {
+        if (!resolved && !child.killed && child.exitCode === null) {
+          resolved = true;
+          resolve({ success: true, mode: 'bridge', message: '報表預覽視窗已成功開啟', pid: child.pid });
+        }
+      }, 600);
+    }
   });
 }
 
@@ -166,22 +186,34 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify(DLL_CONFIG));
     return;
   }
-  // 相容 POST /report 及 /waccrep3101_b
-  if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b') && req.method === 'POST') {
+  // 相容 POST /report, /waccrep3101_b 及 /wbase320_buyinv
+  if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b' || url.pathname === '/wbase320_buyinv') && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
         const data = JSON.parse(body || '{}');
+        const funcName = data.func || (url.pathname === '/wbase320_buyinv' ? 'wbase320_buyinv' : 'waccrep3101_b');
+        let targetPath = data.path || '';
+
+        // 若有傳入 jsonData，自動產生暫存檔路徑
+        if (data.jsonData !== undefined) {
+          const tempDir = path.join(os.tmpdir(), 'Wx3000');
+          if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+          const tempFilePath = path.join(tempDir, `report_data_${Date.now()}.json`).replace(/\\/g, '/');
+          fs.writeFileSync(tempFilePath, typeof data.jsonData === 'string' ? data.jsonData : JSON.stringify(data.jsonData, null, 2), 'utf8');
+          targetPath = tempFilePath;
+        }
+
         const args = [
           data.hs_chk !== undefined ? Number(data.hs_chk) : 0.125,
           data.top_mag !== undefined ? Number(data.top_mag) : 0.0,
           data.left_mag !== undefined ? Number(data.left_mag) : 0.0,
           data.PrtIndex !== undefined ? Number(data.PrtIndex) : 0,
           data.IsPrint !== undefined ? Number(data.IsPrint) : 0,
-          data.path || ''
+          targetPath
         ];
-        const result = await genericCall('wbaseRP', 'waccrep3101_b', args);
+        const result = await genericCall('wbaseRP', funcName, args);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify(result));
       } catch (e) {
@@ -191,9 +223,10 @@ const server = http.createServer(async (req, res) => {
     });
     return;
   }
-  // 相容 GET /report 及 /waccrep3101_b
-  if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b') && req.method === 'GET') {
+  // 相容 GET /report, /waccrep3101_b 及 /wbase320_buyinv
+  if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b' || url.pathname === '/wbase320_buyinv') && req.method === 'GET') {
     try {
+      const funcName = url.searchParams.get('func') || (url.pathname === '/wbase320_buyinv' ? 'wbase320_buyinv' : 'waccrep3101_b');
       const args = [
         parseFloat(url.searchParams.get('hs_chk') || '0.125'),
         parseFloat(url.searchParams.get('top_mag') || '0'),
@@ -202,7 +235,7 @@ const server = http.createServer(async (req, res) => {
         parseInt(url.searchParams.get('IsPrint') || '0'),
         url.searchParams.get('path') || ''
       ];
-      const result = await genericCall('wbaseRP', 'waccrep3101_b', args);
+      const result = await genericCall('wbaseRP', funcName, args);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(result));
       return;
@@ -234,7 +267,28 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const data = JSON.parse(body);
-        const result = await genericCall(data.dll, data.func, data.args || []);
+        let callArgs = data.args || [];
+
+        // 若請求帶有 jsonData，自動將資料寫入本機暫存 JSON 檔案，並將路徑帶入 args 最後一個參數
+        if (data.jsonData !== undefined) {
+          const tempDir = path.join(os.tmpdir(), 'Wx3000');
+          if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+          const tempFilePath = path.join(tempDir, `report_data_${Date.now()}.json`).replace(/\\/g, '/');
+          fs.writeFileSync(tempFilePath, typeof data.jsonData === 'string' ? data.jsonData : JSON.stringify(data.jsonData, null, 2), 'utf8');
+          console.log(`[LocalAgent] 自動建立 JSON 暫存檔: ${tempFilePath}`);
+
+          if (callArgs.length >= 6) {
+            callArgs[5] = tempFilePath;
+          } else {
+            while (callArgs.length < 5) callArgs.push(0);
+            callArgs.push(tempFilePath);
+          }
+        }
+
+        // 確保所有字串參數路徑斜線格式正確
+        callArgs = callArgs.map(arg => typeof arg === 'string' ? arg.replace(/\\/g, '/') : arg);
+
+        const result = await genericCall(data.dll, data.func, callArgs);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify(result));
       } catch (e) {
@@ -289,5 +343,5 @@ wss.on('connection', (ws) => {
 });
 
 server.listen(CONFIG.PORT, () => {
-  console.log(`Rx3000Agent v26 generic http://localhost:${CONFIG.PORT} MODE=${CONFIG.MODE}`);
+  console.log(`Wx3000Agent v26 generic http://localhost:${CONFIG.PORT} MODE=${CONFIG.MODE}`);
 });

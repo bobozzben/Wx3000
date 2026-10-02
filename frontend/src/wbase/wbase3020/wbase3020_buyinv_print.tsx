@@ -16,7 +16,7 @@ import {
 import { getSystemParam } from '../../services/systemParamService';
 import {
   queryBuyinvPrintData,
-  callLocalagentReport,
+  callLocalagentBuyinvReport,
   exportToXlsx,
   type InvoicePurchaseItem,
 } from '../../services/wbase3020';
@@ -101,7 +101,9 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     { key: 'manualSpecial', label: '特種', customTitle: '特種', selected: true },
     { key: 'cashTwoDup', label: '收銀二聯', customTitle: '二收', selected: true },
     { key: 'cashThreeDup', label: '收銀三聯', customTitle: '三收', selected: true },
-    { key: 'cashThreeDupSub', label: '收銀三聯副', customTitle: '四收', selected: true },
+    { key: 'dataYear', label: '資料年度', customTitle: '資料年度', selected: false },
+    { key: 'dataStartMonth', label: '資料起月', customTitle: '資料起月', selected: false },
+    { key: 'dataEndMonth', label: '資料迄月', customTitle: '資料迄月', selected: false },
     { key: 'seq', label: '序', customTitle: '序', selected: false },
     { key: 'serialNo', label: '流水號', customTitle: '流水號', selected: false },
     { key: 'companyAddr', label: '公司地址', customTitle: '公司地址', selected: false },
@@ -181,6 +183,9 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     const data = await queryBuyinvPrintData({
       period: formattedPeriod,
       times: '1',
+      year,
+      startMonth,
+      endMonth,
       mode,
       cityCondition: mode === '1' ? cityCond : undefined,
       placeCondition: mode === '2' ? placeCond : undefined,
@@ -204,20 +209,19 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     const data = await QueryData();
     if (data.length === 0) {
       alert('⚠️ 查無符合條件之發票購買資料！');
+      return;
     }
 
-    setStatusMessage('正在呼叫 localagent_koffi wbaseRP.dll waccrep3101_b 函數...');
-    const res = await callLocalagentReport(1, 10, 10, 0, 0, 'C:\\temp\\buyinv_print.pdf');
+    setStatusMessage('正在透過 LocalAgent 產生 JSON 暫存檔並呼叫 wbase320_buyinv 報表...');
+    const res = await callLocalagentBuyinvReport(data, 1, 10, 10, 0, 0);
 
     if (res.success) {
-      setStatusMessage('🎉 報表已成功透過 localagent_koffi 產生並開啟預覽！');
-      alert(`[F7.列印成功]\n已呼叫 localagent_koffi (wbaseRP.dll -> waccrep3101_b)\n回傳代碼: ${res.retCode ?? 0}`);
+      setStatusMessage(`🎉 報表預覽已成功開啟 (wbaseRP.dll -> wbase320_buyinv，回傳碼: ${res.retCode ?? 0})`);
     } else {
-      setStatusMessage(`⚠️ 報表呼叫回應: ${res.error || 'localagent 未啟動，即將開啟網頁印表機預覽'}`);
+      setStatusMessage(`⚠️ 報表呼叫失敗: ${res.error || 'LocalAgent 服務未啟動'}`);
       alert(
-        `[F7.列印提示]\nLocalAgent (wbaseRP.dll -> waccrep3101_b) 呼叫結果: ${res.error || '連線中'}\n系統將將直接進行網頁列印預覽！`
+        `[F7.列印失敗]\nLocalAgent 報表預覽呼叫未成功：\n${res.error || '請確認本機 LocalAgent (http://localhost:18889) 服務已啟動'}`
       );
-      window.print();
     }
   }, [QueryData]);
 
@@ -326,19 +330,17 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 font-mono select-none overflow-hidden">
       {/* Outer Window Dialog matching modern design image */}
       <div
-        className={`w-full max-w-2xl rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border transition-colors duration-300 max-h-[92vh] ${
-          isDark
+        className={`w-full max-w-2xl rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border transition-colors duration-300 max-h-[92vh] ${isDark
             ? 'bg-slate-900 text-white border-slate-800'
             : 'bg-slate-50 text-slate-800 border-slate-200'
-        }`}
+          }`}
       >
         {/* Header Bar with Gradient */}
         <div
-          className={`px-4 py-2.5 sm:px-5 sm:py-3 flex items-center justify-between transition-colors ${
-            isDark
+          className={`px-4 py-2.5 sm:px-5 sm:py-3 flex items-center justify-between transition-colors ${isDark
               ? 'bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-slate-800'
               : 'bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white shadow-md'
-          }`}
+            }`}
         >
           <div className="flex items-center space-x-3">
             {/* Header Icon Box */}
@@ -394,11 +396,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
         <div className="p-3.5 sm:p-4 space-y-3 sm:space-y-3.5 overflow-y-auto flex-1">
           {/* Card 1: 發票購買期別 */}
           <div
-            className={`rounded-2xl p-3.5 sm:p-4 transition-colors border shadow-xs ${
-              isDark
+            className={`rounded-2xl p-3.5 sm:p-4 transition-colors border shadow-xs ${isDark
                 ? 'bg-slate-800/80 border-slate-700/80'
                 : 'bg-white border-slate-200/90 shadow-slate-100'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center space-x-2 font-bold text-sm sm:text-base">
@@ -406,9 +407,8 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                 <span className={isDark ? 'text-white' : 'text-slate-800'}>發票購買期別</span>
               </div>
               <span
-                className={`text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-lg ${
-                  isDark ? 'bg-indigo-950/60 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
-                }`}
+                className={`text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-lg ${isDark ? 'bg-indigo-950/60 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+                  }`}
               >
                 [Enter] 下一欄
               </span>
@@ -425,11 +425,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') focusAndSelect(startMonthRef);
                   }}
-                  className={`w-20 px-2.5 py-1.5 border-2 rounded-xl text-center font-black text-base transition focus:outline-none ${
-                    isDark
+                  className={`w-20 px-2.5 py-1.5 border-2 rounded-xl text-center font-black text-base transition focus:outline-none ${isDark
                       ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-400 focus:bg-slate-900'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100'
-                  }`}
+                    }`}
                 />
                 <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>年</span>
 
@@ -442,11 +441,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') focusAndSelect(endMonthRef);
                   }}
-                  className={`w-16 px-2.5 py-1.5 border-2 rounded-xl text-center font-black text-base transition focus:outline-none ${
-                    isDark
+                  className={`w-16 px-2.5 py-1.5 border-2 rounded-xl text-center font-black text-base transition focus:outline-none ${isDark
                       ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-400 focus:bg-slate-900'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100'
-                  }`}
+                    }`}
                 />
                 <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>-</span>
 
@@ -462,11 +460,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                       focusAndSelect(modeInputRef);
                     }
                   }}
-                  className={`w-16 px-2.5 py-1.5 border-2 rounded-xl text-center font-black text-base transition focus:outline-none ${
-                    isDark
+                  className={`w-16 px-2.5 py-1.5 border-2 rounded-xl text-center font-black text-base transition focus:outline-none ${isDark
                       ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-400 focus:ring-2 focus:ring-amber-400/50'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200'
-                  }`}
+                    }`}
                 />
                 <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>月</span>
               </div>
@@ -480,11 +477,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
 
           {/* Card 2: 轉出模式條件 */}
           <div
-            className={`rounded-2xl p-3.5 sm:p-4 transition-colors border shadow-xs space-y-2.5 ${
-              isDark
+            className={`rounded-2xl p-3.5 sm:p-4 transition-colors border shadow-xs space-y-2.5 ${isDark
                 ? 'bg-slate-800/80 border-slate-700/80'
                 : 'bg-white border-slate-200/90 shadow-slate-100'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 font-bold text-sm sm:text-base">
@@ -495,9 +491,8 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
               </div>
               <div className="flex items-center space-x-2">
                 <span
-                  className={`text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-lg ${
-                    isDark ? 'bg-indigo-950/60 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
-                  }`}
+                  className={`text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-lg ${isDark ? 'bg-indigo-950/60 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+                    }`}
                 >
                   [1/2 切換]
                 </span>
@@ -524,11 +519,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                       }, 50);
                     }
                   }}
-                  className={`w-12 py-1 border-2 rounded-xl text-center font-black text-sm transition focus:outline-none ${
-                    isDark
+                  className={`w-12 py-1 border-2 rounded-xl text-center font-black text-sm transition focus:outline-none ${isDark
                       ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-400 focus:ring-2 focus:ring-amber-400/50'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200'
-                  }`}
+                    }`}
                 />
               </div>
             </div>
@@ -541,15 +535,14 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                   setMode('1');
                   setTimeout(() => focusAndSelect(cityCondRef), 50);
                 }}
-                className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                  mode === '1'
+                className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${mode === '1'
                     ? isDark
                       ? 'bg-indigo-950/70 border-indigo-500 text-white shadow-md'
                       : 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20'
                     : isDark
-                    ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:bg-slate-800'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                }`}
+                      ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:bg-slate-800'
+                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center space-x-1.5 font-extrabold text-sm sm:text-base">
@@ -572,17 +565,15 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                         focusAndSelect(sortOrderInputRef);
                       }
                     }}
-                    className={`w-full px-2.5 py-1 border-2 rounded-lg font-bold text-xs sm:text-sm transition focus:outline-none ${
-                      mode === '1'
+                    className={`w-full px-2.5 py-1 border-2 rounded-lg font-bold text-xs sm:text-sm transition focus:outline-none ${mode === '1'
                         ? 'bg-white text-slate-900 border-amber-400 focus:ring-2 focus:ring-amber-300'
                         : 'bg-gray-100 dark:bg-slate-800 text-gray-500 border-gray-300 dark:border-slate-700'
-                    }`}
+                      }`}
                   />
                 </div>
                 <p
-                  className={`text-[11px] mt-1 font-semibold ${
-                    mode === '1' ? (isDark ? 'text-indigo-200' : 'text-blue-100') : 'text-red-500'
-                  }`}
+                  className={`text-[11px] mt-1 font-semibold ${mode === '1' ? (isDark ? 'text-indigo-200' : 'text-blue-100') : 'text-red-500'
+                    }`}
                 >
                   (* : 代表不分區全部轉出)
                 </p>
@@ -594,15 +585,14 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                   setMode('2');
                   setTimeout(() => focusAndSelect(placeCondRef), 50);
                 }}
-                className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                  mode === '2'
+                className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${mode === '2'
                     ? isDark
                       ? 'bg-indigo-950/70 border-indigo-500 text-white shadow-md'
                       : 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20'
                     : isDark
-                    ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:bg-slate-800'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                }`}
+                      ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:bg-slate-800'
+                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center space-x-1.5 font-extrabold text-sm sm:text-base">
@@ -629,24 +619,21 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                       }
                     }}
                     placeholder="按 F2 開窗"
-                    className={`w-24 px-2.5 py-1 border-2 rounded-lg font-bold text-xs sm:text-sm transition focus:outline-none ${
-                      mode === '2'
+                    className={`w-24 px-2.5 py-1 border-2 rounded-lg font-bold text-xs sm:text-sm transition focus:outline-none ${mode === '2'
                         ? 'bg-white text-slate-900 border-amber-400 focus:ring-2 focus:ring-amber-300'
                         : 'bg-gray-100 dark:bg-slate-800 text-gray-500 border-gray-300 dark:border-slate-700'
-                    }`}
+                      }`}
                   />
                   <span
-                    className={`text-xs font-bold truncate ${
-                      mode === '2' ? (isDark ? 'text-indigo-100' : 'text-white') : 'text-slate-500'
-                    }`}
+                    className={`text-xs font-bold truncate ${mode === '2' ? (isDark ? 'text-indigo-100' : 'text-white') : 'text-slate-500'
+                      }`}
                   >
                     {placeName}
                   </span>
                 </div>
                 <p
-                  className={`text-[11px] mt-1 font-semibold ${
-                    mode === '2' ? (isDark ? 'text-indigo-200' : 'text-blue-100') : 'text-slate-400'
-                  }`}
+                  className={`text-[11px] mt-1 font-semibold ${mode === '2' ? (isDark ? 'text-indigo-200' : 'text-blue-100') : 'text-slate-400'
+                    }`}
                 >
                   (按 F2 鍵可開窗選擇地點)
                 </p>
@@ -656,11 +643,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
 
           {/* Card 3: 排序方式與匯出設定 */}
           <div
-            className={`rounded-2xl p-3.5 sm:p-4 transition-colors border shadow-xs space-y-2.5 ${
-              isDark
+            className={`rounded-2xl p-3.5 sm:p-4 transition-colors border shadow-xs space-y-2.5 ${isDark
                 ? 'bg-slate-800/80 border-slate-700/80'
                 : 'bg-white border-slate-200/90 shadow-slate-100'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 font-bold text-sm sm:text-base">
@@ -671,9 +657,8 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
               </div>
               <div className="flex items-center space-x-2">
                 <span
-                  className={`text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-lg ${
-                    isDark ? 'bg-indigo-950/60 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
-                  }`}
+                  className={`text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-lg ${isDark ? 'bg-indigo-950/60 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+                    }`}
                 >
                   [1/2 切換]
                 </span>
@@ -696,11 +681,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                       focusAndSelect(exportConfigRef);
                     }
                   }}
-                  className={`w-12 py-1 border-2 rounded-xl text-center font-black text-sm transition focus:outline-none ${
-                    isDark
+                  className={`w-12 py-1 border-2 rounded-xl text-center font-black text-sm transition focus:outline-none ${isDark
                       ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-400 focus:ring-2 focus:ring-amber-400/50'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200'
-                  }`}
+                    }`}
                 />
               </div>
             </div>
@@ -712,15 +696,14 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                   setSortOrder('1');
                   focusAndSelect(exportConfigRef);
                 }}
-                className={`p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer flex items-center justify-between transition-all ${
-                  sortOrder === '1'
+                className={`p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer flex items-center justify-between transition-all ${sortOrder === '1'
                     ? isDark
                       ? 'bg-indigo-950/70 border-indigo-500 text-white font-black'
                       : 'bg-indigo-600 text-white border-indigo-600 font-black shadow-sm'
                     : isDark
-                    ? 'bg-slate-900/60 border-slate-700/60 text-slate-300'
-                    : 'bg-slate-50 border-slate-200 text-slate-700'
-                }`}
+                      ? 'bg-slate-900/60 border-slate-700/60 text-slate-300'
+                      : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}
               >
                 <span className="font-extrabold text-xs sm:text-sm">1. 依統一編號排序</span>
                 {sortOrder === '1' && <Check className="w-4 h-4 stroke-[3]" />}
@@ -731,15 +714,14 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                   setSortOrder('2');
                   focusAndSelect(exportConfigRef);
                 }}
-                className={`p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer flex items-center justify-between transition-all ${
-                  sortOrder === '2'
+                className={`p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer flex items-center justify-between transition-all ${sortOrder === '2'
                     ? isDark
                       ? 'bg-indigo-950/70 border-indigo-500 text-white font-black'
                       : 'bg-indigo-600 text-white border-indigo-600 font-black shadow-sm'
                     : isDark
-                    ? 'bg-slate-900/60 border-slate-700/60 text-slate-300'
-                    : 'bg-slate-50 border-slate-200 text-slate-700'
-                }`}
+                      ? 'bg-slate-900/60 border-slate-700/60 text-slate-300'
+                      : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}
               >
                 <span className="font-extrabold text-xs sm:text-sm">2. 依稅籍編號排序</span>
                 {sortOrder === '2' && <Check className="w-4 h-4 stroke-[3]" />}
@@ -749,15 +731,14 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
             {/* Checkbox Card for XLSX Export */}
             <div
               onClick={() => setExportXlsxConfig(!exportXlsxConfig)}
-              className={`p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer flex items-center space-x-3 transition-all ${
-                exportXlsxConfig
+              className={`p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer flex items-center space-x-3 transition-all ${exportXlsxConfig
                   ? isDark
                     ? 'bg-emerald-950/60 border-emerald-500 text-emerald-200'
                     : 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold'
                   : isDark
-                  ? 'bg-slate-900/40 border-slate-700/60 text-slate-400'
-                  : 'bg-slate-50 border-slate-200 text-slate-600'
-              }`}
+                    ? 'bg-slate-900/40 border-slate-700/60 text-slate-400'
+                    : 'bg-slate-50 border-slate-200 text-slate-600'
+                }`}
             >
               <input
                 ref={exportConfigRef}
@@ -784,11 +765,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
           {/* Status Message Banner */}
           {statusMessage && (
             <div
-              className={`p-2.5 rounded-xl text-xs font-bold text-center border shadow-xs ${
-                isDark
+              className={`p-2.5 rounded-xl text-xs font-bold text-center border shadow-xs ${isDark
                   ? 'bg-indigo-950/80 border-indigo-800 text-indigo-200'
                   : 'bg-indigo-50 border-indigo-200 text-indigo-900'
-              }`}
+                }`}
             >
               {statusMessage}
             </div>
@@ -797,9 +777,8 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
 
         {/* Footer Action Bar */}
         <div
-          className={`px-4 py-2.5 sm:px-5 sm:py-3 flex items-center justify-between gap-2.5 border-t transition-colors ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200/90'
-          }`}
+          className={`px-4 py-2.5 sm:px-5 sm:py-3 flex items-center justify-between gap-2.5 border-t transition-colors ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200/90'
+            }`}
         >
           {/* Left Side: Debug / Preview Button */}
           <div>
@@ -863,11 +842,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                   handleLeave();
                 }
               }}
-              className={`flex items-center space-x-1.5 px-4 sm:px-4.5 py-2 rounded-xl border-2 transition active:scale-95 shadow-xs focus:outline-none focus:ring-4 focus:ring-amber-400 ${
-                isDark
+              className={`flex items-center space-x-1.5 px-4 sm:px-4.5 py-2 rounded-xl border-2 transition active:scale-95 shadow-xs focus:outline-none focus:ring-4 focus:ring-amber-400 ${isDark
                   ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
                   : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
-              }`}
+                }`}
             >
               <X className="w-4 h-4 text-red-500 stroke-[3]" />
               <span>Esc. 離開</span>
@@ -902,7 +880,7 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
                 name: x.placeName || x.name || '',
               }));
             }
-          } catch (e) {}
+          } catch (e) { }
           return [
             { code: '01', name: '台北市分局' },
             { code: '02', name: '新北市分局' },
@@ -914,28 +892,26 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
         onClose={() => setIsF2ModalOpen(false)}
       />
 
-      {/* Debug Data Preview Modal */}
+      {/* Debug Data Preview Modal (包含所有欄位與常駐底部捲軸) */}
       {isPreviewModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 font-mono select-none">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-2 sm:p-4 font-mono select-none">
           <div
-            className={`w-full max-w-4xl max-h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border ${
-              isDark
+            className={`w-full max-w-[96vw] xl:max-w-7xl h-[88vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border ${isDark
                 ? 'bg-slate-900 text-white border-slate-700'
                 : 'bg-white text-slate-800 border-slate-300'
-            }`}
+              }`}
           >
             {/* Modal Header */}
             <div
-              className={`px-5 py-3 flex items-center justify-between border-b ${
-                isDark
+              className={`px-5 py-3 flex items-center justify-between border-b flex-shrink-0 ${isDark
                   ? 'bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 border-slate-800'
                   : 'bg-gradient-to-r from-sky-700 to-indigo-700 text-white shadow-md'
-              }`}
+                }`}
             >
               <div className="flex items-center space-x-2">
                 <Eye className="w-5 h-5 text-amber-300" />
                 <h3 className="font-black text-lg tracking-wide text-white">
-                  除錯用資料預覽 (共 {queriedData.length} 筆紀錄)
+                  F4. 報表資料全欄位預覽 (共 {queriedData.length} 筆紀錄)
                 </h3>
               </div>
               <button
@@ -946,81 +922,152 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
               </button>
             </div>
 
-            {/* Modal Table Body */}
-            <div className="p-4 overflow-auto flex-1">
+            {/* Modal Table Body with Native Bottom Scrollbar */}
+            <div
+              className={`flex-1 min-h-0 overflow-auto p-2 border-b ${isDark ? 'border-slate-800 bg-slate-950/50' : 'border-slate-200 bg-slate-50/50'
+                }`}
+              style={{
+                scrollbarWidth: 'auto',
+                scrollbarColor: isDark ? '#3b82f6 #0f172a' : '#6366f1 #e2e8f0',
+              }}
+            >
               {queriedData.length === 0 ? (
-                <div className="py-12 text-center text-slate-500 font-bold text-base">
+                <div className="py-24 text-center text-slate-500 font-bold text-base">
                   ⚠️ 依目前設定條件查詢無相符之發票購買資料！
                 </div>
               ) : (
-                <div className="overflow-x-auto border rounded-xl shadow-xs">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr
-                        className={`border-b ${
-                          isDark
-                            ? 'bg-slate-800 text-amber-300 border-slate-700'
-                            : 'bg-indigo-50 text-indigo-900 border-indigo-200'
+                <table className="w-full text-left text-xs border-collapse whitespace-nowrap min-w-[2100px]">
+                  <thead>
+                    <tr
+                      className={`border-b sticky top-0 z-20 shadow-xs ${isDark
+                          ? 'bg-[#1e3a8a] text-amber-300 border-slate-700'
+                          : 'bg-indigo-900 text-amber-300 border-indigo-950'
                         }`}
-                      >
-                        <th className="p-2.5 font-bold border-r text-center">#</th>
-                        <th className="p-2.5 font-bold border-r">公司編號</th>
-                        <th className="p-2.5 font-bold border-r">公司簡稱</th>
-                        <th className="p-2.5 font-bold border-r">統一編號</th>
-                        <th className="p-2.5 font-bold border-r">稅籍編號</th>
-                        <th className="p-2.5 font-bold border-r">購票地點</th>
-                        <th className="p-2.5 font-bold border-r">期別</th>
-                        <th className="p-2.5 font-bold">縣市/地點</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
-                      {queriedData.map((item, idx) => (
-                        <tr
-                          key={idx}
-                          className={`hover:bg-amber-400/10 transition ${
-                            idx % 2 === 0
-                              ? isDark
-                                ? 'bg-slate-900/60'
-                                : 'bg-white'
-                              : isDark
-                              ? 'bg-slate-800/40'
+                    >
+                      <th className="p-2.5 font-bold border-r text-center sticky left-0 z-30 bg-[#1e3a8a] shadow-xs w-12">#</th>
+                      <th className="p-2.5 font-bold border-r text-center bg-indigo-950/60 w-20">資料年度</th>
+                      <th className="p-2.5 font-bold border-r text-center bg-indigo-950/60 w-20">資料起月</th>
+                      <th className="p-2.5 font-bold border-r text-center bg-indigo-950/60 w-20">資料迄月</th>
+                      <th className="p-2.5 font-bold border-r w-24">期別</th>
+                      <th className="p-2.5 font-bold border-r text-center w-20">購買次數</th>
+                      <th className="p-2.5 font-bold border-r w-28">公司編號</th>
+                      <th className="p-2.5 font-bold border-r w-28 text-emerald-300">公司統編</th>
+                      <th className="p-2.5 font-bold border-r w-48">公司名稱</th>
+                      <th className="p-2.5 font-bold border-r w-36">公司簡稱</th>
+                      <th className="p-2.5 font-bold border-r w-32">稅籍編號</th>
+                      <th className="p-2.5 font-bold border-r text-right bg-blue-900/60 text-blue-200 w-24">手開二聯</th>
+                      <th className="p-2.5 font-bold border-r text-right bg-blue-900/60 text-blue-200 w-24">手開二聯副</th>
+                      <th className="p-2.5 font-bold border-r text-right bg-blue-900/60 text-blue-200 w-24">手開三聯</th>
+                      <th className="p-2.5 font-bold border-r text-right bg-blue-900/60 text-blue-200 w-24">手開三聯副</th>
+                      <th className="p-2.5 font-bold border-r text-right bg-purple-900/60 text-purple-200 w-20">特種</th>
+                      <th className="p-2.5 font-bold border-r text-right bg-emerald-900/60 text-emerald-200 w-24">收銀二聯</th>
+                      <th className="p-2.5 font-bold border-r text-right bg-emerald-900/60 text-emerald-200 w-24">收銀三聯</th>
+                      <th className="p-2.5 font-bold border-r text-right bg-emerald-900/60 text-emerald-200 w-24">收銀三聯副</th>
+                      <th className="p-2.5 font-bold border-r w-28">購票地點編號</th>
+                      <th className="p-2.5 font-bold border-r w-24">縣市別</th>
+                      <th className="p-2.5 font-bold border-r w-64">公司地址</th>
+                      <th className="p-2.5 font-bold border-r w-28">登打人員編號</th>
+                      <th className="p-2.5 font-bold w-48">GUID</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono text-xs">
+                    {queriedData.map((item, idx) => (
+                      <tr
+                        key={idx}
+                        className={`hover:bg-amber-400/20 transition ${idx % 2 === 0
+                            ? isDark
+                              ? 'bg-slate-900/80'
+                              : 'bg-white'
+                            : isDark
+                              ? 'bg-slate-800/60'
                               : 'bg-slate-50'
                           }`}
-                        >
-                          <td className="p-2 font-mono text-center border-r font-bold text-slate-400">
-                            {idx + 1}
-                          </td>
-                          <td className="p-2 font-mono font-bold text-sky-400 border-r">
-                            {item.companyCode || '-'}
-                          </td>
-                          <td className="p-2 font-bold border-r">
-                            {item.companyShortName || '-'}
-                          </td>
-                          <td className="p-2 font-mono border-r">{item.unifiedNo || '-'}</td>
-                          <td className="p-2 font-mono border-r">{item.taxNo || '-'}</td>
-                          <td className="p-2 border-r">{item.placeCode || '-'}</td>
-                          <td className="p-2 font-mono border-r">{item.period || '-'}</td>
-                          <td className="p-2 truncate max-w-xs">{item.city || '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      >
+                        <td className={`p-2 text-center border-r font-bold sticky left-0 z-10 ${idx % 2 === 0 ? (isDark ? 'bg-slate-900' : 'bg-white') : (isDark ? 'bg-slate-800' : 'bg-slate-50')
+                          } text-slate-400`}>
+                          {idx + 1}
+                        </td>
+                        <td className="p-2 text-center border-r font-bold text-amber-400">
+                          {item.dataYear || year}
+                        </td>
+                        <td className="p-2 text-center border-r">
+                          {item.dataStartMonth || startMonth}
+                        </td>
+                        <td className="p-2 text-center border-r">
+                          {item.dataEndMonth || endMonth}
+                        </td>
+                        <td className="p-2 border-r font-bold">{item.period || '-'}</td>
+                        <td className="p-2 text-center border-r">{item.times || '1'}</td>
+                        <td className="p-2 font-bold text-sky-400 border-r">
+                          {item.companyCode || '-'}
+                        </td>
+                        <td className="p-2 font-bold text-emerald-400 border-r">
+                          {item.unifiedNo || '-'}
+                        </td>
+                        <td className="p-2 font-bold border-r max-w-xs truncate" title={item.companyName || item.companyShortName}>
+                          {item.companyName || item.companyShortName || '-'}
+                        </td>
+                        <td className="p-2 border-r">
+                          {item.companyShortName || '-'}
+                        </td>
+                        <td className="p-2 border-r">{item.taxNo || '-'}</td>
+                        <td className={`p-2 text-right border-r font-bold ${Number(item.manualTwoDup) > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                          {item.manualTwoDup || 0}
+                        </td>
+                        <td className={`p-2 text-right border-r font-bold ${Number(item.manualTwoDupSub) > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                          {item.manualTwoDupSub || 0}
+                        </td>
+                        <td className={`p-2 text-right border-r font-bold ${Number(item.manualThreeDup) > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                          {item.manualThreeDup || 0}
+                        </td>
+                        <td className={`p-2 text-right border-r font-bold ${Number(item.manualThreeDupSub) > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                          {item.manualThreeDupSub || 0}
+                        </td>
+                        <td className={`p-2 text-right border-r font-bold ${Number(item.manualSpecial) > 0 ? 'text-purple-400' : 'text-slate-500'}`}>
+                          {item.manualSpecial || 0}
+                        </td>
+                        <td className={`p-2 text-right border-r font-bold ${Number(item.cashTwoDup) > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                          {item.cashTwoDup || 0}
+                        </td>
+                        <td className={`p-2 text-right border-r font-bold ${Number(item.cashThreeDup) > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                          {item.cashThreeDup || 0}
+                        </td>
+                        <td className={`p-2 text-right border-r font-bold ${Number(item.cashThreeDupSub) > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                          {item.cashThreeDupSub || 0}
+                        </td>
+                        <td className="p-2 border-r">{item.placeCode || '-'}</td>
+                        <td className="p-2 border-r">{item.city || '-'}</td>
+                        <td className="p-2 border-r max-w-sm truncate" title={item.companyAddr}>
+                          {item.companyAddr || '-'}
+                        </td>
+                        <td className="p-2 border-r">{item.empCode || '-'}</td>
+                        <td className="p-2 font-mono text-slate-500 text-[10px] max-w-[140px] truncate" title={item.guid}>
+                          {item.guid || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
 
             {/* Modal Footer */}
             <div
-              className={`px-5 py-3 flex items-center justify-between border-t ${
-                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
-              }`}
+              className={`px-5 py-2.5 flex items-center justify-between border-t flex-shrink-0 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                }`}
             >
-              <div className="text-xs text-slate-400 font-bold">
-                查詢條件: {year}年{startMonth}-{endMonth}月 | 轉出模式: {mode === '1' ? '依地址縣市(' + cityCond + ')' : '依購買地點(' + placeCond + ')'} | 排序: {sortOrder === '1' ? '統一編號' : '稅籍編號'}
+              <div className="text-xs text-slate-400 font-bold flex items-center space-x-3">
+                <span>查詢條件: {year}年{startMonth}-{endMonth}月</span>
+                <span>|</span>
+                <span>模式: {mode === '1' ? '依地址縣市(' + cityCond + ')' : '依購買地點(' + placeCond + ')'}</span>
+                <span>|</span>
+                <span>排序: {sortOrder === '1' ? '統一編號' : '稅籍編號'}</span>
+                <span>|</span>
+                <span className="text-amber-400">💡 提示: 下方水平捲軸可向右滑動檢視全部 24 個欄位</span>
               </div>
               <button
                 onClick={() => setIsPreviewModalOpen(false)}
-                className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-xs transition shadow-sm active:scale-95"
+                className="px-5 py-1.5 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-xs transition shadow-sm active:scale-95"
               >
                 關閉預覽 (Esc)
               </button>

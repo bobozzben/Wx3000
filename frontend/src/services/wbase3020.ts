@@ -21,6 +21,9 @@ export interface InvoicePurchaseItem {
   placeCode?: string;
   empCode?: string;
   guid?: string;
+  dataYear?: string;
+  dataStartMonth?: string;
+  dataEndMonth?: string;
 }
 
 export interface PrintRangeQuery {
@@ -144,6 +147,9 @@ export const fetchPrintInvoicePurchaseList = async (
 export interface BuyinvPrintQueryRequest {
   period?: string;
   times?: string;
+  year?: string;
+  startMonth?: string;
+  endMonth?: string;
   mode?: string; // "1": 依地址縣市, "2": 依購買地點
   cityCondition?: string;
   placeCondition?: string;
@@ -162,6 +168,34 @@ export const queryBuyinvPrintData = async (
   } catch (err) {
     console.error('queryBuyinvPrintData error:', err);
     return [];
+  }
+};
+
+/**
+ * 呼叫 localagent_koffi 透過 JSON 暫存檔傳遞資料給 wbaseRP.dll 的 wbase320_buyinv
+ */
+export const callLocalagentBuyinvReport = async (
+  reportData: InvoicePurchaseItem[],
+  hs_chk: number = 1,
+  top_mag: number = 10,
+  left_mag: number = 10,
+  prtIndex: number = 0,
+  isPrint: number = 0
+): Promise<{ success: boolean; message?: string; retCode?: number; error?: string }> => {
+  try {
+    const response = await axios.post('http://localhost:18889/api/call', {
+      dll: 'wbaseRP',
+      func: 'wbase320_buyinv',
+      args: [hs_chk, top_mag, left_mag, prtIndex, isPrint, 'C:\\temp\\buyinv_data.json'],
+      jsonData: reportData,
+    });
+    return response.data;
+  } catch (err: any) {
+    console.error('callLocalagentBuyinvReport error:', err);
+    return {
+      success: false,
+      error: err?.response?.data?.error || err?.message || '呼叫 localagent 失敗',
+    };
   }
 };
 
@@ -272,6 +306,15 @@ export const exportToXlsx = async (
             break;
           case 'times':
             rowObj[title] = item.times || '1';
+            break;
+          case 'dataYear':
+            rowObj[title] = item.dataYear || '';
+            break;
+          case 'dataStartMonth':
+            rowObj[title] = item.dataStartMonth || '';
+            break;
+          case 'dataEndMonth':
+            rowObj[title] = item.dataEndMonth || '';
             break;
           default:
             rowObj[title] = item[field.key] ?? '';

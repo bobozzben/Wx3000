@@ -106,9 +106,6 @@
         <PackageName Value="fr6_lazarus"/>
       </Item>
       <Item>
-        <PackageName Value="zcomponentdesign"/>
-      </Item>
-      <Item>
         <PackageName Value="zcomponent"/>
       </Item>
       <Item>

@@ -6,39 +6,96 @@ Interface
 
 Uses
   Interfaces, // this includes the LCL widgetset
-  Classes, SysUtils, Forms,Controls, Dialogs,Clipbrd;
+  Classes, SysUtils, Forms, Controls, Dialogs, Clipbrd, fpjson, jsonparser, DB, bufdataset;
 
 Procedure InitVariable();
-Procedure myClipboard(str: String);
+Procedure myClipboard(str: string);
 // 寫入字串到檔案
-Procedure WriteStrToFile(WriteStr, FileName: String; ClearFile: Boolean = False);
+Procedure WriteStrToFile(WriteStr, FileName: string; ClearFile: boolean = False);
 // 寫入字串到檔案 Debug 用
-Procedure WriteStrToFile_Debug(WriteStr: String; FileName: String = 'C:\BENDEBUG.TXT\myLOG_Lazarus.txt'; ClearFile: Boolean = False);
+Procedure WriteStrToFile_Debug(WriteStr: string; FileName: string = 'C:\BENDEBUG.TXT\myLOG_Lazarus.txt'; ClearFile: boolean = False);
 
 
 //Function waccrep3101_b(): integer; stdcall;
-Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; fpath: AnsiString): integer; stdcall;
+Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+
+Function wbase320_buyinv(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+
 
 Implementation
 
 Uses
-  wbase_unit1, util_frxprintpreviewform;
+  wbase_unit1, util_frxprintpreviewform, frxClass, frxVariables;
 
 Var
   frmRpt: TfrmfrxRpt1; // 日記帳
+
+Function GetJsonString(Obj: TJSONObject; Const Keys: Array Of String; Const DefaultVal: String = ''): String;
+Var
+  k: Integer;
+  val: TJSONData;
+Begin
+  Result := DefaultVal;
+  If Obj = nil Then Exit;
+  For k := Low(Keys) To High(Keys) Do Begin
+    val := Obj.Find(Keys[k]);
+    If val <> nil Then Begin
+      If val.JSONType = jtNull Then
+        Result := ''
+      Else
+        Result := val.AsString;
+      Exit;
+    End;
+  End;
+End;
+
+Function GetJsonInteger(Obj: TJSONObject; Const Keys: Array Of String; Const DefaultVal: Integer = 0): Integer;
+Var
+  k: Integer;
+  val: TJSONData;
+Begin
+  Result := DefaultVal;
+  If Obj = nil Then Exit;
+  For k := Low(Keys) To High(Keys) Do Begin
+    val := Obj.Find(Keys[k]);
+    If val <> nil Then Begin
+      If val.JSONType = jtNull Then
+        Result := 0
+      Else
+        Result := val.AsInteger;
+      Exit;
+    End;
+  End;
+End;
+
+Procedure SetReportVariable(RepObj: TfrxReport; Const VarName, VarValue: String);
+Var
+  frVars: TfrxVariables;
+  Variable: TfrxVariable;
+Begin
+  If RepObj = nil Then Exit;
+  frVars := RepObj.Variables;
+  If frVars.IndexOf(VarName) <> -1 Then
+    frVars.Items[frVars.IndexOf(VarName)].Value := QuotedStr(VarValue)
+  Else Begin
+    Variable := frVars.Add;
+    Variable.Name := VarName;
+    Variable.Value := QuotedStr(VarValue);
+  End;
+End;
 
 Procedure InitVariable();
 Begin
 
 End;
 
-Procedure myClipboard(str: String);
+Procedure myClipboard(str: string);
 
-  Procedure Str2Clipboard(Const Str: String; iDelayMs: Integer);
+  Procedure Str2Clipboard(Const Str: string; iDelayMs: integer);
   Const
     MaxRetries = 5;
   Var
-    RetryCount: Integer;
+    RetryCount: integer;
   Begin
     For RetryCount := 1 To MaxRetries Do Begin
       Try
@@ -52,6 +109,7 @@ Procedure myClipboard(str: String);
       End;
     End;
   End;
+
 Begin
   //Debug 時候才會出現
   If DirectoryExists('C:\BENDEBUG.TXT') Then Begin
@@ -60,10 +118,10 @@ Begin
   End;
 End;
 
-Procedure WriteStrToFile_Debug(WriteStr: String; FileName: String = 'C:\BENDEBUG.TXT\myLOG_Lazarus.txt'; ClearFile: Boolean = False);
+Procedure WriteStrToFile_Debug(WriteStr: string; FileName: string = 'C:\BENDEBUG.TXT\myLOG_Lazarus.txt'; ClearFile: boolean = False);
 // 寫入字串到檔案 Debug 用
 Var
-  NowStr: String;
+  NowStr: string;
 Begin
   If (DirectoryExists('C:\BENDEBUG.TXT')) Or
     (FileExists(ExtractFilePath(Application.ExeName) + 'DEBUG.TXT')) Then Begin
@@ -75,7 +133,7 @@ Begin
   End;
 End;
 
-Procedure WriteStrToFile(WriteStr, FileName: String; ClearFile: Boolean = False);
+Procedure WriteStrToFile(WriteStr, FileName: string; ClearFile: boolean = False);
 // 寫入字串到檔案
 Var
   SL: TStringList;
@@ -120,7 +178,7 @@ End;
 
 //Function waccrep3101_b(): integer; stdcall;
 //Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer): integer; stdcall;
-Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; fpath: AnsiString): integer; stdcall;
+Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
 Begin
   //  Application.Handle := vMainAppHandle;
   Result := 0;
@@ -150,11 +208,11 @@ Begin
       frmRpt.ZQuery1.Connection := frmRpt.ZConnection1;  //SELECT * FROM e3000__comm."建檔人員" ORDER BY "建檔人員編號" ASC
       frmRpt.ZQuery1.SQL.Add(Format('Select * from "%s"."%s" Order by "%s" ', ['e3000__comm', '建檔人員', '建檔人員編號']));
       frmRpt.ZQuery1.active := True;
-      if frmRpt.ZQuery1.active Then Begin
-         WriteStrToFile_Debug('Pg Open ');
-      end;
+      If frmRpt.ZQuery1.active Then Begin
+        WriteStrToFile_Debug('Pg Open ');
+      End;
       bbShowPreviewForm_Preview(frmRpt, frmRpt.frxReport1, [frmRpt.frxDBDataset1], [frmRpt.ZQuery1], '', '', '', 0, 0, 0, 0);
-     // frmRpt.ShowModal;
+      // frmRpt.ShowModal;
       FreeAndNil(frmRpt);
 
     Finally
@@ -170,110 +228,182 @@ Begin
 End;
 
 
-
-Function wbase2010_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer): integer; stdcall;
-//Var
-//  oQuery:TzQuery;
-//  SQL, TmpNa, ResultTmp , OrderBy,AddrKind: String;
+Function wbase320_buyinv(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+Var
+  JsonFileStr: String;
+  Parser: TJSONParser;
+  JsonData: TJSONData;
+  JsonArray: TJSONArray;
+  RootObj: TJSONObject;
+  RowObj: TJSONObject;
+  SL: TStringList;
+  BufDataSet: TBufDataset;
+  i: Integer;
+  officeName, officeAddr, officeBoss, officeTel, officeTaxNo: String;
 Begin
+  WriteStrToFile_Debug('wbase320_buyinv fpath: ' + string(fpath));
+
   Result := 0;
+  JsonData := nil;
+  JsonArray := nil;
+  RootObj := nil;
+  BufDataSet := nil;
 
- //AddrKind := '1';
- ////if RadioButton10.Checked  Then
- //// AddrKind := '2';
- ////if RadioButton12.Checked  Then
- //// AddrKind := '3';
- //
- //Randomize;
- // With oDM Do Begin
- //   TmpNa := Format('Custom_%d',[ Random(5000)]);
- //   ResultTmp := TmpNa+'_Data' ;
- //   SQL := '';
- //   SQL := SQL +' do $$ ' + #13;
- //   SQL := SQL +'  begin' + #13;
- //   SQL := SQL +'  Drop Table if Exists ' + TmpNa  + ';' + #13;
- //   SQL := SQL +'  Drop Table if Exists ' + ResultTmp  + ';' + #13;
- //   SQL := SQL +'  CREATE temp table ' +TmpNa +' as select "公司編號" From ' + GetSchemaComm.QuotedString('"') + '.' + self.TableName.QuotedString('"') +' Where False ;' + #13;
- //   Self.SelBuFDataset.First;
- //  while Not Self.SelBuFDataset.EOF do  begin
- //
- //   if  Self.SelBuFDataset.FieldByName('複選').AsBoolean Then
- //      SQL := SQL +'  Insert Into ' + TmpNa + '("公司編號") Values (' +  Self.SelBuFDataset.FieldByName('公司編號').AsString.QuotedString()+ ') ; '+#13 ;
- //
- //   Self.SelBuFDataset.Next;
- //  end;
- //   SQL := SQL + ' CREATE temp table ' +ResultTmp +' as ';
- //   SQL := SQL + ' SELECT M.*, T."國稅局名稱", S."名稱" AS "結算營利事業標準名稱" ,CAST(K."建檔人員名稱" AS character varying(30) ) AS "登打人員姓名" ' + #13;
- //   SQL := SQL + ' ,CAST( ' + AddrKind.QuotedString + ' AS character varying(1) ) AS "ADDRKIND"' + #13 ;
- //   SQL := SQL + ' ,CAST( CASE M."工商公司組織" ' + #13 ;
- //   SQL := SQL + '   WHEN ''1'' THEN ''股份有限公司'' ' + #13;
- //   SQL := SQL + '   WHEN ''2'' THEN ''有限'' ' + #13;
- //   SQL := SQL + '   WHEN ''3'' THEN ''無限'' ' + #13;
- //   SQL := SQL + '   WHEN ''4'' THEN ''兩合'' ' + #13;
- //   SQL := SQL + '   WHEN ''5'' THEN ''合夥'' ' + #13;
- //   SQL := SQL + '   WHEN ''6'' THEN ''獨資'' ' + #13;
- //   SQL := SQL + '   WHEN ''7'' THEN ''國外分公司'' ' + #13;
- //   SQL := SQL + '   WHEN ''8'' THEN ''國外辦事處'' ' + #13;
- //   SQL := SQL + '   WHEN ''0'' THEN ''其它'' ' + #13;
- //   SQL := SQL + '   WHEN ''L'' THEN ''合作社'' ' + #13;
- //   SQL := SQL + '   WHEN ''M'' THEN ''有限合夥'' ' + #13;
- //   SQL := SQL + '   ELSE '''' END  AS  character varying(30) )  AS  "結算公司組織名稱"  ' + #13;
- //
- //   SQL := SQL + ' FROM ' + GetSchemaComm + '.' + self.TableName.QuotedString('"') + ' M ' + #13;
- //   SQL := SQL + ' LEFT JOIN ' + GetSchemaRef + '.' + '"國稅局"' + ' T  ON (' + ' T."稽徵單位編號"=M."國稅局"' +' )' + #13;
- //   SQL := SQL + ' LEFT JOIN ' + GetSchemaRef + '.' + '"基本營利事業標準代碼_112"' + ' S  ON (' + ' S."代碼"=M."結算營利事業標準代號"' +' )' + #13;
- //   SQL := SQL + ' LEFT JOIN ' + GetSchemaComm + '.' + '"建檔人員"' + ' K  ON (' + ' K."建檔人員編號"=M."登打人員編號"' +' )' + #13;
- //   SQL := SQL + ' WHERE ( M."公司編號" in (Select  "公司編號" FROM ' + TmpNa  + ' ORDER BY "公司編號" )  ) ' + #13;
- //   OrderBy := 'M."公司編號"';
- //   If RadioButton4.Checked Then Begin
- //      OrderBy := 'M."登打人員編號",M."公司編號" ';
- //   End;
- //   SQL := SQL + '  ORDER BY ' + OrderBy + ';'+ #13;
- //   SQL := SQL + ' end; ' + #13;
- //   SQL := SQL + ' $$ ' + #13;
- //
- //
- //   myClipBoard(SQL);
- //
- //   With self.ZSqlProcessor1 Do Begin
- //     self.ZSqlProcessor1.Connection := oDM.Get_oConn;
- //     Script.Clear;
- //     Script.Add(SQL);
- //     myClipboard(Script.Text);
- //     Execute;
- //   End;
- //
- //   oQuery:=oDM.GetQuery('select * from '+ResultTmp+' M ' + ' ORDER BY ' + OrderBy  );
- //
- //   //myBrowse(oQuery,'oQuery');
- //
- //   BuFDataset.Close;
- //   BuFDataset.FieldDefs.Clear;
- //
- //   CopyDataSetByName(oQuery , BuFDataset);
- //
- //   OrderBy := '';
- //   if RadioButton5.Checked Then Begin
- //     OrderBy := '公司編號' ;
- //   End Else If RadioButton6.Checked Then Begin
- //     OrderBy := '公司統編;公司編號' ;
- //   End Else If RadioButton11.Checked Then Begin
- //     OrderBy := '稅籍編號;公司編號' ;
- //   End;
- //
- //   If RadioButton4.Checked Then Begin
- //     BuFDataset.IndexFieldNames:= '登打人員編號;'+OrderBy;
- //   End;
- //
- //   BuFDataset.IndexFieldNames:= OrderBy;
- //   // myBrowse(BuFDataset,'BuFDataset');
- //
- //   FreeAndNil(oQuery);
- //
- //   Result := (BuFDataset.RecordCount > 0);
- // End;
+  Try
+    Try
+      If (fpath = '') Or (Not FileExists(string(fpath))) Then Begin
+        ShowMessage('報表暫存資料檔不存在: ' + string(fpath));
+        Result := 1;
+        Exit;
+      End;
 
+      SL := TStringList.Create;
+      Try
+        SL.DefaultEncoding := TEncoding.UTF8;
+        SL.LoadFromFile(string(fpath));
+        JsonFileStr := SL.Text;
+      Finally
+        SL.Free;
+      End;
+
+      If Trim(JsonFileStr) = '' Then Begin
+        ShowMessage('報表資料檔內容為空。');
+        Result := 1;
+        Exit;
+      End;
+
+      Parser := TJSONParser.Create(JsonFileStr, True);
+      Try
+        JsonData := Parser.Parse;
+      Finally
+        Parser.Free;
+      End;
+
+      If JsonData = nil Then Begin
+        ShowMessage('無法解析報表 JSON 資料。');
+        Result := 1;
+        Exit;
+      End;
+
+      officeName := '';
+      officeAddr := '';
+      officeBoss := '';
+      officeTel := '';
+      officeTaxNo := '';
+
+      If JsonData is TJSONArray Then Begin
+        JsonArray := TJSONArray(JsonData);
+      End Else If JsonData is TJSONObject Then Begin
+        RootObj := TJSONObject(JsonData);
+        officeName := GetJsonString(RootObj, ['officeName', 'OfficeName', '事務所名稱']);
+        officeAddr := GetJsonString(RootObj, ['officeAddr', 'OfficeAddr', '事務所地址']);
+        officeBoss := GetJsonString(RootObj, ['officeBoss', 'OfficeBoss', '事務所負責人', '負責人姓名']);
+        officeTel := GetJsonString(RootObj, ['officeTel', 'OfficeTel', '事務所電話', '電話']);
+        officeTaxNo := GetJsonString(RootObj, ['officeTaxNo', 'OfficeTaxNo', '事務所統編', '事務所統一編號']);
+
+        If RootObj.Find('data') is TJSONArray Then
+          JsonArray := TJSONArray(RootObj.Find('data'))
+        Else If RootObj.Find('records') is TJSONArray Then
+          JsonArray := TJSONArray(RootObj.Find('records'))
+        Else If RootObj.Find('items') is TJSONArray Then
+          JsonArray := TJSONArray(RootObj.Find('items'))
+        Else If RootObj.Find('rows') is TJSONArray Then
+          JsonArray := TJSONArray(RootObj.Find('rows'));
+      End;
+
+      // 建立記憶體資料集 TBufDataset
+      BufDataSet := TBufDataset.Create(nil);
+      BufDataSet.FieldDefs.Add('期別', ftString, 20);
+      BufDataSet.FieldDefs.Add('購買次數', ftString, 10);
+      BufDataSet.FieldDefs.Add('公司編號', ftString, 20);
+      BufDataSet.FieldDefs.Add('公司簡稱', ftString, 100);
+      BufDataSet.FieldDefs.Add('公司名稱', ftString, 100);
+      BufDataSet.FieldDefs.Add('公司統編', ftString, 20);
+      BufDataSet.FieldDefs.Add('統一編號', ftString, 20);
+      BufDataSet.FieldDefs.Add('稅籍編號', ftString, 20);
+      BufDataSet.FieldDefs.Add('手開二聯', ftInteger);
+      BufDataSet.FieldDefs.Add('手開二聯副', ftInteger);
+      BufDataSet.FieldDefs.Add('手開三聯', ftInteger);
+      BufDataSet.FieldDefs.Add('手開三聯副', ftInteger);
+      BufDataSet.FieldDefs.Add('特種', ftInteger);
+      BufDataSet.FieldDefs.Add('收銀二聯', ftInteger);
+      BufDataSet.FieldDefs.Add('收銀三聯', ftInteger);
+      BufDataSet.FieldDefs.Add('收銀三聯副', ftInteger);
+      BufDataSet.FieldDefs.Add('資料年度', ftString, 10);
+      BufDataSet.FieldDefs.Add('資料起月', ftString, 10);
+      BufDataSet.FieldDefs.Add('資料迄月', ftString, 10);
+      BufDataSet.FieldDefs.Add('地址縣市', ftString, 50);
+      BufDataSet.FieldDefs.Add('營業人地址', ftString, 200);
+      BufDataSet.CreateDataset;
+      BufDataSet.Open;
+
+      If JsonArray <> nil Then Begin
+        For i := 0 To JsonArray.Count - 1 Do Begin
+          If JsonArray.Types[i] = jtObject Then Begin
+            RowObj := JsonArray.Objects[i];
+            BufDataSet.Append;
+            BufDataSet.FieldByName('期別').AsString := GetJsonString(RowObj, ['period', 'Period', '期別']);
+            BufDataSet.FieldByName('購買次數').AsString := GetJsonString(RowObj, ['times', 'Times', '購買次數']);
+            BufDataSet.FieldByName('公司編號').AsString := GetJsonString(RowObj, ['companyCode', 'CompanyCode', '公司編號']);
+            BufDataSet.FieldByName('公司簡稱').AsString := GetJsonString(RowObj, ['companyShortName', 'CompanyShortName', '公司簡稱']);
+            BufDataSet.FieldByName('公司名稱').AsString := GetJsonString(RowObj, ['companyName', 'CompanyName', '公司名稱', '營業人名稱']);
+            BufDataSet.FieldByName('公司統編').AsString := GetJsonString(RowObj, ['unifiedNo', 'UnifiedNo', '公司統編', '統一編號']);
+            BufDataSet.FieldByName('統一編號').AsString := GetJsonString(RowObj, ['unifiedNo', 'UnifiedNo', '統一編號', '公司統編']);
+            BufDataSet.FieldByName('稅籍編號').AsString := GetJsonString(RowObj, ['taxNo', 'TaxNo', '稅籍編號']);
+            BufDataSet.FieldByName('手開二聯').AsInteger := GetJsonInteger(RowObj, ['manualTwoDup', 'ManualTwoDup', '手開二聯']);
+            BufDataSet.FieldByName('手開二聯副').AsInteger := GetJsonInteger(RowObj, ['manualTwoDupSub', 'ManualTwoDupSub', '手開二聯副']);
+            BufDataSet.FieldByName('手開三聯').AsInteger := GetJsonInteger(RowObj, ['manualThreeDup', 'ManualThreeDup', '手開三聯']);
+            BufDataSet.FieldByName('手開三聯副').AsInteger := GetJsonInteger(RowObj, ['manualThreeDupSub', 'ManualThreeDupSub', '手開三聯副']);
+            BufDataSet.FieldByName('特種').AsInteger := GetJsonInteger(RowObj, ['manualSpecial', 'ManualSpecial', '特種']);
+            BufDataSet.FieldByName('收銀二聯').AsInteger := GetJsonInteger(RowObj, ['cashTwoDup', 'CashTwoDup', '收銀二聯']);
+            BufDataSet.FieldByName('收銀三聯').AsInteger := GetJsonInteger(RowObj, ['cashThreeDup', 'CashThreeDup', '收銀三聯']);
+            BufDataSet.FieldByName('收銀三聯副').AsInteger := GetJsonInteger(RowObj, ['cashThreeDupSub', 'CashThreeDupSub', '收銀三聯副']);
+            BufDataSet.FieldByName('資料年度').AsString := GetJsonString(RowObj, ['dataYear', 'DataYear', '資料年度']);
+            BufDataSet.FieldByName('資料起月').AsString := GetJsonString(RowObj, ['dataStartMonth', 'DataStartMonth', '資料起月']);
+            BufDataSet.FieldByName('資料迄月').AsString := GetJsonString(RowObj, ['dataEndMonth', 'DataEndMonth', '資料迄月']);
+            BufDataSet.FieldByName('地址縣市').AsString := GetJsonString(RowObj, ['city', 'City', '地址縣市']);
+            BufDataSet.FieldByName('營業人地址').AsString := GetJsonString(RowObj, ['companyAddr', 'CompanyAddr', '營業人地址', '公司地址']);
+            BufDataSet.Post;
+          End;
+        End;
+      End;
+
+      WriteStrToFile_Debug('BufDataSet records: ' + IntToStr(BufDataSet.RecordCount));
+
+      frmRpt := Application.FindComponent('frmfrxRpt1') As TfrmfrxRpt1;
+      If frmRpt = nil Then Begin
+        WriteStrToFile_Debug('Create Form TfrmfrxRpt1: ');
+        frmRpt := TfrmfrxRpt1.Create(Application);
+        frmRpt.Parent := nil;
+        frmRpt.FormStyle := fsNormal;
+        frmRpt.ParentWindow := 0;
+      End;
+      frmRpt.Caption := '預購統一發票列印';
+
+      // 設定報表頁尾事務所變數
+      SetReportVariable(frmRpt.frxReport_320_buyinv, '事務所名稱', officeName);
+      SetReportVariable(frmRpt.frxReport_320_buyinv, '事務所地址', officeAddr);
+      SetReportVariable(frmRpt.frxReport_320_buyinv, '事務所負責人', officeBoss);
+      SetReportVariable(frmRpt.frxReport_320_buyinv, '事務所電話', officeTel);
+      SetReportVariable(frmRpt.frxReport_320_buyinv, '事務所統編', officeTaxNo);
+
+      // 呼叫 FastReport 預覽視窗
+      bbShowPreviewForm_Preview(frmRpt, frmRpt.frxReport_320_buyinv, [frmRpt.frxDBDataset1], [BufDataSet], '', '', '', top_mag, left_mag, PrtIndex, IsPrint);
+
+      FreeAndNil(frmRpt);
+    Finally
+      If BufDataSet <> nil Then FreeAndNil(BufDataSet);
+      If JsonData <> nil Then FreeAndNil(JsonData);
+      If frmRpt <> nil Then frmRpt.Free;
+    End;
+  Except
+    On E: Exception Do Begin
+      Result := 1;
+      ShowMessage('預購統一發票列印錯誤:' + E.Message + #10 + '類別:' + E.ClassName);
+    End;
+  End;
 End;
+
 
 
 

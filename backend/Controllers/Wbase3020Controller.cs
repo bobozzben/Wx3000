@@ -561,8 +561,11 @@ $$;
 
         public class BuyinvPrintQueryRequest
         {
-            public string? Period { get; set; }          // 依列印期別 (e.g. "11505-06")
+            public string? Period { get; set; }          // 依列印期別 (e.g. "11505-06" 或 "1150506")
             public string? Times { get; set; }           // 次數 (e.g. "1")
+            public string? Year { get; set; }            // 資料年度 (e.g. "115")
+            public string? StartMonth { get; set; }      // 資料起月 (e.g. "05")
+            public string? EndMonth { get; set; }        // 資料迄月 (e.g. "06")
             public string? Mode { get; set; }            // "1": 依地址縣市, "2": 依購買地點
             public string? CityCondition { get; set; }   // e.g. "*" 代表全部, 或特定縣市
             public string? PlaceCondition { get; set; }  // e.g. 購買地點代碼/名稱
@@ -570,18 +573,65 @@ $$;
         }
 
         // POST: api/wbase3020/buyinv-print-query
+        // 依 SQL 從 Postgresql Database: a3000 schema: e3000__comm Table: 基本發票購買 提取資料供報表使用
         [HttpPost("buyinv-print-query")]
         public async Task<ActionResult<IEnumerable<InvoicePurchaseMaster>>> BuyinvPrintQuery([FromBody] BuyinvPrintQueryRequest req)
         {
             try
             {
-                var period = string.IsNullOrWhiteSpace(req.Period) ? "11505-06" : req.Period.Trim();
+                var rawPeriod = string.IsNullOrWhiteSpace(req.Period) ? "11505-06" : req.Period.Trim();
+                var cleanPeriod = rawPeriod.Replace("-", "").Trim(); // e.g. "1150506"
                 var times = string.IsNullOrWhiteSpace(req.Times) ? "1" : req.Times.Trim();
 
-                await EnsureTableCreatedAndSeededAsync(period, times);
+                // 解析年度與起迄月份
+                string dataYear = !string.IsNullOrWhiteSpace(req.Year) ? req.Year.Trim() : "";
+                string dataStartMonth = !string.IsNullOrWhiteSpace(req.StartMonth) ? req.StartMonth.Trim().PadLeft(2, '0') : "";
+                string dataEndMonth = !string.IsNullOrWhiteSpace(req.EndMonth) ? req.EndMonth.Trim().PadLeft(2, '0') : "";
+
+                if (string.IsNullOrWhiteSpace(dataYear) || string.IsNullOrWhiteSpace(dataStartMonth) || string.IsNullOrWhiteSpace(dataEndMonth))
+                {
+                    if (cleanPeriod.Length >= 7)
+                    {
+                        dataYear = cleanPeriod.Substring(0, cleanPeriod.Length - 4);
+                        dataStartMonth = cleanPeriod.Substring(cleanPeriod.Length - 4, 2);
+                        dataEndMonth = cleanPeriod.Substring(cleanPeriod.Length - 2, 2);
+                    }
+                    else if (cleanPeriod.Length >= 5)
+                    {
+                        dataYear = cleanPeriod.Substring(0, cleanPeriod.Length - 2);
+                        dataStartMonth = cleanPeriod.Substring(cleanPeriod.Length - 2, 2);
+                        dataEndMonth = dataStartMonth;
+                    }
+                }
+
+                var hyphenPeriod = $"{dataYear}{dataStartMonth}-{dataEndMonth}";
+
+                await EnsureTableCreatedAndSeededAsync(hyphenPeriod, times);
+
+                // SQL:
+                // SELECT M.* ,CAST('115' AS VARChar(3) ) AS "資料年度" 
+                // ,CAST('05' AS VARChar(2) ) AS "資料起月" 
+                // ,CAST('06' AS VARChar(2) ) AS "資料迄月" 
+                // ,C.* 
+                //  FROM e3000__comm."基本發票購買" M 
+                //  LEFT JOIN e3000__comm."公司資料" C ON C."公司編號"=M."公司編號" 
+                //  WHERE ( "期別"='1150506' AND "購買次數"= 1) 
+                //  AND ( ( "手開二聯" > 0 )     OR ( "手開二聯副" > 0 )     OR ( "手開三聯" > 0 )     
+                //  OR ( "手開三聯副" > 0 )     OR ( "特種" > 0 )     OR ( "收銀二聯" > 0 )     
+                //  OR ( "收銀三聯" > 0 )     OR ( "收銀三聯副" > 0 )    ) 
+                //  ORDER BY M."公司統編"
 
                 var query = from p in _context.InvoicePurchaseMasters.AsNoTracking()
-                            where p.Period == period && p.Times == times
+                            where (p.Period == rawPeriod || p.Period == cleanPeriod || p.Period == hyphenPeriod)
+                               && (p.Times == times || p.Times == times.TrimStart('0'))
+                               && (p.ManualTwoDup > 0 ||
+                                   p.ManualTwoDupSub > 0 ||
+                                   p.ManualThreeDup > 0 ||
+                                   p.ManualThreeDupSub > 0 ||
+                                   p.ManualSpecial > 0 ||
+                                   p.CashTwoDup > 0 ||
+                                   p.CashThreeDup > 0 ||
+                                   p.CashThreeDupSub > 0)
                             join c in _context.CompanyMasters.AsNoTracking()
                             on p.CompanyCode equals c.CompanyCode into gc
                             from c in gc.DefaultIfEmpty()
@@ -606,14 +656,14 @@ $$;
                 }
 
                 var sortOrder = (req.SortOrder ?? "1").Trim();
-                if (sortOrder == "2") // 2.依稅籍編號
+                if (sortOrder == "2") // 2.依稅籍編號排序
                 {
-                    query = query.OrderBy(x => x.c != null && !string.IsNullOrWhiteSpace(x.c.TaxNo) ? x.c.TaxNo : x.p.TaxNo)
+                    query = query.OrderBy(x => x.p.TaxNo != null && x.p.TaxNo != "" ? x.p.TaxNo : (x.c != null ? x.c.TaxNo : ""))
                                  .ThenBy(x => x.p.CompanyCode);
                 }
-                else // 1.依統一編號 (預設)
+                else // 1.依統一編號排序 (預設: ORDER BY M."公司統編")
                 {
-                    query = query.OrderBy(x => x.c != null && !string.IsNullOrWhiteSpace(x.c.UnifiedNo) ? x.c.UnifiedNo : x.p.UnifiedNo)
+                    query = query.OrderBy(x => x.p.UnifiedNo != null && x.p.UnifiedNo != "" ? x.p.UnifiedNo : (x.c != null ? x.c.UnifiedNo : ""))
                                  .ThenBy(x => x.p.CompanyCode);
                 }
 
@@ -623,15 +673,19 @@ $$;
                     var p = x.p;
                     var c = x.c;
 
-                    p.UnifiedNo = !string.IsNullOrWhiteSpace(c?.UnifiedNo) ? c.UnifiedNo!.Trim()
-                        : (!string.IsNullOrWhiteSpace(p.UnifiedNo) ? p.UnifiedNo.Trim() : string.Empty);
+                    p.DataYear = dataYear;
+                    p.DataStartMonth = dataStartMonth;
+                    p.DataEndMonth = dataEndMonth;
 
-                    p.TaxNo = !string.IsNullOrWhiteSpace(c?.TaxNo) ? c.TaxNo!.Trim()
-                        : (!string.IsNullOrWhiteSpace(p.TaxNo) ? p.TaxNo.Trim() : string.Empty);
+                    p.UnifiedNo = !string.IsNullOrWhiteSpace(p.UnifiedNo) ? p.UnifiedNo.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.UnifiedNo) ? c.UnifiedNo!.Trim() : string.Empty);
 
-                    p.CompanyShortName = !string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
-                        : (!string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim()
-                        : (!string.IsNullOrWhiteSpace(p.CompanyShortName) ? p.CompanyShortName.Trim() : string.Empty));
+                    p.TaxNo = !string.IsNullOrWhiteSpace(p.TaxNo) ? p.TaxNo.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.TaxNo) ? c.TaxNo!.Trim() : string.Empty);
+
+                    p.CompanyShortName = !string.IsNullOrWhiteSpace(p.CompanyShortName) ? p.CompanyShortName.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim() : string.Empty));
 
                     p.CompanyName = !string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim()
                         : (!string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
