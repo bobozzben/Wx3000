@@ -694,6 +694,9 @@ $$;
                     p.CompanyAddr = !string.IsNullOrWhiteSpace(c?.Address) ? c.Address!.Trim()
                         : (!string.IsNullOrWhiteSpace(p.City) ? p.City.Trim() : string.Empty);
 
+                    p.CompanyTel = !string.IsNullOrWhiteSpace(c?.Tel) ? c.Tel!.Trim() : string.Empty;
+                    p.CompanyFax = !string.IsNullOrWhiteSpace(c?.Fax) ? c.Fax!.Trim() : string.Empty;
+
                     return p;
                 }).ToList();
 

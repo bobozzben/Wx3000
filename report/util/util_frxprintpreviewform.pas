@@ -210,8 +210,9 @@ Function bbShowPreviewForm_Preview(myOwner: TForm; repobj: TfrxReport; arrfrxDBs
       //myAddStylesTofrxReport(repobj);
       AddVariablesToReport(repobj); // 報表變數
       // -------------------------------------------------
-      WriteStrToFile_Debug('bbShowPreviewForm_Preview 3 ');
+      WriteStrToFile_Debug('bbShowPreviewForm_Preview 3  IsPrint:' + InttoStr(IsPrint));
       repobj.PrepareReport;
+      WriteStrToFile_Debug('bbShowPreviewForm_Preview 3-1 ');
       If IsPrint = 1 Then Begin
         repobj.PrintOptions.ShowDialog := False;
         repobj.Print;
@@ -240,6 +241,8 @@ Function bbShowPreviewForm_Preview(myOwner: TForm; repobj: TfrxReport; arrfrxDBs
         WriteStrToFile_Debug('bbShowPreviewForm_Preview 5 ');
 
         frxPrintPreviewForm.ShowModal;
+
+        WriteStrToFile_Debug('bbShowPreviewForm_Preview 6 ');
       End;
 
     Except
@@ -248,7 +251,7 @@ Function bbShowPreviewForm_Preview(myOwner: TForm; repobj: TfrxReport; arrfrxDBs
       On E: Exception Do
         ShowMessage('錯誤訊息:' + E.Message + #10 + '類別:' + E.ClassName);
     End;
-    WriteStrToFile_Debug('bbShowPreviewForm_Preview 6 ');
+    WriteStrToFile_Debug('bbShowPreviewForm_Preview 7 ');
 
   End;
 
@@ -682,7 +685,14 @@ Begin
   {$EndIf}
 
   // 確保 Form 自己的 Handle 已經妥當
-    Self.HandleNeeded;
+  Self.HandleNeeded;
+  ShowWindow(Self.Handle, SW_RESTORE);
+  ShowWindow(Self.Handle, SW_SHOW);
+  SetWindowPos(Self.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE Or SWP_NOSIZE Or SWP_SHOWWINDOW);
+  SetForegroundWindow(Self.Handle);
+  BringWindowToTop(Self.Handle);
+  SetActiveWindow(Self.Handle);
+  SetWindowPos(Self.Handle, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE Or SWP_NOSIZE Or SWP_SHOWWINDOW);
 
 
     //StatusBar1.SimplePanel := False; // True;  2個StatusPanel

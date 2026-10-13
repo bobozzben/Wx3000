@@ -19,7 +19,8 @@ Uses
   //End;
 
 Exports
-  waccrep3101_b; // 日記帳
+  waccrep3101_b,
+  wbase320_buyinv; // 預購統一發票列印
 
 {$R *.res}
 

@@ -30,7 +30,7 @@
         <ResourceBaseClass Value="Form"/>
         <IsVisibleTab Value="True"/>
         <EditorIndex Value="3"/>
-        <CursorPos X="77" Y="17"/>
+        <CursorPos X="61" Y="20"/>
         <UsageCount Value="115"/>
         <Loaded Value="True"/>
         <LoadedDesigner Value="True"/>
@@ -56,16 +56,15 @@
         <CursorPos X="45" Y="1740"/>
         <UsageCount Value="1"/>
       </Unit>
+      <Unit>
+        <Filename Value="wbase_unit1.lfm"/>
+        <EditorIndex Value="-1"/>
+        <CursorPos X="66" Y="22"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="LFM"/>
+      </Unit>
     </Units>
     <JumpHistory HistoryIndex="29">
-      <Position>
-        <Filename Value="..\util\util_frxprintpreviewform.pas"/>
-        <Caret Line="688" Column="17" TopLine="657"/>
-      </Position>
-      <Position>
-        <Filename Value="..\util\util_frxprintpreviewform.pas"/>
-        <Caret Line="689" Column="17" TopLine="658"/>
-      </Position>
       <Position>
         <Filename Value="..\util\util_frxprintpreviewform.pas"/>
         <Caret Line="690" Column="17" TopLine="659"/>
@@ -177,6 +176,14 @@
       <Position>
         <Filename Value="wbase_repunit1.pas"/>
         <Caret Line="391" Column="27" TopLine="363"/>
+      </Position>
+      <Position>
+        <Filename Value="wbase_unit1.pas"/>
+        <Caret Line="15" Column="55"/>
+      </Position>
+      <Position>
+        <Filename Value="wbase_unit1.pas"/>
+        <Caret Line="12" Column="109"/>
       </Position>
     </JumpHistory>
     <RunParams>

@@ -185,10 +185,10 @@ export const WBASE_MENU_DATA: MenuItem[] = [
       },
       {
         id: 'm_360',
-        code: 'wbase3060',
+        code: 'wbase3060_01',
         title: '統購發票字軌輸入',
         hasChildren: false,
-        actionUrl: '/wbase/wbase3060',
+        actionUrl: '/wbase/wbase3060_01',
       },
       {
         id: 'm_370',

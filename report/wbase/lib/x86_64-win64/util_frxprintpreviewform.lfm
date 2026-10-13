@@ -7,9 +7,9 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
   ClientHeight = 1203
   ClientWidth = 2187
   DesignTimePPI = 144
-  LCLVersion = '4.6.0.0'
   OnClose = FormClose
   OnShow = FormShow
+  LCLVersion = '3.2.0.0'
   object TopPanel: TPanel
     Left = 0
     Height = 68
@@ -438,8 +438,8 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
       Font.Quality = fqDraft
       Font.Style = [fsBold]
       Transparent = False
-      ParentFont = False
       OnClick = BFirstClick
+      ParentFont = False
     end
     object BClose: TSpeedButton
       Left = 2042
@@ -458,8 +458,8 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
       Font.Quality = fqDraft
       Font.Style = [fsBold]
       Transparent = False
-      ParentFont = False
       OnClick = BCloseClick
+      ParentFont = False
     end
     object BDesgin: TSpeedButton
       Left = 1900
@@ -478,8 +478,8 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
       Font.Quality = fqDraft
       Font.Style = [fsBold]
       Transparent = False
-      ParentFont = False
       OnClick = BDesginClick
+      ParentFont = False
     end
     object BResetReport: TSpeedButton
       Left = 1758
@@ -499,8 +499,8 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
       Font.Style = [fsBold]
       Transparent = False
       Visible = False
-      ParentFont = False
       OnClick = BResetReportClick
+      ParentFont = False
     end
     object BExport: TSpeedButton
       Left = 673
@@ -520,8 +520,8 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
       Font.Style = [fsBold]
       Transparent = False
       Visible = False
-      ParentFont = False
       OnClick = BExportClick
+      ParentFont = False
     end
     object BRefresh: TSpeedButton
       Left = 561
@@ -541,8 +541,8 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
       Font.Style = [fsBold]
       Transparent = False
       Visible = False
-      ParentFont = False
       OnClick = BRefreshClick
+      ParentFont = False
     end
     object BPrint: TSpeedButton
       Left = 449
@@ -561,8 +561,8 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
       Font.Quality = fqDraft
       Font.Style = [fsBold]
       Transparent = False
-      ParentFont = False
       OnClick = BPrintClick
+      ParentFont = False
     end
     object BLast: TSpeedButton
       Left = 337
@@ -581,8 +581,8 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
       Font.Quality = fqDraft
       Font.Style = [fsBold]
       Transparent = False
-      ParentFont = False
       OnClick = BLastClick
+      ParentFont = False
     end
     object BNext: TSpeedButton
       Left = 225
@@ -601,8 +601,8 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
       Font.Quality = fqDraft
       Font.Style = [fsBold]
       Transparent = False
-      ParentFont = False
       OnClick = BNextClick
+      ParentFont = False
     end
     object BPrior: TSpeedButton
       Left = 113
@@ -621,8 +621,8 @@ object frxPrintPreviewForm: TfrxPrintPreviewForm
       Font.Quality = fqDraft
       Font.Style = [fsBold]
       Transparent = False
-      ParentFont = False
       OnClick = BPriorClick
+      ParentFont = False
     end
   end
   object frxPreview1: TfrxPreview

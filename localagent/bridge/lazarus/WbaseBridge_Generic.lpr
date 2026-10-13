@@ -10,6 +10,7 @@ Uses
 
 Type
   Twaccrep3101_b = Function(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const path: ansistring): integer; stdcall;
+  Twbase350_buyinv_list = Function(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint, rep_type: integer; Const path: ansistring): integer; stdcall;
   TGeneric2 = Function(a1: double; a2: ansistring): integer; stdcall;
   TGenericIntStr = Function(a1: integer; a2: ansistring): integer; stdcall;
 
@@ -46,6 +47,11 @@ Var
     ForeThread := GetWindowThreadProcessId(ForeWnd, nil);
     CurThread := GetCurrentThreadId;
     If ForeThread <> CurThread Then AttachThreadInput(CurThread, ForeThread, True);
+
+    // 模擬 ALT 鍵以突破 Windows 焦點鎖定限制
+    keybd_event(VK_MENU, 0, 0, 0);
+    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
+
     ShowWindow(hWnd, SW_RESTORE);
     ShowWindow(hWnd, SW_SHOW);
     SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE Or SWP_NOSIZE Or SWP_SHOWWINDOW);
@@ -53,6 +59,7 @@ Var
     BringWindowToTop(hWnd);
     SetActiveWindow(hWnd);
     SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE Or SWP_NOSIZE Or SWP_SHOWWINDOW);
+
     If ForeThread <> CurThread Then AttachThreadInput(CurThread, ForeThread, False);
     Result := True;
   End;
@@ -178,6 +185,7 @@ Var
   BringThread: TBringThread;
   ret: integer;
   p6: Twaccrep3101_b;
+  p7: Twbase350_buyinv_list;
   p2: TGeneric2;
   pIntStr: TGenericIntStr;
   needBring: boolean;
@@ -243,7 +251,42 @@ Begin
     args := ParseArgs(argsJsonStr);
 
     // ========== 通用分發表：加新函數只在這裡加 ==========
-    If (funcName = 'waccrep3101_b') Or (funcName = 'wbase320_buyinv') Or (args.Count >= 5) Then Begin
+    If (funcName = 'wbase350_buyinv_list') Or (args.Count >= 7) Then Begin
+      // 7參數版本 (包含 rep_type): double, double, double, int, int, int, str
+      Pointer(p7) := GetProcAddress(hLib, PChar(funcName));
+      If Not Assigned(p7) Then Begin
+        Writeln('ERROR: GetProcAddress ' + funcName);
+        Halt(4);
+      End;
+
+      // 判斷是否預覽 (IsPrint = 第5個參數, 0:預覽, 1:直接列印)
+      If GetIntArg(args, 4, 0) = 0 Then needBring := True;
+
+      If needBring Then Begin
+        BringThread := TBringThread.Create(True);
+        BringThread.FreeOnTerminate := False;
+        BringThread.Start;
+      End Else
+        BringThread := nil;
+
+      ret := p7(
+        GetFloatArg(args, 0, 0.0),
+        GetFloatArg(args, 1, 0.0),
+        GetFloatArg(args, 2, 0.0),
+        GetIntArg(args, 3, 0),
+        GetIntArg(args, 4, 0),
+        GetIntArg(args, 5, 1),
+        ansistring(GetStrArg(args, 6, ''))
+      );
+
+      If Assigned(BringThread) Then Begin
+        BringThread.Terminate;
+        BringThread.WaitFor;
+        BringThread.Free;
+      End;
+      Writeln('OK:' + IntToStr(ret));
+
+    End Else If (funcName = 'waccrep3101_b') Or (funcName = 'wbase320_buyinv') Or (args.Count >= 5) Then Begin
       // 6參數標準報表版: double, double, double, int, int, str
       Pointer(p6) := GetProcAddress(hLib, PChar(funcName));
       If Not Assigned(p6) Then Begin

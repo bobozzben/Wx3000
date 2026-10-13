@@ -21,6 +21,7 @@ Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, 
 
 Function wbase320_buyinv(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
 
+Function wbase350_buyinv_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint, rep_type: integer; Const fpath: ansistring): integer; stdcall;
 
 Implementation
 
@@ -211,7 +212,7 @@ Begin
       If frmRpt.ZQuery1.active Then Begin
         WriteStrToFile_Debug('Pg Open ');
       End;
-      bbShowPreviewForm_Preview(frmRpt, frmRpt.frxReport1, [frmRpt.frxDBDataset1], [frmRpt.ZQuery1], '', '', '', 0, 0, 0, 0);
+      bbShowPreviewForm_Preview(frmRpt, frmRpt.frxReport1_, [frmRpt.frxDBDataset1], [frmRpt.ZQuery1], '', '', '', 0, 0, 0, 0);
       // frmRpt.ShowModal;
       FreeAndNil(frmRpt);
 
@@ -407,6 +408,221 @@ Begin
 End;
 
 
+Function wbase350_buyinv_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint, rep_type: integer; Const fpath: ansistring): integer; stdcall;
+Var
+  JsonFileStr: String;
+  Parser: TJSONParser;
+  JsonData: TJSONData;
+  JsonArray: TJSONArray;
+  RootObj: TJSONObject;
+  RowObj: TJSONObject;
+  SL: TStringList;
+  BufDataSet: TBufDataset;
+  i: Integer;
+  officeName, officeAddr, officeBoss, officeTel, officeTaxNo: String;
+  TargetReport: TfrxReport;
+Begin
+  WriteStrToFile_Debug('wbase350_buyinv_list fpath: ' + string(fpath) + ', rep_type: ' + IntToStr(rep_type));
 
+  Result := 0;
+  JsonData := nil;
+  JsonArray := nil;
+  RootObj := nil;
+  BufDataSet := nil;
+
+  Try
+    Try
+      If (fpath = '') Or (Not FileExists(string(fpath))) Then Begin
+        ShowMessage('報表暫存資料檔不存在: ' + string(fpath));
+        Result := 1;
+        Exit;
+      End;
+
+      SL := TStringList.Create;
+      Try
+        SL.DefaultEncoding := TEncoding.UTF8;
+        SL.LoadFromFile(string(fpath));
+        JsonFileStr := SL.Text;
+      Finally
+        SL.Free;
+      End;
+
+      If Trim(JsonFileStr) = '' Then Begin
+        ShowMessage('報表資料檔內容為空。');
+        Result := 1;
+        Exit;
+      End;
+
+      Parser := TJSONParser.Create(JsonFileStr, True);
+      Try
+        JsonData := Parser.Parse;
+      Finally
+        Parser.Free;
+      End;
+
+      If JsonData = nil Then Begin
+        ShowMessage('無法解析報表 JSON 資料。');
+        Result := 1;
+        Exit;
+      End;
+
+      officeName := '';
+      officeAddr := '';
+      officeBoss := '';
+      officeTel := '';
+      officeTaxNo := '';
+
+      If JsonData is TJSONArray Then Begin
+        JsonArray := TJSONArray(JsonData);
+      End Else If JsonData is TJSONObject Then Begin
+        RootObj := TJSONObject(JsonData);
+        officeName := GetJsonString(RootObj, ['officeName', 'OfficeName', '事務所名稱']);
+        officeAddr := GetJsonString(RootObj, ['officeAddr', 'OfficeAddr', '事務所地址']);
+        officeBoss := GetJsonString(RootObj, ['officeBoss', 'OfficeBoss', '事務所負責人', '負責人姓名']);
+        officeTel := GetJsonString(RootObj, ['officeTel', 'OfficeTel', '事務所電話', '電話']);
+        officeTaxNo := GetJsonString(RootObj, ['officeTaxNo', 'OfficeTaxNo', '事務所統編', '事務所統一編號']);
+
+        If RootObj.Find('data') is TJSONArray Then
+          JsonArray := TJSONArray(RootObj.Find('data'))
+        Else If RootObj.Find('records') is TJSONArray Then
+          JsonArray := TJSONArray(RootObj.Find('records'))
+        Else If RootObj.Find('items') is TJSONArray Then
+          JsonArray := TJSONArray(RootObj.Find('items'))
+        Else If RootObj.Find('rows') is TJSONArray Then
+          JsonArray := TJSONArray(RootObj.Find('rows'));
+      End;
+
+      // 建立記憶體資料集 TBufDataset
+      BufDataSet := TBufDataset.Create(nil);
+      BufDataSet.FieldDefs.Add('期別', ftString, 20);
+      BufDataSet.FieldDefs.Add('購買次數', ftString, 10);
+      BufDataSet.FieldDefs.Add('公司編號', ftString, 20);
+      BufDataSet.FieldDefs.Add('公司簡稱', ftString, 100);
+      BufDataSet.FieldDefs.Add('公司名稱', ftString, 100);
+      BufDataSet.FieldDefs.Add('公司統編', ftString, 20);
+      BufDataSet.FieldDefs.Add('統一編號', ftString, 20);
+      BufDataSet.FieldDefs.Add('稅籍編號', ftString, 20);
+      BufDataSet.FieldDefs.Add('手開二聯', ftInteger);
+      BufDataSet.FieldDefs.Add('手開二聯副', ftInteger);
+      BufDataSet.FieldDefs.Add('手開三聯', ftInteger);
+      BufDataSet.FieldDefs.Add('手開三聯副', ftInteger);
+      BufDataSet.FieldDefs.Add('特種', ftInteger);
+      BufDataSet.FieldDefs.Add('收銀二聯', ftInteger);
+      BufDataSet.FieldDefs.Add('收銀三聯', ftInteger);
+      BufDataSet.FieldDefs.Add('收銀三聯副', ftInteger);
+      BufDataSet.FieldDefs.Add('資料年度', ftString, 10);
+      BufDataSet.FieldDefs.Add('資料起月', ftString, 10);
+      BufDataSet.FieldDefs.Add('資料迄月', ftString, 10);
+      BufDataSet.FieldDefs.Add('地址縣市', ftString, 50);
+      BufDataSet.FieldDefs.Add('營業人地址', ftString, 200);
+      BufDataSet.FieldDefs.Add('公司電話', ftString, 50);
+      BufDataSet.FieldDefs.Add('公司傳真', ftString, 50);
+      BufDataSet.FieldDefs.Add('製表日期', ftString, 30);
+      BufDataSet.FieldDefs.Add('手開二聯金額', ftInteger);
+      BufDataSet.FieldDefs.Add('手開二聯副金額', ftInteger);
+      BufDataSet.FieldDefs.Add('手開三聯金額', ftInteger);
+      BufDataSet.FieldDefs.Add('手開三聯副金額', ftInteger);
+      BufDataSet.FieldDefs.Add('特種金額', ftInteger);
+      BufDataSet.FieldDefs.Add('收銀二聯金額', ftInteger);
+      BufDataSet.FieldDefs.Add('收銀三聯金額', ftInteger);
+      BufDataSet.FieldDefs.Add('收銀三聯副金額', ftInteger);
+      BufDataSet.FieldDefs.Add('總金額', ftInteger);
+      BufDataSet.FieldDefs.Add('總家數', ftInteger);
+      BufDataSet.FieldDefs.Add('總本數', ftInteger);
+      BufDataSet.FieldDefs.Add('公司本數', ftInteger);
+      BufDataSet.CreateDataset;
+      BufDataSet.Open;
+
+      If JsonArray <> nil Then Begin
+        For i := 0 To JsonArray.Count - 1 Do Begin
+          If JsonArray.Types[i] = jtObject Then Begin
+            RowObj := JsonArray.Objects[i];
+            BufDataSet.Append;
+            BufDataSet.FieldByName('期別').AsString := GetJsonString(RowObj, ['period', 'Period', '期別']);
+            BufDataSet.FieldByName('購買次數').AsString := GetJsonString(RowObj, ['times', 'Times', '購買次數']);
+            BufDataSet.FieldByName('公司編號').AsString := GetJsonString(RowObj, ['companyCode', 'CompanyCode', '公司編號']);
+            BufDataSet.FieldByName('公司簡稱').AsString := GetJsonString(RowObj, ['companyShortName', 'CompanyShortName', '公司簡稱']);
+            BufDataSet.FieldByName('公司名稱').AsString := GetJsonString(RowObj, ['companyName', 'CompanyName', '公司名稱', '營業人名稱']);
+            BufDataSet.FieldByName('公司統編').AsString := GetJsonString(RowObj, ['unifiedNo', 'UnifiedNo', '公司統編', '統一編號']);
+            BufDataSet.FieldByName('統一編號').AsString := GetJsonString(RowObj, ['unifiedNo', 'UnifiedNo', '統一編號', '公司統編']);
+            BufDataSet.FieldByName('稅籍編號').AsString := GetJsonString(RowObj, ['taxNo', 'TaxNo', '稅籍編號']);
+            BufDataSet.FieldByName('手開二聯').AsInteger := GetJsonInteger(RowObj, ['manualTwoDup', 'ManualTwoDup', '手開二聯']);
+            BufDataSet.FieldByName('手開二聯副').AsInteger := GetJsonInteger(RowObj, ['manualTwoDupSub', 'ManualTwoDupSub', '手開二聯副']);
+            BufDataSet.FieldByName('手開三聯').AsInteger := GetJsonInteger(RowObj, ['manualThreeDup', 'ManualThreeDup', '手開三聯']);
+            BufDataSet.FieldByName('手開三聯副').AsInteger := GetJsonInteger(RowObj, ['manualThreeDupSub', 'ManualThreeDupSub', '手開三聯副']);
+            BufDataSet.FieldByName('特種').AsInteger := GetJsonInteger(RowObj, ['manualSpecial', 'ManualSpecial', '特種']);
+            BufDataSet.FieldByName('收銀二聯').AsInteger := GetJsonInteger(RowObj, ['cashTwoDup', 'CashTwoDup', '收銀二聯']);
+            BufDataSet.FieldByName('收銀三聯').AsInteger := GetJsonInteger(RowObj, ['cashThreeDup', 'CashThreeDup', '收銀三聯']);
+            BufDataSet.FieldByName('收銀三聯副').AsInteger := GetJsonInteger(RowObj, ['cashThreeDupSub', 'CashThreeDupSub', '收銀三聯副']);
+            BufDataSet.FieldByName('資料年度').AsString := GetJsonString(RowObj, ['dataYear', 'DataYear', '資料年度']);
+            BufDataSet.FieldByName('資料起月').AsString := GetJsonString(RowObj, ['dataStartMonth', 'DataStartMonth', '資料起月']);
+            BufDataSet.FieldByName('資料迄月').AsString := GetJsonString(RowObj, ['dataEndMonth', 'DataEndMonth', '資料迄月']);
+            BufDataSet.FieldByName('地址縣市').AsString := GetJsonString(RowObj, ['city', 'City', '地址縣市']);
+            BufDataSet.FieldByName('營業人地址').AsString := GetJsonString(RowObj, ['companyAddr', 'CompanyAddr', '營業人地址', '公司地址']);
+            BufDataSet.FieldByName('公司電話').AsString := GetJsonString(RowObj, ['companyTel', 'CompanyTel', 'tel', 'Tel', '公司電話', '聯絡電話']);
+            BufDataSet.FieldByName('公司傳真').AsString := GetJsonString(RowObj, ['companyFax', 'CompanyFax', 'fax', 'Fax', '公司傳真']);
+            BufDataSet.FieldByName('製表日期').AsString := GetJsonString(RowObj, ['reportDate', 'ReportDate', '製表日期']);
+            BufDataSet.FieldByName('手開二聯金額').AsInteger := GetJsonInteger(RowObj, ['manualTwoDupAmt', 'ManualTwoDupAmt', '手開二聯金額']);
+            BufDataSet.FieldByName('手開二聯副金額').AsInteger := GetJsonInteger(RowObj, ['manualTwoDupSubAmt', 'ManualTwoDupSubAmt', '手開二聯副金額']);
+            BufDataSet.FieldByName('手開三聯金額').AsInteger := GetJsonInteger(RowObj, ['manualThreeDupAmt', 'ManualThreeDupAmt', '手開三聯金額']);
+            BufDataSet.FieldByName('手開三聯副金額').AsInteger := GetJsonInteger(RowObj, ['manualThreeDupSubAmt', 'ManualThreeDupSubAmt', '手開三聯副金額']);
+            BufDataSet.FieldByName('特種金額').AsInteger := GetJsonInteger(RowObj, ['manualSpecialAmt', 'ManualSpecialAmt', '特種金額']);
+            BufDataSet.FieldByName('收銀二聯金額').AsInteger := GetJsonInteger(RowObj, ['cashTwoDupAmt', 'CashTwoDupAmt', '收銀二聯金額']);
+            BufDataSet.FieldByName('收銀三聯金額').AsInteger := GetJsonInteger(RowObj, ['cashThreeDupAmt', 'CashThreeDupAmt', '收銀三聯金額']);
+            BufDataSet.FieldByName('收銀三聯副金額').AsInteger := GetJsonInteger(RowObj, ['cashThreeDupSubAmt', 'CashThreeDupSubAmt', '收銀三聯副金額']);
+            BufDataSet.FieldByName('總金額').AsInteger := GetJsonInteger(RowObj, ['totalAmt', 'TotalAmt', '總金額']);
+            BufDataSet.FieldByName('總家數').AsInteger := GetJsonInteger(RowObj, ['totalCount', 'TotalCount', '總家數']);
+            BufDataSet.FieldByName('總本數').AsInteger := GetJsonInteger(RowObj, ['totalBooks', 'TotalBooks', '總本數']);
+            BufDataSet.FieldByName('公司本數').AsInteger := GetJsonInteger(RowObj, ['companyBooks', 'CompanyBooks', '公司本數']);
+            BufDataSet.Post;
+          End;
+        End;
+      End;
+
+      WriteStrToFile_Debug('BufDataSet records: ' + IntToStr(BufDataSet.RecordCount));
+
+      frmRpt := Application.FindComponent('frmfrxRpt1') As TfrmfrxRpt1;
+      If frmRpt = nil Then Begin
+        WriteStrToFile_Debug('Create Form TfrmfrxRpt1: ');
+        frmRpt := TfrmfrxRpt1.Create(Application);
+        frmRpt.Parent := nil;
+        frmRpt.FormStyle := fsNormal;
+        frmRpt.ParentWindow := 0;
+      End;
+
+      // 依 rep_type 決定列印報表: 1=A4使用frxReport_3501_buyinv, 2=中一刀使用frxReport_3502_buyinv
+      If rep_type = 2 Then Begin
+        frmRpt.Caption := '發票領取簽收單 (中一刀)';
+        TargetReport := frmRpt.frxReport_3502_buyinv;
+      End Else Begin
+        frmRpt.Caption := '購買統一發票清單 (A4)';
+        TargetReport := frmRpt.frxReport_3501_buyinv;
+      End;
+
+      WriteStrToFile_Debug('SetReportVariable for TargetReport');
+      // 設定報表頁尾事務所變數
+      SetReportVariable(TargetReport, '事務所名稱', officeName);
+      SetReportVariable(TargetReport, '事務所地址', officeAddr);
+      SetReportVariable(TargetReport, '事務所負責人', officeBoss);
+      SetReportVariable(TargetReport, '事務所電話', officeTel);
+      SetReportVariable(TargetReport, '事務所統編', officeTaxNo);
+
+      // 呼叫 FastReport 預覽視窗
+      WriteStrToFile_Debug('bbShowPreviewForm_Preview: ');
+      bbShowPreviewForm_Preview(frmRpt, TargetReport, [frmRpt.frxDBDataset1], [BufDataSet], '', '', '', top_mag, left_mag, PrtIndex, IsPrint);
+
+      FreeAndNil(frmRpt);
+    Finally
+      If BufDataSet <> nil Then FreeAndNil(BufDataSet);
+      If JsonData <> nil Then FreeAndNil(JsonData);
+      If frmRpt <> nil Then frmRpt.Free;
+    End;
+  Except
+    On E: Exception Do Begin
+      Result := 1;
+      ShowMessage('統一發票購買清單列印錯誤:' + E.Message + #10 + '類別:' + E.ClassName);
+    End;
+  End;
+End;
 
 End.

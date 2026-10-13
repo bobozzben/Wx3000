@@ -210,8 +210,9 @@ Function bbShowPreviewForm_Preview(myOwner: TForm; repobj: TfrxReport; arrfrxDBs
       //myAddStylesTofrxReport(repobj);
       AddVariablesToReport(repobj); // 報表變數
       // -------------------------------------------------
-      WriteStrToFile_Debug('bbShowPreviewForm_Preview 3 ');
+      WriteStrToFile_Debug('bbShowPreviewForm_Preview 3  IsPrint:' + InttoStr(IsPrint));
       repobj.PrepareReport;
+      WriteStrToFile_Debug('bbShowPreviewForm_Preview 3-1 ');
       If IsPrint = 1 Then Begin
         repobj.PrintOptions.ShowDialog := False;
         repobj.Print;
@@ -676,7 +677,7 @@ Procedure TfrxPrintPreviewForm.FormShow(Sender: TObject);
 Begin
 
   {$IfDef CPU64}
-    ShowMessage('目前主程式是：64位元 (x64)');
+  //  ShowMessage('目前主程式是：64位元 (x64)');
   {$Else}
   ShowMessage('目前主程式是：32位元 (x86)');
   {$EndIf}

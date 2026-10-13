@@ -10,12 +10,13 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="WbaseBridge"/>
         <IsVisibleTab Value="True"/>
-        <CursorPos X="70" Y="26"/>
+        <TopLine Value="246"/>
+        <CursorPos X="79" Y="261"/>
         <UsageCount Value="20"/>
         <Loaded Value="True"/>
       </Unit>
     </Units>
-    <JumpHistory HistoryIndex="3">
+    <JumpHistory HistoryIndex="4">
       <Position>
         <Filename Value="WbaseBridge_Generic.lpr"/>
         <Caret Line="15" Column="41"/>
@@ -31,6 +32,10 @@
       <Position>
         <Filename Value="WbaseBridge_Generic.lpr"/>
         <Caret Line="112" Column="2" TopLine="100"/>
+      </Position>
+      <Position>
+        <Filename Value="WbaseBridge_Generic.lpr"/>
+        <Caret Line="107" Column="114" TopLine="91"/>
       </Position>
     </JumpHistory>
     <RunParams>

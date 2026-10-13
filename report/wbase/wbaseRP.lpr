@@ -20,7 +20,8 @@ Uses
 
 Exports
   waccrep3101_b,
-  wbase320_buyinv; // 預購統一發票列印
+  wbase320_buyinv,  // 預購統一發票列印
+  wbase350_buyinv_list;  // 統一發票購買清單
 
 {$R *.res}
 

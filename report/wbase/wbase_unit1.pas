@@ -16,7 +16,9 @@ type
   TfrmfrxRpt1 = class(TForm)
     frxDBDataset1: TfrxDBDataset;
     frxDesigner1: TfrxDesigner;
-    frxReport1: TfrxReport;
+    frxReport_3501_buyinv: TfrxReport;
+    frxReport1_: TfrxReport;
+    frxReport_3502_buyinv: TfrxReport;
     frxReport_320_buyinv: TfrxReport;
     ZConnection1: TZConnection;
     ZQuery1: TZQuery;

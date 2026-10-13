@@ -15,6 +15,8 @@ import { Wbase2010SplitPage } from '../wbase2010/Wbase2010SplitPage';
 import { Wbase3010Page } from '../wbase3010';
 import { Wbase3020Page } from '../wbase3020';
 import { Wbase3020_buyinv_print } from '../wbase3020/wbase3020_buyinv_print';
+import { Wbase3050_buylist_print, Wbase3050_buyinv_setamt } from '../wbase3050';
+import { Wbase3060 } from '../wbase3060';
 import { ArrowLeft, LayoutGrid, Sun, Moon } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 
@@ -46,6 +48,12 @@ export const WbaseMainPage: React.FC = () => {
       setActiveModule('wbase3020');
     } else if (item.code === 'wbase3030' || item.code === 'wbase3020_buyinv_print') {
       setActiveModule('wbase3020_buyinv_print');
+    } else if (item.code === 'wbase3050' || item.code === 'wbase3050_buylist_print') {
+      setActiveModule('wbase3050_buylist_print');
+    } else if (item.code === 'wbase3050_buyinv_setamt') {
+      setActiveModule('wbase3050_buyinv_setamt');
+    } else if (item.code === 'wbase3060' || item.code === 'wbase3060_01') {
+      setActiveModule('wbase3060_01');
     } else if (item.code === 'A00') {
       // 結束離開
       if (window.confirm('確定要離開系統嗎？')) {
@@ -170,6 +178,10 @@ export const WbaseMainPage: React.FC = () => {
                   ? '購買地點'
                   : activeModule === 'wbase3020'
                   ? '預購統一發票輸入'
+                  : activeModule === 'wbase3050' || activeModule === 'wbase3050_buylist_print'
+                  ? '購買統一發票清單列印'
+                  : activeModule === 'wbase3050_buyinv_setamt'
+                  ? '統購發票種類金額設定'
                   : '員工資料'}
               </span>
               <span className={`text-xs ml-1 font-bold ${isDark ? 'text-slate-600' : 'text-slate-500'}`}>
@@ -224,6 +236,12 @@ export const WbaseMainPage: React.FC = () => {
             <Wbase3020Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase3020_buyinv_print' ? (
             <Wbase3020_buyinv_print onClose={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase3050' || activeModule === 'wbase3050_buylist_print' ? (
+            <Wbase3050_buylist_print onClose={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase3050_buyinv_setamt' ? (
+            <Wbase3050_buyinv_setamt onClose={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase3060' || activeModule === 'wbase3060_01' ? (
+            <Wbase3060 onBackToMenu={() => setActiveModule(null)} />
           ) : (
             <Wbase1030Page onBackToMenu={() => setActiveModule(null)} />
           )}

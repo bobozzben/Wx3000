@@ -3,7 +3,14 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
+
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
 
 // ========== 通用設定檔 ==========
 let DLL_CONFIG = { dlls: {} };
@@ -27,8 +34,14 @@ const CONFIG = {
       path.join(__dirname, info.path),
       ...(info.fallback_paths || [])
     ];
-    for (const p of cands) if (fs.existsSync(p)) return p;
-    return cands[0];
+    const existing = cands.filter(p => fs.existsSync(p));
+    if (existing.length === 0) return cands[0];
+    if (existing.length === 1) return existing[0];
+    // 若有多個候選 DLL 存在，優先選用最新修改時間者
+    existing.sort((a, b) => {
+      try { return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs; } catch (e) { return 0; }
+    });
+    return existing[0];
   },
   getBridgePath() {
     const cands = [
@@ -118,32 +131,61 @@ function callViaBridge(dllKey, funcName, args) {
     const cmdArgs = ['--dll', dllPath, '--func', funcName, '--args', argsJson, '--dllkey', dllKey];
 
     let resolved = false;
-    const child = execFile(bridgePath, cmdArgs, { timeout: 0, windowsHide: false }, (err, stdout, stderr) => {
-      if (resolved) return;
-      if (err) {
-        resolved = true;
-        resolve({ success: false, mode: 'bridge', error: err.message, stderr, stdout });
-        return;
-      }
-      const out = stdout ? stdout.toString().trim() : '';
-      resolved = true;
-      if (out.includes('OK:')) {
-        const m = out.match(/OK:(-?\d+)/);
-        resolve({ success: true, mode: 'bridge', retCode: m ? parseInt(m[1]) : 0, raw: out });
-      } else {
-        resolve({ success: false, mode: 'bridge', error: out || stderr });
-      }
-    });
+    let stdoutData = '';
+    let stderrData = '';
 
-    // 若為預覽模式 (IsPrint = 0)，進程啟動成功且穩定運作 600ms 後即先行回覆前端成功，避免 HTTP 連線長久等待
-    const isPreview = Array.isArray(args) && args.length >= 5 && Number(args[4]) === 0;
-    if (isPreview) {
-      setTimeout(() => {
-        if (!resolved && !child.killed && child.exitCode === null) {
-          resolved = true;
-          resolve({ success: true, mode: 'bridge', message: '報表預覽視窗已成功開啟', pid: child.pid });
+    try {
+      const child = spawn(bridgePath, cmdArgs, {
+        windowsHide: false,
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      child.stdout?.on('data', (d) => { stdoutData += d.toString(); });
+      child.stderr?.on('data', (d) => { stderrData += d.toString(); });
+      child.stdout?.on('error', (e) => { console.warn('[child stdout]', e.message); });
+      child.stderr?.on('error', (e) => { console.warn('[child stderr]', e.message); });
+
+      child.on('error', (err) => {
+        if (resolved) return;
+        resolved = true;
+        resolve({ success: false, mode: 'bridge', error: err.message });
+      });
+
+      child.on('close', (code) => {
+        if (resolved) return;
+        resolved = true;
+        const out = stdoutData.trim();
+        if (out.includes('OK:')) {
+          const m = out.match(/OK:(-?\d+)/);
+          resolve({ success: true, mode: 'bridge', retCode: m ? parseInt(m[1]) : 0, raw: out });
+        } else {
+          resolve({ success: false, mode: 'bridge', error: out || stderrData || `Exit code: ${code}` });
         }
-      }, 600);
+      });
+
+      // 若為預覽模式 (IsPrint = 0)，進程啟動成功且穩定運作 600ms 後即先行回覆前端成功，並徹底釋放進程與管線
+      const isPreview = Array.isArray(args) && args.length >= 5 && Number(args[4]) === 0;
+      if (isPreview) {
+        setTimeout(() => {
+          if (!resolved && !child.killed && child.exitCode === null) {
+            resolved = true;
+            try {
+              child.stdout?.removeAllListeners();
+              child.stderr?.removeAllListeners();
+              child.stdout?.destroy();
+              child.stderr?.destroy();
+              child.unref();
+            } catch (e) {}
+            resolve({ success: true, mode: 'bridge', message: '報表預覽視窗已成功開啟', pid: child.pid });
+          }
+        }, 600);
+      }
+    } catch (spawnErr) {
+      if (!resolved) {
+        resolved = true;
+        resolve({ success: false, mode: 'bridge', error: spawnErr.message });
+      }
     }
   });
 }
@@ -186,14 +228,14 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify(DLL_CONFIG));
     return;
   }
-  // 相容 POST /report, /waccrep3101_b 及 /wbase320_buyinv
-  if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b' || url.pathname === '/wbase320_buyinv') && req.method === 'POST') {
+  // 相容 POST /report, /waccrep3101_b, /wbase320_buyinv 及 /wbase350_buyinv_list
+  if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b' || url.pathname === '/wbase320_buyinv' || url.pathname === '/wbase350_buyinv_list') && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
         const data = JSON.parse(body || '{}');
-        const funcName = data.func || (url.pathname === '/wbase320_buyinv' ? 'wbase320_buyinv' : 'waccrep3101_b');
+        const funcName = data.func || (url.pathname.replace('/', '') || 'waccrep3101_b');
         let targetPath = data.path || '';
 
         // 若有傳入 jsonData，自動產生暫存檔路徑
@@ -205,7 +247,15 @@ const server = http.createServer(async (req, res) => {
           targetPath = tempFilePath;
         }
 
-        const args = [
+        const args = funcName === 'wbase350_buyinv_list' ? [
+          data.hs_chk !== undefined ? Number(data.hs_chk) : 0.125,
+          data.top_mag !== undefined ? Number(data.top_mag) : 0.0,
+          data.left_mag !== undefined ? Number(data.left_mag) : 0.0,
+          data.PrtIndex !== undefined ? Number(data.PrtIndex) : 0,
+          data.IsPrint !== undefined ? Number(data.IsPrint) : 0,
+          data.rep_type !== undefined ? Number(data.rep_type) : 1,
+          targetPath
+        ] : [
           data.hs_chk !== undefined ? Number(data.hs_chk) : 0.125,
           data.top_mag !== undefined ? Number(data.top_mag) : 0.0,
           data.left_mag !== undefined ? Number(data.left_mag) : 0.0,
@@ -224,10 +274,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   // 相容 GET /report, /waccrep3101_b 及 /wbase320_buyinv
-  if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b' || url.pathname === '/wbase320_buyinv') && req.method === 'GET') {
+  if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b' || url.pathname === '/wbase320_buyinv' || url.pathname === '/wbase350_buyinv_list') && req.method === 'GET') {
     try {
-      const funcName = url.searchParams.get('func') || (url.pathname === '/wbase320_buyinv' ? 'wbase320_buyinv' : 'waccrep3101_b');
-      const args = [
+      const funcName = url.searchParams.get('func') || (url.pathname.replace('/', '') || 'waccrep3101_b');
+      const args = funcName === 'wbase350_buyinv_list' ? [
+        parseFloat(url.searchParams.get('hs_chk') || '0.125'),
+        parseFloat(url.searchParams.get('top_mag') || '0'),
+        parseFloat(url.searchParams.get('left_mag') || '0'),
+        parseInt(url.searchParams.get('PrtIndex') || '0'),
+        parseInt(url.searchParams.get('IsPrint') || '0'),
+        parseInt(url.searchParams.get('rep_type') || '1'),
+        url.searchParams.get('path') || ''
+      ] : [
         parseFloat(url.searchParams.get('hs_chk') || '0.125'),
         parseFloat(url.searchParams.get('top_mag') || '0'),
         parseFloat(url.searchParams.get('left_mag') || '0'),
@@ -277,10 +335,9 @@ const server = http.createServer(async (req, res) => {
           fs.writeFileSync(tempFilePath, typeof data.jsonData === 'string' ? data.jsonData : JSON.stringify(data.jsonData, null, 2), 'utf8');
           console.log(`[LocalAgent] 自動建立 JSON 暫存檔: ${tempFilePath}`);
 
-          if (callArgs.length >= 6) {
-            callArgs[5] = tempFilePath;
+          if (callArgs.length > 0) {
+            callArgs[callArgs.length - 1] = tempFilePath;
           } else {
-            while (callArgs.length < 5) callArgs.push(0);
             callArgs.push(tempFilePath);
           }
         }

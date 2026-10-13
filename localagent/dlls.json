@@ -33,6 +33,20 @@
           ],
           "comment": "hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path - 已移除 handle",
           "bringToFront": true
+        },
+        "wbase350_buyinv_list": {
+          "ret": "int",
+          "params": [
+            "double",
+            "double",
+            "double",
+            "int",
+            "int",
+            "int",
+            "str"
+          ],
+          "comment": "hs_chk, top_mag, left_mag, PrtIndex, IsPrint, rep_type, path",
+          "bringToFront": true
         }
       }
     },
