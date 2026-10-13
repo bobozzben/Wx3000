@@ -8,6 +8,10 @@
     "dev:api": "dotnet run --project backend/Wx3000.Backend.csproj",
     "dev:agent": "node localagent_koffi/agent.js",
     "build:api": "dotnet publish backend/Wx3000.Backend.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true",
+    "publish:server": "pnpm --filter frontend build && dotnet publish backend/Wx3000.Backend.csproj -c Release -r win-x64 --self-contained true -o publish/Wx3000_Server/api && powershell -NoProfile -Command \"Copy-Item frontend/dist/* publish/Wx3000_Server/api/wwwroot -Recurse -Force\"",
+    "dev:electron": "pnpm --filter frontend electron:dev",
+    "build:electron": "pnpm --filter frontend electron:build",
+    "pack:electron": "pnpm --filter frontend electron:pack",
     "ngrok": "ngrok http 5173"
   },
   "devDependencies": {

@@ -201,17 +201,3 @@ export const TAB_FIELDS_MAP: Record<number, string[]> = {
   ]
 };
 
-export const INITIAL_COMPANIES: CompanyItem[] = [
-  { code: "C0001", name: "鴻海精密工業股份有限公司", uni: "03545423", owner: "劉揚偉", tel: "02-2268-3466", type: "上市", short: "鴻海" },
-  { code: "C0002", name: "台灣積體電路製造股份有限公司", uni: "22099118", owner: "魏哲家", tel: "03-5636688", type: "上市", short: "台積電" },
-  { code: "C0003", name: "聯發科技股份有限公司", uni: "16670998", owner: "蔡明介", tel: "03-5670766", type: "上市", short: "聯發科" },
-  { code: "C0004", name: "中華電信股份有限公司", uni: "96972798", owner: "郭水義", tel: "02-23445566", type: "上市", short: "中華電" },
-  { code: "C0005", name: "富邦金融控股股份有限公司", uni: "70790807", owner: "蔡明興", tel: "02-66387888", type: "上市", short: "富邦金" },
-  { code: "C0006", name: "國泰金融控股股份有限公司", uni: "70790808", owner: "蔡宏圖", tel: "02-27087698", type: "上市", short: "國泰金" },
-  { code: "C0007", name: "長榮海運股份有限公司", uni: "03534567", owner: "張衍義", tel: "02-25001122", type: "上市", short: "長榮" },
-  { code: "C0008", name: "台塑石化股份有限公司", uni: "16082491", owner: "陳寶郎", tel: "02-27122211", type: "上市", short: "台塑化" },
-  { code: "C0009", name: "大立光電股份有限公司", uni: "22345678", owner: "林恩平", tel: "04-23594121", type: "上市", short: "大立光" },
-  { code: "C0010", name: "研華股份有限公司", uni: "23545678", owner: "劉克振", tel: "02-2792-4788", type: "上市", short: "研華" },
-  { code: "C0011", name: "廣達電腦股份有限公司", uni: "22102493", owner: "林百里", tel: "02-2888-4567", type: "上市", short: "廣達" },
-  { code: "C0012", name: "緯創資通股份有限公司", uni: "70708552", owner: "林憲銘", tel: "02-6615-2525", type: "上市", short: "緯創" }
-];

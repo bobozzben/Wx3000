@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import axios from 'axios';
 import {
   type CompanyItem,
   TAB_FIELDS_MAP,
-  INITIAL_COMPANIES,
 } from './companyFieldDefs';
 
 const parseCapital = (val: any): number => {
@@ -135,59 +135,55 @@ export function useWbase2010(onBackToMenu?: () => void) {
     setFormData(values);
   }, [filteredCompanies, selectedIndex, mode]);
 
-  // Load from backend PostgreSQL API with fallback
+  // Load from backend PostgreSQL API
   const fetchCompanies = useCallback(async (targetCode?: string) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/wbase2010');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const mapped: CompanyItem[] = data.map((d: any) => ({
-            code: (d.companyCode || d.code || '').trim(),
-            name: (d.companyName || d.name || '').trim(),
-            eng: (d.englishName || d.eng || '').trim(),
-            short: (d.shortName || d.short || '').trim(),
-            uni: (d.unifiedNo || d.uni || '').trim(),
-            taxNo: (d.taxNo || '').trim(),
-            taxOffice: (d.taxOffice || '').trim(),
-            capital: d.capital || '',
-            tel: (d.tel || '').trim(),
-            fax: (d.fax || '').trim(),
-            addr: (d.address || d.addr || '').trim(),
-            addr2: (d.address2 || d.addr2 || '').trim(),
-            email: (d.email || '').trim(),
-            acctType: (d.acctType || '一般').trim(),
-            owner: (d.owner || '').trim(),
-            idNo: (d.ownerIdNo || d.idNo || '').trim(),
-            ownerTel: (d.ownerTel || '').trim(),
-            ownerMobile: (d.ownerMobile || '').trim(),
-            ownerAddr: (d.ownerAddr || '').trim(),
-            contactName: (d.contactName || '').trim(),
-            contactTel: (d.contactTel || '').trim(),
-            memo: (d.memo || '').trim(),
-            type: (d.listedType || d.type || '一般').trim(),
-            officeId: (d.officeId || '').trim(),
-          }));
-          setCompanies(mapped);
+      const res = await axios.get('/api/wbase2010');
+      const data = res.data;
+      if (Array.isArray(data)) {
+        const mapped: CompanyItem[] = data.map((d: any) => ({
+          code: (d.companyCode || d.code || '').trim(),
+          name: (d.companyName || d.name || '').trim(),
+          eng: (d.englishName || d.eng || '').trim(),
+          short: (d.shortName || d.short || '').trim(),
+          uni: (d.unifiedNo || d.uni || '').trim(),
+          taxNo: (d.taxNo || '').trim(),
+          taxOffice: (d.taxOffice || '').trim(),
+          capital: d.capital || '',
+          tel: (d.tel || '').trim(),
+          fax: (d.fax || '').trim(),
+          addr: (d.address || d.addr || '').trim(),
+          addr2: (d.address2 || d.addr2 || '').trim(),
+          email: (d.email || '').trim(),
+          acctType: (d.acctType || '一般').trim(),
+          owner: (d.owner || '').trim(),
+          idNo: (d.ownerIdNo || d.idNo || '').trim(),
+          ownerTel: (d.ownerTel || '').trim(),
+          ownerMobile: (d.ownerMobile || '').trim(),
+          ownerAddr: (d.ownerAddr || '').trim(),
+          contactName: (d.contactName || '').trim(),
+          contactTel: (d.contactTel || '').trim(),
+          memo: (d.memo || '').trim(),
+          type: (d.listedType || d.type || '一般').trim(),
+          officeId: (d.officeId || '').trim(),
+        }));
+        setCompanies(mapped);
 
-          if (targetCode) {
-            const idx = mapped.findIndex((c) => c.code.toLowerCase() === targetCode.toLowerCase());
-            if (idx !== -1) {
-              setSelectedIndex(idx);
-            }
-          } else {
-            setSelectedIndex((prev) => (prev < mapped.length ? prev : 0));
+        if (targetCode) {
+          const idx = mapped.findIndex((c) => c.code.toLowerCase() === targetCode.toLowerCase());
+          if (idx !== -1) {
+            setSelectedIndex(idx);
           }
         } else {
-          setCompanies(INITIAL_COMPANIES);
+          setSelectedIndex((prev) => (prev < mapped.length ? prev : 0));
         }
       } else {
-        setCompanies(INITIAL_COMPANIES);
+        setCompanies([]);
       }
-    } catch (e) {
-      console.warn('Backend PostgreSQL API error, using initial list:', e);
-      setCompanies(INITIAL_COMPANIES);
+    } catch (e: any) {
+      console.error('Backend PostgreSQL API error loading companies:', e);
+      setCompanies([]);
     } finally {
       setLoading(false);
     }
@@ -379,27 +375,9 @@ export function useWbase2010(onBackToMenu?: () => void) {
 
     try {
       if (mode === 'add') {
-        const res = await fetch('/api/wbase2010', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(bodyData),
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          const detailStr = errData.detail ? ` (${errData.detail})` : '';
-          throw new Error((errData.message || '新增失敗') + detailStr);
-        }
+        await axios.post('/api/wbase2010', bodyData);
       } else if (mode === 'edit') {
-        const res = await fetch(`/api/wbase2010/${encodeURIComponent(payload.code)}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(bodyData),
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          const detailStr = errData.detail ? ` (${errData.detail})` : '';
-          throw new Error((errData.message || '更新失敗') + detailStr);
-        }
+        await axios.put(`/api/wbase2010/${encodeURIComponent(payload.code)}`, bodyData);
       }
 
       // Refresh companies list from PostgreSQL upon success and maintain focus on saved record
@@ -408,7 +386,9 @@ export function useWbase2010(onBackToMenu?: () => void) {
       cancelEdit();
     } catch (err: any) {
       console.error('PostgreSQL API error during save:', err);
-      alert(`儲存至 PostgreSQL 資料庫失敗：${err.message || err}`);
+      const detailStr = err.response?.data?.detail ? ` (${err.response.data.detail})` : '';
+      const errMsg = err.response?.data?.message || err.message || '儲存失敗';
+      alert(`儲存至 PostgreSQL 資料庫失敗：${errMsg}${detailStr}`);
     }
   }, [formData, mode, cancelEdit, fetchCompanies]);
 
@@ -419,19 +399,14 @@ export function useWbase2010(onBackToMenu?: () => void) {
 
     if (window.confirm(`確定要刪除客戶 [${current.code} · ${current.name}] 嗎？`)) {
       try {
-        const res = await fetch(`/api/wbase2010/${encodeURIComponent(current.code)}`, {
-          method: 'DELETE',
-        });
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.message || '刪除失敗');
-        }
-      } catch (e) {
-        console.warn('PostgreSQL API delete error:', e);
+        await axios.delete(`/api/wbase2010/${encodeURIComponent(current.code)}`);
+        await fetchCompanies();
+        alert('已成功刪除客戶資料！');
+      } catch (e: any) {
+        console.error('PostgreSQL API delete error:', e);
+        const errMsg = e.response?.data?.message || e.message || '刪除失敗';
+        alert(`刪除客戶資料失敗：${errMsg}`);
       }
-
-      await fetchCompanies();
-      alert('已成功刪除客戶資料！');
     }
   }, [filteredCompanies, selectedIndex, fetchCompanies]);
 

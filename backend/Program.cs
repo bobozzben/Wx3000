@@ -1,11 +1,26 @@
 using Wx3000.Backend.Data;
 using Wx3000.Backend.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting.WindowsServices;
+using Microsoft.Extensions.FileProviders;
 
-var builder = WebApplication.CreateBuilder(args);
+var options = new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : default
+};
+var builder = WebApplication.CreateBuilder(options);
 
 // Add Windows Service Hosting support
-builder.Services.AddWindowsService();
+builder.Host.UseWindowsService();
+builder.Services.AddWindowsService(options =>
+{
+    options.ServiceName = "Wx3000Api";
+});
+
+// Configure listening URL (Default: http://0.0.0.0:5007 to support LAN workstations)
+var listenUrls = builder.Configuration["Urls"] ?? "http://0.0.0.0:5007";
+builder.WebHost.UseUrls(listenUrls);
 
 // PostgreSQL Connection String
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -51,14 +66,44 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-if (app.Environment.IsDevelopment())
+// Always enable Swagger for LAN server diagnostics
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Wx3000 API v1");
+    c.RoutePrefix = "swagger";
+});
 
 app.UseCors("AllowAll");
 app.UseAuthorization();
 app.MapControllers();
+
+// System Health Endpoint
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", timestamp = DateTime.UtcNow }));
+
+// 靜態檔案託管與 SPA 支援 (讓 C# 後端可同時提供 Web 瀏覽器端與 Electron 客戶端)
+var wwwrootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+if (Directory.Exists(wwwrootPath))
+{
+    var fileProvider = new PhysicalFileProvider(wwwrootPath);
+    app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = fileProvider });
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = fileProvider });
+
+    // SPA Fallback: 任何非 API 請求皆由 index.html 接管
+    app.MapFallbackToFile("index.html", new StaticFileOptions { FileProvider = fileProvider });
+}
+else
+{
+    // 未放置 wwwroot 時提供伺服器資訊
+    app.MapGet("/", () => Results.Ok(new
+    {
+        system = "Wx3000 ERP API Server",
+        status = "Online",
+        service = "Windows Service (Wx3000Api)",
+        database = "PostgreSQL (a3000)",
+        swagger = "/swagger",
+        timestamp = DateTime.UtcNow
+    }));
+}
 
 app.Run();

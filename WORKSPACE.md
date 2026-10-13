@@ -109,6 +109,15 @@ cd frontend && pnpm run build
 # 5. 後端發佈 Windows 獨立單一可執行檔 (Single-File EXE)
 pnpm build:api
 
-# 6. 啟動 Reverse Proxy 測試對外開窗
+# 6. 前端桌面端 (Electron) 開發熱重載
+pnpm dev:electron
+
+# 7. 前端桌面端打包 (Windows 安裝檔與免安裝綠色版 EXE)
+pnpm build:electron
+
+# 8. 前端桌面端解壓打包 (快速免安裝測試目錄 release/win-unpacked)
+pnpm pack:electron
+
+# 9. 啟動 Reverse Proxy 測試對外開窗
 pnpm ngrok
 ```
