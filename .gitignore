@@ -286,3 +286,46 @@ __recovery/
 modules/
 
 *.res
+# VFP 建置產物(dll/VBR/tlb 由 tools\build_com.prg 產生)
+*.fxp
+*.FXP
+*.err
+*.ERR
+
+# 執行檔
+*.exe
+*.dll
+*.app
+*.APP
+
+# wbase32 執行期佈署與自測產物(可由 tools 重新產生/佈署)
+wbase32/lib/
+wbase32/sandbox/
+wbase32/selftest.log
+wbase32/selftest_export.xlsx
+wbase32/selftest_print.html
+wbase32/PG16DLL32/
+wbase32/w3000_dbf.VBR
+wbase32/vfpencryption.fll
+# 註:wbase32/Connect.cfg 已改為納入版控(團隊共用標準連線 54320/Pg_W3000,
+#     亦為 deploy_dll 複製給客戶包的範本);客戶如需不同密碼,改其部署的
+#     C:\W3000\dll\lz\Connect.cfg 即可,不影響 repo。
+
+# VFP 建置產物(由 tools\build_com.ps1 重新產生)
+common/vfp/w3000_dbf.pjx
+common/vfp/w3000_dbf.PJX
+common/vfp/w3000_dbf.pjt
+common/vfp/w3000_dbf.PJT
+common/vfp/*.vbr
+common/vfp/*.VBR
+common/vfp/*.tlb
+common/vfp/build_com.ok
+common/vfp/build_com.err
+
+# 測試暫存
+tests/out/
+
+Error.log
+*.log
+
+publish/
