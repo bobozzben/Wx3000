@@ -327,5 +327,6 @@ tests/out/
 
 Error.log
 *.log
-
+*.fll
+*.vbr
 publish/
