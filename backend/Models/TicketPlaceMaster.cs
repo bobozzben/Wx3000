@@ -4,28 +4,31 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Wx3000.Backend.Models
 {
-    [Table("基本購票地點", Schema = "e3000__comm")]
+    [Table("place", Schema = "c:/w3000/comm")]
     public class TicketPlaceMaster
     {
         [Key]
-        [Column("編號")]
-        [StringLength(50)]
+        [Column("no")]
+        [StringLength(255)]
         public string PlaceCode { get; set; } = string.Empty;
 
-        [Column("購買地點")]
+        [Column("place")]
         [StringLength(255)]
         public string PlaceName { get; set; } = string.Empty;
 
-        [Column("連絡人")]
+        [Column("linkman")]
         [StringLength(255)]
         public string ContactPerson { get; set; } = string.Empty;
 
-        [Column("連絡電話")]
+        [Column("linktel")]
         [StringLength(255)]
         public string ContactTel { get; set; } = string.Empty;
 
-        [Column("購買地址")]
+        [Column("addr")]
         [StringLength(255)]
         public string PlaceAddress { get; set; } = string.Empty;
+
+        [Column("_record_number")]
+        public int RecordNumber { get; set; } = 0;
     }
 }

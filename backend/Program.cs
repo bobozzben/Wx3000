@@ -24,7 +24,7 @@ builder.WebHost.UseUrls(listenUrls);
 
 // PostgreSQL Connection String
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Port=5432;Database=a3000;Username=postgres;Password=0000";
+    ?? "Host=localhost;Port=54320;Database=w3000;Username=postgres;Password=Pg_W3000";
 
 // Register EF Core PostgreSQL DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>

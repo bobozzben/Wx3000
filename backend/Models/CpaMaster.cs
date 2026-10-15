@@ -4,80 +4,82 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Wx3000.Backend.Models
 {
-    [Table("基本會計師", Schema = "e3000__comm")]
+    [Table("cpa", Schema = "c:/w3000/comm")]
     public class CpaMaster
     {
         [Key]
-        [Column("編號")]
-        [StringLength(10)]
+        [Column("no")]
+        [StringLength(255)]
         public string CpaCode { get; set; } = string.Empty;
 
-        [Column("姓名")]
-        [StringLength(30)]
+        [Column("name")]
+        [StringLength(255)]
         public string? CpaName { get; set; }
 
-        [Column("證書別")]
-        [StringLength(20)]
+        [Column("kind")]
+        [StringLength(255)]
         public string? CertType { get; set; }
 
-        [Column("申報ID")]
-        [StringLength(20)]
+        [Column("id")]
+        [StringLength(255)]
         public string? TaxId { get; set; }
 
-        [Column("證書(登錄)字號")]
-        [StringLength(50)]
+        [Column("cno1")]
+        [StringLength(255)]
         public string? LicenseNo { get; set; }
 
-        [Column("發文字軌")]
-        [StringLength(20)]
+        [Column("cword")]
+        [StringLength(255)]
         public string? DocTrack { get; set; }
 
-        [Column("證書編號")]
-        [StringLength(30)]
+        [Column("cno2")]
+        [StringLength(255)]
         public string? CertNo { get; set; }
 
-        [Column("公會名稱")]
-        [StringLength(60)]
+        [Column("gno1")]
+        [StringLength(255)]
         public string? OfficeName { get; set; }
 
-        [Column("會員證號")]
-        [StringLength(30)]
+        [Column("gno2")]
+        [StringLength(255)]
         public string? MemberNo { get; set; }
 
-        [Column("電話")]
-        [StringLength(20)]
+        [Column("tel")]
+        [StringLength(255)]
         public string? Tel { get; set; }
 
-        [Column("手機")]
-        [StringLength(20)]
+        [Column("mobile")]
+        [StringLength(255)]
         public string? Mobile { get; set; }
 
-        [Column("傳真")]
-        [StringLength(20)]
+        [Column("fax")]
+        [StringLength(255)]
         public string? Fax { get; set; }
 
-        [Column("統一編號")]
-        [StringLength(20)]
+        [Column("unino")]
+        [StringLength(255)]
         public string? UnifiedNo { get; set; }
 
-        [Column("地址")]
-        [StringLength(100)]
+        [Column("addr")]
+        [StringLength(255)]
         public string? Address { get; set; }
 
-        [Column("會計師公會證號1")]
-        [StringLength(50)]
+        [Column("hno1")]
+        [StringLength(255)]
         public string? GuildNo1 { get; set; }
 
-        [Column("會計師公會證號2")]
-        [StringLength(50)]
+        [Column("hno2")]
+        [StringLength(255)]
         public string? GuildNo2 { get; set; }
 
-        [Column("EMAIL")]
-        [StringLength(100)]
+        [Column("email")]
+        [StringLength(255)]
         public string? Email { get; set; }
 
-        [Column("guid")]
-        [StringLength(50)]
+        [Column("_record_number")]
+        public int RecordNumber { get; set; } = 0;
+
+        [NotMapped]
         public string? Guid { get; set; }
 
         [NotMapped]

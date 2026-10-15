@@ -4,23 +4,25 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Wx3000.Backend.Models
 {
-    [Table("基本收費項目", Schema = "e3000__comm")]
+    [Table("recitem", Schema = "c:/w3000/comm")]
     public class FeeItemMaster
     {
         [Key]
-        [Column("項目")]
-        [StringLength(50)]
+        [Column("itemno")]
+        [StringLength(255)]
         public string FeeCode { get; set; } = string.Empty;
 
-        [Column("項目名稱")]
-        [StringLength(100)]
+        [Column("item")]
+        [StringLength(255)]
         public string FeeName { get; set; } = string.Empty;
 
-        [Column("收費金額", TypeName = "numeric(18,2)")]
+        [Column("amt", TypeName = "numeric(20,4)")]
         public decimal Price { get; set; } = 0.00m;
 
-        [Column("guid")]
-        [StringLength(50)]
+        [Column("_record_number")]
+        public int RecordNumber { get; set; } = 0;
+
+        [NotMapped]
         public string? Guid { get; set; }
     }
 }

@@ -181,7 +181,7 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
-                var schema = "e3000__comm";
+                var schema = "c:/w3000/comm";
                 var table = "總帳參數設定";
 
                 var v1 = await _paramService.GetParamAsync(schema, table, "手開二聯單價", "15");
@@ -214,7 +214,7 @@ namespace Wx3000.Backend.Controllers
         }
 
         /// <summary>
-        /// 儲存發票種類金額設定 (Postgresql Database: a3000 schema: e3000__comm Table: 總帳參數設定)
+        /// 儲存發票種類金額設定 (Postgresql Database: w3000 schema: c:/w3000/comm Table: 總帳參數設定)
         /// </summary>
         [HttpPost("prices")]
         public async Task<IActionResult> SavePrices([FromBody] BuyinvPriceConfig config)
@@ -223,7 +223,7 @@ namespace Wx3000.Backend.Controllers
 
             try
             {
-                var schema = "e3000__comm";
+                var schema = "c:/w3000/comm";
                 var table = "總帳參數設定";
 
                 await _paramService.SetParamAsync(schema, table, "手開二聯單價", config.ManualTwoDup.ToString());

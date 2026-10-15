@@ -4,48 +4,51 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Wx3000.Backend.Models
 {
-    [Table("基本稅務人員", Schema = "e3000__comm")]
+    [Table("taxno", Schema = "c:/w3000/comm")]
     public class TaxOfficerMaster
     {
         [Key]
-        [Column("編號")]
-        [StringLength(20)]
+        [Column("no")]
+        [StringLength(255)]
         public string TaxCode { get; set; } = string.Empty;
 
-        [Column("姓名")]
-        [StringLength(50)]
+        [Column("name")]
+        [StringLength(255)]
         public string TaxName { get; set; } = string.Empty;
 
-        [Column("稅局")]
-        [StringLength(50)]
+        [Column("helpman")]
+        [StringLength(255)]
         public string? TaxBureau { get; set; }
 
-        [Column("單位")]
-        [StringLength(50)]
+        [Column("department")]
+        [StringLength(255)]
         public string? Unit { get; set; }
 
-        [Column("電話")]
-        [StringLength(30)]
+        [Column("tel")]
+        [StringLength(255)]
         public string? Tel { get; set; }
 
-        [Column("分機")]
-        [StringLength(20)]
+        [Column("memo")]
+        [StringLength(255)]
+        public string? Memo { get; set; }
+
+        [Column("addr")]
+        [StringLength(255)]
+        public string? Address { get; set; }
+
+        [Column("_record_number")]
+        public int RecordNumber { get; set; } = 0;
+
+        [NotMapped]
         public string? Ext { get; set; }
 
-        [Column("傳真")]
-        [StringLength(30)]
+        [NotMapped]
         public string? Fax { get; set; }
 
-        [Column("手機")]
-        [StringLength(30)]
+        [NotMapped]
         public string? Mobile { get; set; }
 
-        [Column("EMAIL")]
-        [StringLength(100)]
+        [NotMapped]
         public string? Email { get; set; }
-
-        [Column("備註")]
-        [StringLength(200)]
-        public string? Memo { get; set; }
     }
 }

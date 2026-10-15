@@ -17,78 +17,168 @@ namespace Wx3000.Backend.Data
                     databaseCreator.Create();
                 }
 
-                // Ensure database tables exist using CREATE TABLE IF NOT EXISTS
+                // 啟動時檢查 Schema 與 9 大 Table 是否存在，不存在則自動建立
                 try
                 {
                     context.Database.ExecuteSqlRaw(@"
-                        CREATE TABLE IF NOT EXISTS products (
-                            code character varying(50) NOT NULL,
-                            name character varying(100) NOT NULL,
-                            spec character varying(100) NOT NULL,
-                            price numeric(18,2) NOT NULL,
-                            stock numeric(18,2) NOT NULL,
-                            CONSTRAINT PK_products PRIMARY KEY (code)
+                        -- 1. 建立 Schema
+                        CREATE SCHEMA IF NOT EXISTS ""c:/w3000/comm"";
+
+                        -- 2. 會計師/記帳士 (cpa)
+                        CREATE TABLE IF NOT EXISTS ""c:/w3000/comm"".cpa (
+                            _record_number integer NOT NULL DEFAULT 0,
+                            no character varying(255) NOT NULL DEFAULT '',
+                            name character varying(255) NOT NULL DEFAULT '',
+                            id character varying(255) NOT NULL DEFAULT '',
+                            cno1 character varying(255) NOT NULL DEFAULT '',
+                            cno2 character varying(255) NOT NULL DEFAULT '',
+                            tel character varying(255) NOT NULL DEFAULT '',
+                            fax character varying(255) NOT NULL DEFAULT '',
+                            unino character varying(255) NOT NULL DEFAULT '',
+                            serial numeric(4,0) NOT NULL DEFAULT 0,
+                            gno1 character varying(255) NOT NULL DEFAULT '',
+                            gno2 character varying(255) NOT NULL DEFAULT '',
+                            cword character varying(255) NOT NULL DEFAULT '',
+                            addr character varying(255) NOT NULL DEFAULT '',
+                            kind character varying(255) NOT NULL DEFAULT '',
+                            hno1 character varying(255) NOT NULL DEFAULT '',
+                            hno2 character varying(255) NOT NULL DEFAULT '',
+                            gno3 character varying(255) NOT NULL DEFAULT '',
+                            mobile character varying(255) NOT NULL DEFAULT '',
+                            email character varying(255) NOT NULL DEFAULT '',
+                            CONSTRAINT PK_cpa PRIMARY KEY (no)
                         );
-                        CREATE TABLE IF NOT EXISTS vendors (
-                            code character varying(50) NOT NULL,
-                            name character varying(100) NOT NULL,
-                            CONSTRAINT PK_vendors PRIMARY KEY (code)
+
+                        -- 3. 建檔人員/員工 (keyin)
+                        CREATE TABLE IF NOT EXISTS ""c:/w3000/comm"".keyin (
+                            _record_number integer NOT NULL DEFAULT 0,
+                            no character varying(255) NOT NULL DEFAULT '',
+                            name character varying(255) NOT NULL DEFAULT '',
+                            psw character varying(255) NOT NULL DEFAULT '',
+                            birthday character varying(255) NOT NULL DEFAULT '',
+                            tel character varying(255) NOT NULL DEFAULT '',
+                            addr character varying(255) NOT NULL DEFAULT '',
+                            id character varying(255) NOT NULL DEFAULT '',
+                            memo character varying(255) NOT NULL DEFAULT '',
+                            term character varying(255) NOT NULL DEFAULT '',
+                            cost numeric(6,0) NOT NULL DEFAULT 0,
+                            level character varying(255) NOT NULL DEFAULT '',
+                            serial numeric(4,0) NOT NULL DEFAULT 0,
+                            oneuserid character varying(255) NOT NULL DEFAULT '',
+                            onepassno character varying(255) NOT NULL DEFAULT '',
+                            email character varying(255) NOT NULL DEFAULT '',
+                            phone character varying(255) NOT NULL DEFAULT '',
+                            chkvou character varying(255) NOT NULL DEFAULT '',
+                            chkfinrp character varying(255) NOT NULL DEFAULT '',
+                            pswnew character varying(255) NOT NULL DEFAULT '',
+                            lastpswd character varying(255) NOT NULL DEFAULT '',
+                            psw1 character varying(255) NOT NULL DEFAULT '',
+                            psw2 character varying(255) NOT NULL DEFAULT '',
+                            psw3 character varying(255) NOT NULL DEFAULT '',
+                            psw4 character varying(255) NOT NULL DEFAULT '',
+                            psw5 character varying(255) NOT NULL DEFAULT '',
+                            CONSTRAINT PK_keyin PRIMARY KEY (no)
                         );
-                        CREATE TABLE IF NOT EXISTS purchase_headers (
-                            id integer GENERATED BY DEFAULT AS IDENTITY,
-                            bill_no text NOT NULL,
-                            vendor_code text NOT NULL,
-                            vendor_name text NOT NULL,
-                            total numeric(18,2) NOT NULL,
-                            created_at timestamp with time zone NOT NULL,
-                            CONSTRAINT PK_purchase_headers PRIMARY KEY (id)
+
+                        -- 4. 稅務人員 (taxno)
+                        CREATE TABLE IF NOT EXISTS ""c:/w3000/comm"".taxno (
+                            _record_number integer NOT NULL DEFAULT 0,
+                            no character varying(255) NOT NULL DEFAULT '',
+                            name character varying(255) NOT NULL DEFAULT '',
+                            department character varying(255) NOT NULL DEFAULT '',
+                            tel character varying(255) NOT NULL DEFAULT '',
+                            helpman character varying(255) NOT NULL DEFAULT '',
+                            addr character varying(255) NOT NULL DEFAULT '',
+                            memo character varying(255) NOT NULL DEFAULT '',
+                            serial numeric(4,0) NOT NULL DEFAULT 0,
+                            CONSTRAINT PK_taxno PRIMARY KEY (no)
                         );
-                        CREATE TABLE IF NOT EXISTS purchase_lines (
-                            id integer GENERATED BY DEFAULT AS IDENTITY,
-                            header_id integer NOT NULL,
-                            line_no integer NOT NULL,
-                            product_code text NOT NULL,
-                            product_name text NOT NULL,
-                            qty numeric(18,2) NOT NULL,
-                            price numeric(18,2) NOT NULL,
-                            amount numeric(18,2) NOT NULL,
-                            remark text NOT NULL,
-                            CONSTRAINT PK_purchase_lines PRIMARY KEY (id)
+
+                        -- 5. 收費項目 (recitem)
+                        CREATE TABLE IF NOT EXISTS ""c:/w3000/comm"".recitem (
+                            _record_number integer NOT NULL DEFAULT 0,
+                            itemno character varying(255) NOT NULL DEFAULT '',
+                            item character varying(255) NOT NULL DEFAULT '',
+                            amt numeric(20,4) NOT NULL DEFAULT 0,
+                            CONSTRAINT PK_recitem PRIMARY KEY (itemno)
                         );
-                        CREATE SCHEMA IF NOT EXISTS ""e3000__comm"";
-                        CREATE TABLE IF NOT EXISTS ""e3000__comm"".""基本會計師"" (
-                            ""編號"" character varying(10) NOT NULL,
-                            ""姓名"" character varying(30) NOT NULL,
-                            ""證書別"" character varying(20),
-                            ""申報ID"" character varying(20),
-                            ""證書(登錄)字號"" character varying(50),
-                            ""發文字軌"" character varying(20),
-                            ""證書編號"" character varying(30),
-                            ""公會名稱"" character varying(60),
-                            ""會員證號"" character varying(30),
-                            ""電話"" character varying(20),
-                            ""手機"" character varying(20),
-                            ""傳真"" character varying(20),
-                            ""統一編號"" character varying(20),
-                            ""地址"" character varying(100),
-                            ""會計師公會證號1"" character varying(50),
-                            ""會計師公會證號2"" character varying(50),
-                            ""EMAIL"" character varying(100),
-                            ""guid"" character varying(50),
-                            CONSTRAINT ""PK_基本會計師"" PRIMARY KEY (""編號"")
+
+                        -- 6. 備註資料 (recmemo)
+                        CREATE TABLE IF NOT EXISTS ""c:/w3000/comm"".recmemo (
+                            _record_number integer NOT NULL DEFAULT 0,
+                            mno character varying(255) NOT NULL DEFAULT '',
+                            memo text NOT NULL DEFAULT '',
+                            tx character varying(255) NOT NULL DEFAULT '',
+                            CONSTRAINT PK_recmemo PRIMARY KEY (mno)
                         );
-                        CREATE TABLE IF NOT EXISTS ""e3000__comm"".""基本稅務人員"" (
-                            ""編號"" character varying(20) NOT NULL,
-                            ""姓名"" character varying(50) NOT NULL,
-                            ""稅局"" character varying(50),
-                            ""單位"" character varying(50),
-                            ""電話"" character varying(30),
-                            ""分機"" character varying(20),
-                            ""傳真"" character varying(30),
-                            ""手機"" character varying(30),
-                            ""EMAIL"" character varying(100),
-                            ""備註"" character varying(200),
-                            CONSTRAINT ""PK_基本稅務人員"" PRIMARY KEY (""編號"")
+
+                        -- 7. 收費摘要 (recnote)
+                        CREATE TABLE IF NOT EXISTS ""c:/w3000/comm"".recnote (
+                            _record_number integer NOT NULL DEFAULT 0,
+                            noteno character varying(255) NOT NULL DEFAULT '',
+                            note character varying(255) NOT NULL DEFAULT '',
+                            CONSTRAINT PK_recnote PRIMARY KEY (noteno)
+                        );
+
+                        -- 8. 客戶基本資料 (customer)
+                        CREATE TABLE IF NOT EXISTS ""c:/w3000/comm"".customer (
+                            _record_number integer NOT NULL DEFAULT 0,
+                            no character varying(255) NOT NULL DEFAULT '',
+                            name character varying(255) NOT NULL DEFAULT '',
+                            addr character varying(255) NOT NULL DEFAULT '',
+                            unino character varying(255) NOT NULL DEFAULT '',
+                            taxno character varying(255) NOT NULL DEFAULT '',
+                            tel character varying(255) NOT NULL DEFAULT '',
+                            fax character varying(255) NOT NULL DEFAULT '',
+                            capital numeric NOT NULL DEFAULT 0,
+                            abbr character varying(255) NOT NULL DEFAULT '',
+                            engname character varying(255) NOT NULL DEFAULT '',
+                            hname character varying(255) NOT NULL DEFAULT '',
+                            hidno character varying(255) NOT NULL DEFAULT '',
+                            haddr character varying(255) NOT NULL DEFAULT '',
+                            email character varying(255) NOT NULL DEFAULT '',
+                            offno character varying(255) NOT NULL DEFAULT '',
+                            linkman character varying(255) NOT NULL DEFAULT '',
+                            linkmobile character varying(255) NOT NULL DEFAULT '',
+                            memo01 character varying(255) NOT NULL DEFAULT '',
+                            serial numeric(4,0) NOT NULL DEFAULT 0,
+                            CONSTRAINT PK_customer PRIMARY KEY (no)
+                        );
+
+                        -- 9. 購買地點 (place)
+                        CREATE TABLE IF NOT EXISTS ""c:/w3000/comm"".place (
+                            _record_number integer NOT NULL DEFAULT 0,
+                            no character varying(255) NOT NULL DEFAULT '',
+                            place character varying(255) NOT NULL DEFAULT '',
+                            addr character varying(255) NOT NULL DEFAULT '',
+                            serial numeric(4,0) NOT NULL DEFAULT 0,
+                            linkman character varying(255) NOT NULL DEFAULT '',
+                            linktel character varying(255) NOT NULL DEFAULT '',
+                            CONSTRAINT PK_place PRIMARY KEY (no)
+                        );
+
+                        -- 10. 發票購買 (buyinv)
+                        CREATE TABLE IF NOT EXISTS ""c:/w3000/comm"".buyinv (
+                            _record_number integer NOT NULL DEFAULT 0,
+                            seq numeric(4,0) NOT NULL DEFAULT 0,
+                            no character varying(255) NOT NULL DEFAULT '',
+                            name character varying(255) NOT NULL DEFAULT '',
+                            unino character varying(255) NOT NULL DEFAULT '',
+                            taxno character varying(255) NOT NULL DEFAULT '',
+                            yymm character varying(255) NOT NULL DEFAULT '',
+                            times character varying(255) NOT NULL DEFAULT '1',
+                            a02 numeric(6,0) NOT NULL DEFAULT 0,
+                            a02b numeric(6,0) NOT NULL DEFAULT 0,
+                            a03 numeric(6,0) NOT NULL DEFAULT 0,
+                            a03b numeric(6,0) NOT NULL DEFAULT 0,
+                            spec numeric(6,0) NOT NULL DEFAULT 0,
+                            c02 numeric(6,0) NOT NULL DEFAULT 0,
+                            c03 numeric(6,0) NOT NULL DEFAULT 0,
+                            c03b numeric(6,0) NOT NULL DEFAULT 0,
+                            serial numeric(4,0) NOT NULL DEFAULT 0,
+                            tranflg boolean NOT NULL DEFAULT false,
+                            buydate character varying(255) NOT NULL DEFAULT '',
+                            CONSTRAINT PK_buyinv PRIMARY KEY (yymm, times, no)
                         );
                     ");
                 }
@@ -101,86 +191,6 @@ namespace Wx3000.Backend.Data
             {
                 context.Database.EnsureCreated();
             }
-
-            if (!context.Products.Any())
-            {
-                var products = new List<Product>
-                {
-                    new Product { Code = "A001", Name = "標準螺絲 M6x20", Spec = "白鐵/袋裝100入", Price = 120.00m, Stock = 500.00m },
-                    new Product { Code = "A002", Name = "高強度螺帽 M6", Spec = "碳鋼/盒裝500入", Price = 350.00m, Stock = 200.00m },
-                    new Product { Code = "A003", Name = "工業用平墊圈 M6", Spec = "不銹鋼304", Price = 85.00m, Stock = 1000.00m },
-                    new Product { Code = "B001", Name = "電動起子頭 PH2x65", Spec = "S2合金鋼/10支裝", Price = 260.00m, Stock = 150.00m },
-                    new Product { Code = "B002", Name = "磁性深孔套筒 8mm", Spec = "鉻釩鋼", Price = 95.00m, Stock = 80.00m },
-                    new Product { Code = "C001", Name = "氣動長軸衝擊扳手", Spec = "1/2英吋 750Nm", Price = 4200.00m, Stock = 12.00m },
-                    new Product { Code = "C002", Name = "專業級熱風槍", Spec = "1500W 雙溫控", Price = 1850.00m, Stock = 25.00m },
-                    new Product { Code = "D001", Name = "數位游標卡尺 150mm", Spec = "高精度0.01mm", Price = 980.00m, Stock = 45.00m }
-                };
-                context.Products.AddRange(products);
-            }
-
-            if (!context.Vendors.Any())
-            {
-                var vendors = new List<Vendor>
-                {
-                    new Vendor { Code = "F001", Name = "宏達五金工業股份有限公司" },
-                    new Vendor { Code = "F002", Name = "台灣螺絲製造廠" },
-                    new Vendor { Code = "F003", Name = "聯發工具批發行" },
-                    new Vendor { Code = "F004", Name = "勝傑氣動器材有限公司" },
-                    new Vendor { Code = "F005", Name = "正大精密量具實業社" }
-                };
-                context.Vendors.AddRange(vendors);
-            }
-
-            if (!context.CpaMasters.Any())
-            {
-                var cpas = new List<CpaMaster>
-                {
-                    new CpaMaster { CpaCode = "C001", CpaName = "張志明", LicenseNo = "台財證(一)字第10284號", OfficeName = "安達聯合會計師事務所", Tel = "02-23910088", Fax = "02-23910089", Address = "臺北市中正區羅斯福路二段100號5樓", Memo = "主辦稅務簽證與財務審計" },
-                    new CpaMaster { CpaCode = "C002", CpaName = "李春嬌", LicenseNo = "台財證(一)字第11450號", OfficeName = "誠信會計師事務所", Tel = "04-22019988", Fax = "04-22019989", Address = "臺中市西區台灣大道二段200號8樓", Memo = "工商登記與租稅規劃" },
-                    new CpaMaster { CpaCode = "C003", CpaName = "陳建宏", LicenseNo = "台財證(一)字第12890號", OfficeName = "正大會計師事務所", Tel = "07-3386655", Fax = "07-3386656", Address = "高雄市前鎮區中山二路5號12樓", Memo = "資產評估與資本額查核" }
-                };
-                context.CpaMasters.AddRange(cpas);
-            }
-
-            try
-            {
-                if (!context.EmpMasters.Any())
-                {
-                    var emps = new List<EmpMaster>
-                    {
-                        new EmpMaster { EmpCode = "E001", EmpName = "王小明", DepName = "資訊部", Mobile = "0912-345678", Email = "wang@example.com" },
-                        new EmpMaster { EmpCode = "E002", EmpName = "林美麗", DepName = "會計部", Mobile = "0923-456789", Email = "lin@example.com" },
-                        new EmpMaster { EmpCode = "E003", EmpName = "張大同", DepName = "業務部", Mobile = "0934-567890", Email = "chang@example.com" }
-                    };
-                    context.EmpMasters.AddRange(emps);
-                }
-            }
-            catch
-            {
-                // Table created via raw sql if not mapped
-            }
-
-            try
-            {
-                if (!context.TaxOfficerMasters.Any())
-                {
-                    var taxOfficers = new List<TaxOfficerMaster>
-                    {
-                        new TaxOfficerMaster { TaxCode = "T001", TaxName = "張稅務", TaxBureau = "台北國稅局", Unit = "營所稅股", Tel = "02-23113711", Ext = "1201", Mobile = "0911-123456", Email = "tax_chang@ntbt.gov.tw", Memo = "營利事業所得稅審查" },
-                        new TaxOfficerMaster { TaxCode = "T002", TaxName = "李稽徵", TaxBureau = "財政部北區國稅局", Unit = "營業稅股", Tel = "03-3396789", Ext = "1405", Mobile = "0922-234567", Email = "tax_lee@ntbna.gov.tw", Memo = "營業稅申購與查核" },
-                        new TaxOfficerMaster { TaxCode = "T003", TaxName = "王審查", TaxBureau = "財政部中區國稅局", Unit = "綜所稅股", Tel = "04-23051111", Ext = "1608", Mobile = "0933-345678", Email = "tax_wang@ntbca.gov.tw", Memo = "綜合所得稅暨扣繳諮詢" }
-                    };
-                    context.TaxOfficerMasters.AddRange(taxOfficers);
-                }
-            }
-            catch
-            {
-                // Table created via raw sql if not mapped
-            }
-
-            context.SaveChanges();
-
-            context.SaveChanges();
         }
     }
 }

@@ -19,84 +19,7 @@ namespace Wx3000.Backend.Controllers
 
         private async Task EnsureTableCreatedAndSeededAsync(string period, string times)
         {
-            await _seedLock.WaitAsync();
-            try
-            {
-                await _context.Database.ExecuteSqlRawAsync(@"
-                    CREATE SCHEMA IF NOT EXISTS ""e3000__comm"";
-                    CREATE TABLE IF NOT EXISTS ""e3000__comm"".""基本發票購買"" (
-                        ""期別"" character varying(20) NOT NULL,
-                        ""次數"" character varying(10) NOT NULL DEFAULT '1',
-                        ""公司編號"" character varying(30) NOT NULL,
-                        ""公司簡稱"" character varying(255) DEFAULT '',
-                        ""公司統編"" character varying(20) DEFAULT '',
-                        ""稅籍編號"" character varying(30) DEFAULT '',
-                        ""手開二聯"" integer NOT NULL DEFAULT 0,
-                        ""手開二聯副"" integer NOT NULL DEFAULT 0,
-                        ""手開三聯"" integer NOT NULL DEFAULT 0,
-                        ""手開三聯副"" integer NOT NULL DEFAULT 0,
-                        ""手開特種"" integer NOT NULL DEFAULT 0,
-                        ""收銀二聯"" integer NOT NULL DEFAULT 0,
-                        ""收銀三聯"" integer NOT NULL DEFAULT 0,
-                        ""收銀三聯副"" integer NOT NULL DEFAULT 0,
-                        ""縣市別"" character varying(50) DEFAULT '',
-                        ""購買地點"" character varying(50) DEFAULT '',
-                        ""建檔人員"" character varying(50) DEFAULT '',
-                        ""guid"" character varying(50) DEFAULT '',
-                        CONSTRAINT ""PK_基本發票購買"" PRIMARY KEY (""期別"", ""次數"", ""公司編號"")
-                    );
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ALTER COLUMN ""期別"" TYPE character varying(30);
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ALTER COLUMN ""公司編號"" TYPE character varying(50);
-                    DO $$ BEGIN ALTER TABLE ""e3000__comm"".""基本發票購買"" ALTER COLUMN ""序"" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN END $$;
-                    DO $$ BEGIN ALTER TABLE ""e3000__comm"".""基本發票購買"" ALTER COLUMN ""流水號"" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN END $$;
-                    DO $$ BEGIN ALTER TABLE ""e3000__comm"".""基本發票購買"" ALTER COLUMN ""上次順序"" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN END $$;
-                    DO $$ BEGIN ALTER TABLE ""e3000__comm"".""基本發票購買"" ALTER COLUMN ""購買次數"" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN END $$;
-                    DO $$ BEGIN ALTER TABLE ""e3000__comm"".""基本發票購買"" ALTER COLUMN ""guid"" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN END $$;
-                    DO $$ BEGIN ALTER TABLE ""e3000__comm"".""基本發票購買"" ALTER COLUMN ""guid"" TYPE character varying(100); EXCEPTION WHEN OTHERS THEN END $$;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""次數"" character varying(10) NOT NULL DEFAULT '1';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""購買次數"" character varying(10) NOT NULL DEFAULT '1';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""公司名稱"" character varying(255) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""公司簡稱"" character varying(255) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""公司統編"" character varying(20) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""稅籍編號"" character varying(30) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""公司地址"" character varying(255) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""手開二聯"" integer NOT NULL DEFAULT 0;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""手開二聯副"" integer NOT NULL DEFAULT 0;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""手開三聯"" integer NOT NULL DEFAULT 0;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""手開三聯副"" integer NOT NULL DEFAULT 0;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""手開特種"" integer NOT NULL DEFAULT 0;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""收銀二聯"" integer NOT NULL DEFAULT 0;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""收銀三聯"" integer NOT NULL DEFAULT 0;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""收銀三聯副"" integer NOT NULL DEFAULT 0;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""縣市別"" character varying(50) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""購買地點"" character varying(50) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""購票地點編號"" character varying(50) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""建檔人員"" character varying(50) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""登打人員編號"" character varying(50) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""序"" integer DEFAULT 1;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""流水號"" integer DEFAULT 1;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""上次順序"" integer DEFAULT 0;
-                    ALTER TABLE ""e3000__comm"".""基本發票購買"" ADD COLUMN IF NOT EXISTS ""guid"" character varying(50) DEFAULT '';
-
-                    ALTER TABLE ""e3000__comm"".""公司資料"" ADD COLUMN IF NOT EXISTS ""購票地點編號"" character varying(50) DEFAULT '';
-                    ALTER TABLE ""e3000__comm"".""公司資料"" ADD COLUMN IF NOT EXISTS ""登打人員編號"" character varying(50) DEFAULT '';
-
-                    DELETE FROM ""e3000__comm"".""基本發票購買"" a
-                    USING ""e3000__comm"".""基本發票購買"" b
-                    WHERE a.ctid < b.ctid
-                      AND a.""期別"" = b.""期別""
-                      AND a.""次數"" = b.""次數""
-                      AND a.""公司編號"" = b.""公司編號"";
-                ");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"EnsureTableCreatedAndSeededAsync error: {ex.Message}");
-            }
-            finally
-            {
-                _seedLock.Release();
-            }
+            await Task.CompletedTask;
         }
 
         // GET: api/wbase3020?period=11505-06&times=1&keyword=xxx
@@ -471,70 +394,37 @@ namespace Wx3000.Backend.Controllers
 
                 await EnsureTableCreatedAndSeededAsync(targetPeriod, targetTimes);
 
-                var cleanPeriod = targetPeriod.Replace("'", "''");
-                var cleanTimes = targetTimes.Replace("'", "''");
+var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
+                var existingPurchases = await _context.InvoicePurchaseMasters
+                    .Where(x => x.Period == targetPeriod && (x.Times == targetTimes || x.Times == targetTimes.TrimStart('0')))
+                    .ToListAsync();
+                var existingMap = existingPurchases.ToDictionary(x => x.CompanyCode.Trim().ToUpper(), x => x);
 
-                var sql = $@"
-DO $$ 
-DECLARE
-  myRec RECORD;
-  aa text := '';
-BEGIN
-  FOR myRec IN 
-    SELECT 
-      ""公司編號"", 
-      COALESCE(""公司名稱"", '') AS ""公司名稱"", 
-      COALESCE(""公司簡稱"", '') AS ""公司簡稱"", 
-      COALESCE(""公司統編"", '') AS ""公司統編"", 
-      COALESCE(""稅籍編號"", '') AS ""稅籍編號"", 
-      COALESCE(""公司地址"", '') AS ""公司地址"", 
-      COALESCE(""購票地點編號"", '') AS ""購票地點編號"", 
-      COALESCE(""登打人員編號"", '') AS ""登打人員編號""
-    FROM ""e3000__comm"".""公司資料"" 
-    WHERE ""公司編號"" IS NOT NULL AND TRIM(""公司編號"") <> ''
-    ORDER BY ""公司編號""
-  LOOP
-    SELECT ""公司編號"" FROM ""e3000__comm"".""基本發票購買"" 
-    WHERE ""公司編號"" = myRec.""公司編號"" 
-      AND ""期別"" = '{cleanPeriod}' 
-      AND (""購買次數"" = '{cleanTimes}' OR ""次數"" = '{cleanTimes}') 
-    INTO aa; 
-
-    IF NOT FOUND THEN 
-      INSERT INTO ""e3000__comm"".""基本發票購買"" (
-        ""序"", ""流水號"", ""上次順序"", ""期別"", ""次數"", ""購買次數"", 
-        ""公司編號"", ""公司名稱"", ""公司簡稱"", ""公司統編"", ""稅籍編號"", 
-        ""公司地址"", ""購票地點編號"", ""購買地點"", ""登打人員編號"", ""建檔人員"", ""guid""
-      ) VALUES (
-        1, 1, 0, '{cleanPeriod}', '{cleanTimes}', '{cleanTimes}', 
-        myRec.""公司編號"", myRec.""公司名稱"", myRec.""公司簡稱"", myRec.""公司統編"", myRec.""稅籍編號"", 
-        myRec.""公司地址"", myRec.""購票地點編號"", myRec.""購票地點編號"", myRec.""登打人員編號"", myRec.""登打人員編號"",
-        md5(random()::text || clock_timestamp()::text)
-      ); 
-    ELSE 
-      UPDATE ""e3000__comm"".""基本發票購買"" 
-      SET 
-        ""公司名稱"" = myRec.""公司名稱"", 
-        ""公司簡稱"" = myRec.""公司簡稱"", 
-        ""公司統編"" = myRec.""公司統編"", 
-        ""稅籍編號"" = myRec.""稅籍編號"", 
-        ""公司地址"" = myRec.""公司地址"", 
-        ""購票地點編號"" = myRec.""購票地點編號"", 
-        ""購買地點"" = myRec.""購票地點編號"", 
-        ""登打人員編號"" = myRec.""登打人員編號"", 
-        ""建檔人員"" = myRec.""登打人員編號"",
-        ""次數"" = '{cleanTimes}',
-        ""購買次數"" = '{cleanTimes}'
-      WHERE ""公司編號"" = myRec.""公司編號"" 
-        AND ""期別"" = '{cleanPeriod}' 
-        AND (""購買次數"" = '{cleanTimes}' OR ""次數"" = '{cleanTimes}');
-    END IF; 
-  END LOOP; 
-END; 
-$$;
-";
-
-                await _context.Database.ExecuteSqlRawAsync(sql);
+                foreach (var c in companies)
+                {
+                    if (string.IsNullOrWhiteSpace(c.CompanyCode)) continue;
+                    var code = c.CompanyCode.Trim().ToUpper();
+                    if (!existingMap.TryGetValue(code, out var item))
+                    {
+                        item = new InvoicePurchaseMaster
+                        {
+                            Period = targetPeriod,
+                            Times = targetTimes,
+                            CompanyCode = code,
+                            CompanyShortName = c.ShortName ?? c.CompanyName ?? string.Empty,
+                            UnifiedNo = c.UnifiedNo ?? string.Empty,
+                            TaxNo = c.TaxNo ?? string.Empty
+                        };
+                        _context.InvoicePurchaseMasters.Add(item);
+                    }
+                    else
+                    {
+                        item.CompanyShortName = c.ShortName ?? c.CompanyName ?? string.Empty;
+                        item.UnifiedNo = c.UnifiedNo ?? string.Empty;
+                        item.TaxNo = c.TaxNo ?? string.Empty;
+                    }
+                }
+                await _context.SaveChangesAsync();
 
                 var totalCount = await _context.InvoicePurchaseMasters
                     .CountAsync(x => x.Period == targetPeriod && x.Times == targetTimes);

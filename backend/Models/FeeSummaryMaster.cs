@@ -4,27 +4,28 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Wx3000.Backend.Models
 {
-    [Table("基本收費摘要", Schema = "e3000__comm")]
+    [Table("recnote", Schema = "c:/w3000/comm")]
     public class FeeSummaryMaster
     {
-        [Column("序")]
-        public int? Seq { get; set; }
-
         [Key]
-        [Column("編號")]
-        [StringLength(50)]
+        [Column("noteno")]
+        [StringLength(255)]
         public string SummaryCode { get; set; } = string.Empty;
 
-        [Column("說明")]
-        [StringLength(50)]
+        [Column("note")]
+        [StringLength(255)]
         public string? SummaryName { get; set; }
 
-        [Column("摘要")]
-        [StringLength(512)]
+        [Column("_record_number")]
+        public int RecordNumber { get; set; } = 0;
+
+        [NotMapped]
         public string? Content { get; set; }
 
-        [Column("guid")]
-        [StringLength(50)]
+        [NotMapped]
+        public int? Seq { get; set; }
+
+        [NotMapped]
         public string? Guid { get; set; }
     }
 }

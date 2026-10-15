@@ -18,28 +18,7 @@ namespace Wx3000.Backend.Controllers
 
         private async Task EnsureTableCreatedAsync()
         {
-            try
-            {
-                await _context.Database.ExecuteSqlRawAsync(@"
-                    CREATE SCHEMA IF NOT EXISTS ""e3000__comm"";
-                    CREATE TABLE IF NOT EXISTS ""e3000__comm"".""基本備註"" (
-                        ""序"" integer,
-                        ""編號"" character varying(50) NOT NULL,
-                        ""說明"" character varying(50),
-                        ""備註"" character varying(512),
-                        ""guid"" character varying(50),
-                        CONSTRAINT ""PK_基本備註"" PRIMARY KEY (""編號"")
-                    );
-                    ALTER TABLE ""e3000__comm"".""基本備註"" ADD COLUMN IF NOT EXISTS ""序"" integer;
-                    ALTER TABLE ""e3000__comm"".""基本備註"" ADD COLUMN IF NOT EXISTS ""說明"" character varying(50);
-                    ALTER TABLE ""e3000__comm"".""基本備註"" ADD COLUMN IF NOT EXISTS ""備註"" character varying(512);
-                    ALTER TABLE ""e3000__comm"".""基本備註"" ADD COLUMN IF NOT EXISTS ""guid"" character varying(50);
-                ");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"EnsureTableCreatedAsync error in Wbase1070: {ex.Message}");
-            }
+            await Task.CompletedTask;
         }
 
         // GET: api/wbase1070?keyword=xxx

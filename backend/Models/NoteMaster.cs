@@ -4,27 +4,28 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Wx3000.Backend.Models
 {
-    [Table("基本備註", Schema = "e3000__comm")]
+    [Table("recmemo", Schema = "c:/w3000/comm")]
     public class NoteMaster
     {
-        [Column("序")]
-        public int? Seq { get; set; }
-
         [Key]
-        [Column("編號")]
-        [StringLength(50)]
+        [Column("mno")]
+        [StringLength(255)]
         public string NoteCode { get; set; } = string.Empty;
 
-        [Column("說明")]
-        [StringLength(50)]
+        [Column("tx")]
+        [StringLength(255)]
         public string? NoteName { get; set; }
 
-        [Column("備註")]
-        [StringLength(512)]
+        [Column("memo")]
         public string? Content { get; set; }
 
-        [Column("guid")]
-        [StringLength(50)]
+        [Column("_record_number")]
+        public int RecordNumber { get; set; } = 0;
+
+        [NotMapped]
+        public int? Seq { get; set; }
+
+        [NotMapped]
         public string? Guid { get; set; }
     }
 }

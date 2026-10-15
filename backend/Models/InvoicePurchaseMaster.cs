@@ -4,171 +4,170 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Wx3000.Backend.Models
 {
-    [Table("基本發票購買", Schema = "e3000__comm")]
+    [Table("buyinv", Schema = "c:/w3000/comm")]
     public class InvoicePurchaseMaster
     {
-        [Column("期別")]
-        [StringLength(20)]
+        [Column("yymm")]
+        [StringLength(255)]
         public string Period { get; set; } = string.Empty;
 
-        [Column("次數")]
-        [StringLength(10)]
+        [Column("times")]
+        [StringLength(255)]
         public string Times { get; set; } = "1";
 
-        [Column("公司編號")]
-        [StringLength(30)]
+        [Column("no")]
+        [StringLength(255)]
         public string CompanyCode { get; set; } = string.Empty;
 
-        [Column("公司簡稱")]
+        [Column("name")]
         [StringLength(255)]
         public string? CompanyShortName { get; set; }
 
-        [Column("公司統編")]
-        [StringLength(20)]
+        [Column("unino")]
+        [StringLength(255)]
         public string? UnifiedNo { get; set; }
 
-        [Column("稅籍編號")]
-        [StringLength(30)]
+        [Column("taxno")]
+        [StringLength(255)]
         public string? TaxNo { get; set; }
 
-        [Column("手開二聯")]
+        [Column("a02")]
         public int ManualTwoDup { get; set; } = 0;
 
-        [Column("手開二聯副")]
+        [Column("a02b")]
         public int ManualTwoDupSub { get; set; } = 0;
 
-        [Column("手開三聯")]
+        [Column("a03")]
         public int ManualThreeDup { get; set; } = 0;
 
-        [Column("手開三聯副")]
+        [Column("a03b")]
         public int ManualThreeDupSub { get; set; } = 0;
 
-        [Column("手開特種")]
+        [Column("spec")]
         public int ManualSpecial { get; set; } = 0;
 
-        [Column("特種")]
-        public decimal? SpecialTotal { get; set; }
-
-        [Column("收銀二聯")]
+        [Column("c02")]
         public int CashTwoDup { get; set; } = 0;
 
-        [Column("收銀三聯")]
+        [Column("c03")]
         public int CashThreeDup { get; set; } = 0;
 
-        [Column("收銀三聯副")]
+        [Column("c03b")]
         public int CashThreeDupSub { get; set; } = 0;
 
         // 字軌與起迄號
-        [Column("手開二聯字軌")]
-        [StringLength(10)]
+        [Column("a02beg")]
+        [StringLength(255)]
         public string? ManualTwoTrack { get; set; }
 
-        [Column("手開二聯起號")]
-        [StringLength(20)]
+        [Column("a02begno")]
+        [StringLength(255)]
         public string? ManualTwoStartNo { get; set; }
 
-        [Column("手開二聯迄號")]
-        [StringLength(20)]
+        [Column("a02endno")]
+        [StringLength(255)]
         public string? ManualTwoEndNo { get; set; }
 
-        [Column("手開二聯副字軌")]
-        [StringLength(10)]
+        [Column("a02bbeg")]
+        [StringLength(255)]
         public string? ManualTwoSubTrack { get; set; }
 
-        [Column("手開二聯副起號")]
-        [StringLength(20)]
+        [Column("a02bbegno")]
+        [StringLength(255)]
         public string? ManualTwoSubStartNo { get; set; }
 
-        [Column("手開二聯副迄號")]
-        [StringLength(20)]
+        [Column("a02bendno")]
+        [StringLength(255)]
         public string? ManualTwoSubEndNo { get; set; }
 
-        [Column("手開三聯字軌")]
-        [StringLength(10)]
+        [Column("a03beg")]
+        [StringLength(255)]
         public string? ManualThreeTrack { get; set; }
 
-        [Column("手開三聯起號")]
-        [StringLength(20)]
+        [Column("a03begno")]
+        [StringLength(255)]
         public string? ManualThreeStartNo { get; set; }
 
-        [Column("手開三聯迄號")]
-        [StringLength(20)]
+        [Column("a03endno")]
+        [StringLength(255)]
         public string? ManualThreeEndNo { get; set; }
 
-        [Column("手開三聯副字軌")]
-        [StringLength(10)]
+        [Column("a03bbeg")]
+        [StringLength(255)]
         public string? ManualThreeSubTrack { get; set; }
 
-        [Column("手開三聯副起號")]
-        [StringLength(20)]
+        [Column("a03bbegno")]
+        [StringLength(255)]
         public string? ManualThreeSubStartNo { get; set; }
 
-        [Column("手開三聯副迄號")]
-        [StringLength(20)]
+        [Column("a03bendno")]
+        [StringLength(255)]
         public string? ManualThreeSubEndNo { get; set; }
 
-        [Column("特種字軌")]
-        [StringLength(10)]
+        [Column("specbeg")]
+        [StringLength(255)]
         public string? SpecialTrack { get; set; }
 
-        [Column("特種起號")]
-        [StringLength(20)]
+        [Column("specbegno")]
+        [StringLength(255)]
         public string? SpecialStartNo { get; set; }
 
-        [Column("特種迄號")]
-        [StringLength(20)]
+        [Column("specendno")]
+        [StringLength(255)]
         public string? SpecialEndNo { get; set; }
 
-        [Column("收銀二聯字軌")]
-        [StringLength(10)]
+        [Column("c02beg")]
+        [StringLength(255)]
         public string? CashTwoTrack { get; set; }
 
-        [Column("收銀二聯起號")]
-        [StringLength(20)]
+        [Column("c02begno")]
+        [StringLength(255)]
         public string? CashTwoStartNo { get; set; }
 
-        [Column("收銀二聯迄號")]
-        [StringLength(20)]
+        [Column("c02endno")]
+        [StringLength(255)]
         public string? CashTwoEndNo { get; set; }
 
-        [Column("收銀三聯字軌")]
-        [StringLength(10)]
+        [Column("c03beg")]
+        [StringLength(255)]
         public string? CashThreeTrack { get; set; }
 
-        [Column("收銀三聯起號")]
-        [StringLength(20)]
+        [Column("c03begno")]
+        [StringLength(255)]
         public string? CashThreeStartNo { get; set; }
 
-        [Column("收銀三聯迄號")]
-        [StringLength(20)]
+        [Column("c03endno")]
+        [StringLength(255)]
         public string? CashThreeEndNo { get; set; }
 
-        [Column("收銀三聯副字軌")]
-        [StringLength(10)]
+        [Column("c03bbeg")]
+        [StringLength(255)]
         public string? CashThreeSubTrack { get; set; }
 
-        [Column("收銀三聯副起號")]
-        [StringLength(20)]
+        [Column("c03bbegno")]
+        [StringLength(255)]
         public string? CashThreeSubStartNo { get; set; }
 
-        [Column("收銀三聯副迄號")]
-        [StringLength(20)]
+        [Column("c03bendno")]
+        [StringLength(255)]
         public string? CashThreeSubEndNo { get; set; }
 
-        [Column("縣市別")]
-        [StringLength(50)]
+        [Column("_record_number")]
+        public int RecordNumber { get; set; } = 0;
+
+        [NotMapped]
+        public decimal? SpecialTotal { get; set; }
+
+        [NotMapped]
         public string? City { get; set; }
 
-        [Column("購買地點")]
-        [StringLength(50)]
+        [NotMapped]
         public string? PlaceCode { get; set; }
 
-        [Column("建檔人員")]
-        [StringLength(50)]
+        [NotMapped]
         public string? EmpCode { get; set; }
 
-        [Column("guid")]
-        [StringLength(50)]
+        [NotMapped]
         public string? Guid { get; set; }
 
         [NotMapped]

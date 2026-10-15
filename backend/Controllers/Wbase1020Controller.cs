@@ -35,7 +35,7 @@ namespace Wx3000.Backend.Controllers
                 cmd.CommandText = @"
                     SELECT column_name, data_type, character_maximum_length 
                     FROM information_schema.columns 
-                    WHERE table_schema = 'e3000__comm' AND table_name = '基本會計師';
+                    WHERE table_schema = 'c:/w3000/comm' AND table_name = 'cpa';
                 ";
                 using var r = await cmd.ExecuteReaderAsync();
                 var cols = new List<object>();

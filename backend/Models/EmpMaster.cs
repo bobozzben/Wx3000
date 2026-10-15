@@ -4,36 +4,47 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Wx3000.Backend.Models
 {
-    [Table("建檔人員", Schema = "e3000__comm")]
+    [Table("keyin", Schema = "c:/w3000/comm")]
     public class EmpMaster
     {
         [Key]
-        [Column("建檔人員編號")]
-        [StringLength(20)]
+        [Column("no")]
+        [StringLength(255)]
         public string EmpCode { get; set; } = string.Empty;
 
-        [Column("建檔人員名稱")]
-        [StringLength(50)]
+        [Column("name")]
+        [StringLength(255)]
         public string EmpName { get; set; } = string.Empty;
 
-        [Column("建檔人員密碼")]
-        [StringLength(50)]
+        [Column("memo")]
+        [StringLength(255)]
         public string? DepName { get; set; }
 
-        [Column("建檔人員手機")]
-        [StringLength(30)]
+        [Column("phone")]
+        [StringLength(255)]
         public string? Mobile { get; set; }
 
-        [Column("建檔人員信箱")]
-        [StringLength(100)]
+        [Column("email")]
+        [StringLength(255)]
         public string? Email { get; set; }
 
         [Column("oneuserid")]
-        [StringLength(50)]
+        [StringLength(255)]
         public string? OneUserId { get; set; }
 
         [Column("onepassno")]
-        [StringLength(50)]
+        [StringLength(255)]
         public string? OnePassNo { get; set; }
+
+        [Column("psw")]
+        [StringLength(255)]
+        public string? Psw { get; set; }
+
+        [Column("birthday")]
+        [StringLength(255)]
+        public string? Birthday { get; set; }
+
+        [Column("_record_number")]
+        public int RecordNumber { get; set; } = 0;
     }
 }

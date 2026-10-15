@@ -29,7 +29,7 @@ namespace Wx3000.Backend.Controllers
                 cmd1.CommandText = @"
                     SELECT column_name, data_type 
                     FROM information_schema.columns 
-                    WHERE table_schema = 'e3000__comm' AND table_name = '建檔人員';
+                    WHERE table_schema = 'c:/w3000/comm' AND table_name = 'keyin';
                 ";
                 using var r1 = await cmd1.ExecuteReaderAsync();
                 var cols = new List<string>();
@@ -40,7 +40,7 @@ namespace Wx3000.Backend.Controllers
                 r1.Close();
 
                 using var cmd2 = conn.CreateCommand();
-                cmd2.CommandText = @"SELECT * FROM e3000__comm.""建檔人員"" LIMIT 5;";
+                cmd2.CommandText = @"SELECT * FROM ""c:/w3000/comm"".keyin LIMIT 5;";
                 using var r2 = await cmd2.ExecuteReaderAsync();
                 var rows = new List<Dictionary<string, object>>();
                 while (await r2.ReadAsync())

@@ -18,37 +18,7 @@ namespace Wx3000.Backend.Controllers
 
         private async Task EnsureTableCreatedAsync()
         {
-            try
-            {
-                await _context.Database.ExecuteSqlRawAsync(@"
-                    CREATE SCHEMA IF NOT EXISTS ""e3000__comm"";
-                    CREATE TABLE IF NOT EXISTS ""e3000__comm"".""基本收費項目"" (
-                        ""項目"" character varying(50) NOT NULL,
-                        ""項目名稱"" character varying(100),
-                        ""收費金額"" numeric(18,2) NOT NULL DEFAULT 0,
-                        ""guid"" character varying(50),
-                        CONSTRAINT ""PK_基本收費項目"" PRIMARY KEY (""項目"")
-                    );
-                ");
-
-                if (!await _context.FeeItemMasters.AnyAsync())
-                {
-                    var sampleFees = new List<FeeItemMaster>
-                    {
-                        new FeeItemMaster { FeeCode = "01", FeeName = "記帳服務費", Price = 3500.00m, Guid = Guid.NewGuid().ToString("N").ToUpper() },
-                        new FeeItemMaster { FeeCode = "02", FeeName = "營業稅申報費", Price = 1500.00m, Guid = Guid.NewGuid().ToString("N").ToUpper() },
-                        new FeeItemMaster { FeeCode = "03", FeeName = "各式扣繳申報費", Price = 2000.00m, Guid = Guid.NewGuid().ToString("N").ToUpper() },
-                        new FeeItemMaster { FeeCode = "04", FeeName = "營所稅結算申報費", Price = 6000.00m, Guid = Guid.NewGuid().ToString("N").ToUpper() },
-                        new FeeItemMaster { FeeCode = "05", FeeName = "資本額查核簽證費", Price = 12000.00m, Guid = Guid.NewGuid().ToString("N").ToUpper() }
-                    };
-                    await _context.FeeItemMasters.AddRangeAsync(sampleFees);
-                    await _context.SaveChangesAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"EnsureTableCreatedAsync error in Wbase1060: {ex.Message}");
-            }
+            await Task.CompletedTask;
         }
 
         // GET: api/wbase1060?keyword=xxx

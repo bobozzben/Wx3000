@@ -18,24 +18,7 @@ namespace Wx3000.Backend.Controllers
 
         private async Task EnsureTableCreatedAsync()
         {
-            try
-            {
-                await _context.Database.ExecuteSqlRawAsync(@"
-                    CREATE SCHEMA IF NOT EXISTS ""e3000__comm"";
-                    CREATE TABLE IF NOT EXISTS ""e3000__comm"".""基本購票地點"" (
-                        ""編號"" character varying(50) NOT NULL,
-                        ""購買地點"" character varying(255) NOT NULL DEFAULT '',
-                        ""連絡人"" character varying(255) NOT NULL DEFAULT '',
-                        ""連絡電話"" character varying(255) NOT NULL DEFAULT '',
-                        ""購買地址"" character varying(255) NOT NULL DEFAULT '',
-                        CONSTRAINT ""PK_基本購票地點"" PRIMARY KEY (""編號"")
-                    );
-                ");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"EnsureTableCreatedAsync error in Wbase3010: {ex.Message}");
-            }
+            await Task.CompletedTask;
         }
 
         // GET: api/wbase3010?keyword=xxx
