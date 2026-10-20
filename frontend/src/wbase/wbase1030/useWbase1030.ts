@@ -12,6 +12,7 @@ import {
   printEmpList,
   callWaccrep3106b,
 } from '../../services/wbase1030';
+import { isValidEmail, EMAIL_SAVE_WARNING_TOAST } from '../../services/validation';
 
 interface Wbase1030State {
   rows: EmpItem[];
@@ -23,6 +24,8 @@ interface Wbase1030State {
   setErrorToast: (msg: string | null) => void;
   showAutoCloseToast: boolean;
   setShowAutoCloseToast: (show: boolean) => void;
+  toastMessage: string | null;
+  setToastMessage: (msg: string | null) => void;
   isDeleteConfirmOpen: boolean;
   setIsDeleteConfirmOpen: (open: boolean) => void;
   isPrintOpen: boolean;
@@ -52,6 +55,8 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
   setErrorToast: (errorToast) => set({ errorToast }),
   showAutoCloseToast: false,
   setShowAutoCloseToast: (showAutoCloseToast) => set({ showAutoCloseToast }),
+  toastMessage: null,
+  setToastMessage: (toastMessage) => set({ toastMessage }),
   isDeleteConfirmOpen: false,
   setIsDeleteConfirmOpen: (isDeleteConfirmOpen) => set({ isDeleteConfirmOpen }),
   isPrintOpen: false,
@@ -79,8 +84,12 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
       } else {
         await updateEmp(updatedRow.empCode.trim(), updatedRow);
       }
-      set({ showAutoCloseToast: true });
-      setTimeout(() => set({ showAutoCloseToast: false }), 2000);
+      const isEmailInvalid = !isValidEmail(updatedRow.email);
+      const toastMsg = isEmailInvalid
+        ? EMAIL_SAVE_WARNING_TOAST
+        : '已成功儲存至 PostgreSQL 資料庫！';
+      set({ showAutoCloseToast: true, toastMessage: toastMsg });
+      setTimeout(() => set({ showAutoCloseToast: false }), 3000);
       await get().refreshData();
     } catch (e: any) {
       console.error('Save employee row error:', e);
@@ -97,8 +106,12 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
           await updateEmp(row.empCode.trim(), row);
         }
       }
-      set({ showAutoCloseToast: true });
-      setTimeout(() => set({ showAutoCloseToast: false }), 2000);
+      const hasInvalidEmail = get().rows.some((r) => !isValidEmail(r.email));
+      const toastMsg = hasInvalidEmail
+        ? EMAIL_SAVE_WARNING_TOAST
+        : '已成功儲存至 PostgreSQL 資料庫！';
+      set({ showAutoCloseToast: true, toastMessage: toastMsg });
+      setTimeout(() => set({ showAutoCloseToast: false }), 3000);
       await get().refreshData();
     } catch (e: any) {
       console.error('Batch save employee error:', e);

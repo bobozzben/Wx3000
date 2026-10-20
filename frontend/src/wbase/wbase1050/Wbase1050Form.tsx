@@ -3,6 +3,7 @@ import type { TaxOfficerItem } from '../../services/wbase1050';
 import { FoxProGridV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { ColumnDefV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { SearchItem } from '../../components/FoxProGrid/SearchModal';
+import { isValidEmail } from '../../services/validation';
 
 interface Wbase1050FormProps {
   rows: TaxOfficerItem[];
@@ -26,7 +27,30 @@ const TAX_COLUMNS: ColumnDefV2<TaxOfficerItem>[] = [
   { key: 'tel', label: '聯絡電話', width: '130px' },
   { key: 'ext', label: '分機', width: '80px' },
   { key: 'mobile', label: '行動電話', width: '140px' },
-  { key: 'email', label: '電子信箱', width: '190px' },
+  {
+    key: 'email',
+    label: '電子信箱',
+    width: '190px',
+    renderCell: (val: any) => {
+      const emailStr = String(val || '');
+      const isInvalid = !isValidEmail(emailStr);
+      return (
+        <span className="flex items-center gap-1.5 truncate">
+          {isInvalid && (
+            <span
+              className="px-1.5 py-0.5 bg-amber-500 text-black text-[10px] font-bold rounded shrink-0 shadow-sm"
+              title="電子郵件格式非標準，此為提示，仍可正常儲存"
+            >
+              ⚠️ 格式
+            </span>
+          )}
+          <span className={isInvalid ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''}>
+            {emailStr}
+          </span>
+        </span>
+      );
+    },
+  },
   { key: 'memo', label: '備註事項', width: '1fr' },
 ];
 

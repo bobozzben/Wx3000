@@ -38,16 +38,39 @@ export const Wbase1020Print: React.FC = () => {
 
   const handleExportCSV = () => {
     if (!reportList || reportList.length === 0) return;
-    const headers = ['會計師代號', '會計師姓名', '證照字號', '事務所名稱', '電話', '傳真', '通訊地址', '備註'];
+    const headers = [
+      '代號',
+      '證書別',
+      '姓名',
+      '申報ID',
+      '證書年度或國稅別',
+      '發文字軌',
+      '證書編號',
+      '電話',
+      '手機',
+      '傳真',
+      '統一編號',
+      '地址',
+      '公會名稱',
+      '會員證號',
+      'E-MAIL',
+    ];
     const rows = reportList.map((item) => [
       `"${item.cpaCode}"`,
+      `"${item.certType || ''}"`,
       `"${item.cpaName}"`,
+      `"${item.taxId || ''}"`,
       `"${item.licenseNo || ''}"`,
-      `"${item.officeName || ''}"`,
+      `"${item.docTrack || ''}"`,
+      `"${item.certNo || ''}"`,
       `"${item.tel || ''}"`,
+      `"${item.mobile || ''}"`,
       `"${item.fax || ''}"`,
+      `"${item.unifiedNo || ''}"`,
       `"${item.address || ''}"`,
-      `"${item.memo || ''}"`,
+      `"${item.guildNo1 || ''}"`,
+      `"${item.guildNo2 || ''}"`,
+      `"${item.email || ''}"`,
     ]);
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -55,7 +78,7 @@ export const Wbase1020Print: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `會計師清冊_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `會計師記帳士清冊_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -182,23 +205,35 @@ export const Wbase1020Print: React.FC = () => {
               <table className="w-full text-xs border-collapse border border-black font-mono">
                 <thead>
                   <tr className="bg-gray-200 border-b border-black">
-                    <th className="border border-black p-2 text-left w-20">代號</th>
-                    <th className="border border-black p-2 text-left w-28">會計師姓名</th>
-                    <th className="border border-black p-2 text-left w-36">證照字號</th>
-                    <th className="border border-black p-2 text-left w-44">事務所名稱</th>
-                    <th className="border border-black p-2 text-left w-28">電話</th>
-                    <th className="border border-black p-2 text-left">通訊地址</th>
+                    <th className="border border-black p-1 text-left w-12">代號</th>
+                    <th className="border border-black p-1 text-center w-12">證書別</th>
+                    <th className="border border-black p-1 text-left w-24">姓名</th>
+                    <th className="border border-black p-1 text-left w-20">申報ID</th>
+                    <th className="border border-black p-1 text-left w-16">證書年度</th>
+                    <th className="border border-black p-1 text-center w-14">字軌</th>
+                    <th className="border border-black p-1 text-left w-18">證書編號</th>
+                    <th className="border border-black p-1 text-left w-24">電話</th>
+                    <th className="border border-black p-1 text-left w-20">統一編號</th>
+                    <th className="border border-black p-1 text-left">地址</th>
+                    <th className="border border-black p-1 text-left w-28">公會名稱</th>
+                    <th className="border border-black p-1 text-left w-20">會員證號</th>
                   </tr>
                 </thead>
                 <tbody>
                   {reportList.map((item, idx) => (
                     <tr key={item.cpaCode} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
-                      <td className="border border-black p-2 font-bold">{item.cpaCode}</td>
-                      <td className="border border-black p-2">{item.cpaName}</td>
-                      <td className="border border-black p-2">{item.licenseNo || '-'}</td>
-                      <td className="border border-black p-2">{item.officeName || '-'}</td>
-                      <td className="border border-black p-2">{item.tel || '-'}</td>
-                      <td className="border border-black p-2">{item.address || '-'}</td>
+                      <td className="border border-black p-1 font-bold">{item.cpaCode}</td>
+                      <td className="border border-black p-1 text-center">{item.certType || '-'}</td>
+                      <td className="border border-black p-1">{item.cpaName}</td>
+                      <td className="border border-black p-1">{item.taxId || '-'}</td>
+                      <td className="border border-black p-1">{item.licenseNo || '-'}</td>
+                      <td className="border border-black p-1 text-center">{item.docTrack || '-'}</td>
+                      <td className="border border-black p-1">{item.certNo || '-'}</td>
+                      <td className="border border-black p-1">{item.tel || '-'}</td>
+                      <td className="border border-black p-1">{item.unifiedNo || '-'}</td>
+                      <td className="border border-black p-1">{item.address || '-'}</td>
+                      <td className="border border-black p-1">{item.guildNo1 || item.officeName || '-'}</td>
+                      <td className="border border-black p-1">{item.guildNo2 || item.memberNo || '-'}</td>
                     </tr>
                   ))}
                 </tbody>

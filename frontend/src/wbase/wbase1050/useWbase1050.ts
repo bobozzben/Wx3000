@@ -12,6 +12,7 @@ import {
   printTaxOfficerList,
   callWaccrep3106b,
 } from '../../services/wbase1050';
+import { isValidEmail, EMAIL_SAVE_WARNING_TOAST } from '../../services/validation';
 
 interface Wbase1050State {
   rows: TaxOfficerItem[];
@@ -23,6 +24,8 @@ interface Wbase1050State {
   setErrorToast: (msg: string | null) => void;
   showAutoCloseToast: boolean;
   setShowAutoCloseToast: (show: boolean) => void;
+  toastMessage: string | null;
+  setToastMessage: (msg: string | null) => void;
   isDeleteConfirmOpen: boolean;
   setIsDeleteConfirmOpen: (open: boolean) => void;
   isPrintOpen: boolean;
@@ -52,6 +55,8 @@ export const useWbase1050 = create<Wbase1050State>((set, get) => ({
   setErrorToast: (errorToast) => set({ errorToast }),
   showAutoCloseToast: false,
   setShowAutoCloseToast: (showAutoCloseToast) => set({ showAutoCloseToast }),
+  toastMessage: null,
+  setToastMessage: (toastMessage) => set({ toastMessage }),
   isDeleteConfirmOpen: false,
   setIsDeleteConfirmOpen: (isDeleteConfirmOpen) => set({ isDeleteConfirmOpen }),
   isPrintOpen: false,
@@ -79,8 +84,12 @@ export const useWbase1050 = create<Wbase1050State>((set, get) => ({
       } else {
         await updateTaxOfficer(updatedRow.taxCode.trim(), updatedRow);
       }
-      set({ showAutoCloseToast: true });
-      setTimeout(() => set({ showAutoCloseToast: false }), 2000);
+      const isEmailInvalid = !isValidEmail(updatedRow.email);
+      const toastMsg = isEmailInvalid
+        ? EMAIL_SAVE_WARNING_TOAST
+        : '已成功儲存至 PostgreSQL 資料庫！';
+      set({ showAutoCloseToast: true, toastMessage: toastMsg });
+      setTimeout(() => set({ showAutoCloseToast: false }), 3000);
       await get().refreshData();
     } catch (e) {
       console.error('Save tax officer row error:', e);
@@ -96,8 +105,12 @@ export const useWbase1050 = create<Wbase1050State>((set, get) => ({
           await updateTaxOfficer(row.taxCode.trim(), row);
         }
       }
-      set({ showAutoCloseToast: true });
-      setTimeout(() => set({ showAutoCloseToast: false }), 2000);
+      const hasInvalidEmail = get().rows.some((r) => !isValidEmail(r.email));
+      const toastMsg = hasInvalidEmail
+        ? EMAIL_SAVE_WARNING_TOAST
+        : '已成功儲存至 PostgreSQL 資料庫！';
+      set({ showAutoCloseToast: true, toastMessage: toastMsg });
+      setTimeout(() => set({ showAutoCloseToast: false }), 3000);
       await get().refreshData();
     } catch (e) {
       console.error('Batch save tax officer error:', e);

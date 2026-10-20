@@ -127,7 +127,14 @@ export function FoxProGridCard<T extends Record<string, any>>({
     }, 150);
   };
 
-  // Generate dynamic grid-template-columns if gridColsLayout is not explicitly specified
+  // Generate dynamic grid-template-columns inline style if gridColsLayout is not provided
+  const gridStyle: React.CSSProperties | undefined = React.useMemo(() => {
+    if (gridColsLayout) return undefined;
+    return {
+      gridTemplateColumns: columns.map((c) => c.width || '1fr').join(' '),
+    };
+  }, [gridColsLayout, columns]);
+
   const computedGridCols = gridColsLayout
     ? gridColsLayout
     : `grid-cols-1 md:grid-cols-[${columns.map((c) => c.width || '1fr').join('_')}]`;
@@ -170,105 +177,112 @@ export function FoxProGridCard<T extends Record<string, any>>({
         )}
       </div>
 
-      {/* Grid Header */}
-      <div
-        className={`text-[11px] font-bold uppercase tracking-wider hidden md:grid ${computedGridCols} h-8 items-center px-1 border-b shrink-0 transition-colors ${
-          isDark
-            ? 'bg-slate-900/90 border-slate-700/80 text-slate-400'
-            : 'bg-[#1e3a8a] border-blue-900 text-white'
-        }`}
-      >
-        {columns.map((col) => (
+      {/* Horizontal Scroll Wrapper (Locks Header & Rows together) */}
+      <div className="overflow-x-auto flex-1 min-h-0 flex flex-col">
+        <div className="min-w-full w-max flex flex-col flex-1">
+          {/* Grid Header */}
           <div
-            key={col.key}
-            className={`px-3 ${
-              col.align === 'center'
-                ? 'text-center'
-                : col.align === 'right'
-                ? 'text-right'
-                : 'text-left'
-            } ${col.className || ''}`}
+            style={gridStyle}
+            className={`text-[11px] font-bold uppercase tracking-wider hidden md:grid ${computedGridCols} h-8 items-center px-1 border-b shrink-0 transition-colors ${
+              isDark
+                ? 'bg-slate-900/90 border-slate-700/80 text-slate-400'
+                : 'bg-[#1e3a8a] border-blue-900 text-white'
+            }`}
           >
-            {col.label}
+            {columns.map((col) => (
+              <div
+                key={col.key}
+                className={`px-3 ${
+                  col.align === 'center'
+                    ? 'text-center'
+                    : col.align === 'right'
+                    ? 'text-right'
+                    : 'text-left'
+                } ${col.className || ''}`}
+              >
+                {col.label}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Grid Rows Body */}
-      <div
-        ref={gridContainerRef}
-        tabIndex={0}
-        onKeyDown={onKeyDown}
-        onScroll={handleScroll}
-        className={`relative outline-none flex-1 min-h-0 ${maxHeight} overflow-auto divide-y focus:ring-2 focus:ring-blue-500/20 focus:ring-inset ${
-          isDark ? 'divide-slate-700/50 bg-slate-900' : 'divide-gray-200 bg-[#f8fafc]'
-        }`}
-        aria-label={`${title} Grid`}
-      >
-        {data.map((item, idx) => {
-          const isSelected = selectedIndex === idx;
-          const isEven = idx % 2 === 1;
-          const rowKey = getItemKey ? getItemKey(item, idx) : item.code || item.id || idx;
+          {/* Grid Rows Body */}
+          <div
+            ref={gridContainerRef}
+            tabIndex={0}
+            onKeyDown={onKeyDown}
+            onScroll={handleScroll}
+            className={`relative outline-none flex-1 min-h-0 ${maxHeight} overflow-y-auto divide-y focus:ring-2 focus:ring-blue-500/20 focus:ring-inset ${
+              isDark ? 'divide-slate-700/50 bg-slate-900' : 'divide-gray-200 bg-[#f8fafc]'
+            }`}
+            aria-label={`${title} Grid`}
+          >
+            {data.map((item, idx) => {
+              const isSelected = selectedIndex === idx;
+              const isEven = idx % 2 === 1;
+              const rowKey = getItemKey ? getItemKey(item, idx) : item.code || item.id || idx;
 
-          if (renderRow) {
-            return (
-              <React.Fragment key={rowKey}>
-                {renderRow(item, idx, isSelected, isEven)}
-              </React.Fragment>
-            );
-          }
-
-          return (
-            <div
-              key={rowKey}
-              id={`row-${idx}`}
-              onClick={() => onSelectRow && onSelectRow(item, idx)}
-              onDoubleClick={() => onDoubleClickRow && onDoubleClickRow(item, idx)}
-              className={`grid ${computedGridCols} h-auto md:h-8 items-center text-[13px] cursor-pointer transition-colors ${
-                isSelected
-                  ? isDark
-                    ? 'bg-blue-950/60 border-l-[3px] border-l-blue-500 font-medium text-blue-200'
-                    : 'bg-blue-100/80 border-l-[3px] border-l-blue-600 font-medium text-blue-900'
-                  : isDark
-                  ? isEven
-                    ? 'bg-slate-800/60 border-l-[3px] border-l-transparent hover:bg-slate-700/50 text-slate-300'
-                    : 'bg-slate-900 border-l-[3px] border-l-transparent hover:bg-slate-700/50 text-slate-300'
-                  : isEven
-                  ? 'bg-[#ffecd9] border-l-[3px] border-l-transparent hover:bg-amber-100/80 text-slate-800'
-                  : 'bg-white border-l-[3px] border-l-transparent hover:bg-blue-50/80 text-slate-800'
-              }`}
-            >
-              {columns.map((col) => {
-                const val = item[col.key] ?? '-';
+              if (renderRow) {
                 return (
-                  <div
-                    key={col.key}
-                    className={`px-3 py-1 md:py-0 truncate flex items-center gap-2 ${
-                      col.align === 'center'
-                        ? 'justify-center'
-                        : col.align === 'right'
-                        ? 'justify-end'
-                        : 'justify-start'
-                    } ${
-                      isDark ? 'text-slate-300' : 'text-slate-800'
-                    } ${col.className || ''}`}
-                  >
-                    <span className={`md:hidden text-[10px] w-10 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                      {col.label}
-                    </span>
-                    {col.render ? col.render(item, idx, isSelected) : <span className="truncate">{val}</span>}
-                  </div>
+                  <React.Fragment key={rowKey}>
+                    {renderRow(item, idx, isSelected, isEven)}
+                  </React.Fragment>
                 );
-              })}
-            </div>
-          );
-        })}
+              }
 
-        {data.length === 0 && (
-          <div className={`p-8 text-center text-[13px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            {loading ? '資料載入中...' : emptyText}
+              return (
+                <div
+                  key={rowKey}
+                  id={`row-${idx}`}
+                  onClick={() => onSelectRow && onSelectRow(item, idx)}
+                  onDoubleClick={() => onDoubleClickRow && onDoubleClickRow(item, idx)}
+                  style={gridStyle}
+                  className={`grid ${computedGridCols} h-auto md:h-8 items-center text-[13px] cursor-pointer transition-colors ${
+                    isSelected
+                      ? isDark
+                        ? 'bg-blue-950/60 border-l-[3px] border-l-blue-500 font-medium text-blue-200'
+                        : 'bg-blue-100/80 border-l-[3px] border-l-blue-600 font-medium text-blue-900'
+                      : isDark
+                      ? isEven
+                        ? 'bg-slate-800/60 border-l-[3px] border-l-transparent hover:bg-slate-700/50 text-slate-300'
+                        : 'bg-slate-900 border-l-[3px] border-l-transparent hover:bg-slate-700/50 text-slate-300'
+                      : isEven
+                      ? 'bg-[#ffecd9] border-l-[3px] border-l-transparent hover:bg-amber-100/80 text-slate-800'
+                      : 'bg-white border-l-[3px] border-l-transparent hover:bg-blue-50/80 text-slate-800'
+                  }`}
+                >
+                  {columns.map((col) => {
+                    const val = item[col.key] ?? '-';
+                    return (
+                      <div
+                        key={col.key}
+                        className={`px-3 py-1 md:py-0 truncate flex items-center gap-2 ${
+                          col.align === 'center'
+                            ? 'justify-center'
+                            : col.align === 'right'
+                            ? 'justify-end'
+                            : 'justify-start'
+                        } ${
+                          isDark ? 'text-slate-300' : 'text-slate-800'
+                        } ${col.className || ''}`}
+                      >
+                        <span className={`md:hidden text-[10px] w-10 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                          {col.label}
+                        </span>
+                        {col.render ? col.render(item, idx, isSelected) : <span className="truncate">{val}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+
+            {data.length === 0 && (
+              <div className={`p-8 text-center text-[13px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                {loading ? '資料載入中...' : emptyText}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

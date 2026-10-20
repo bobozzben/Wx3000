@@ -14,7 +14,9 @@ import {
   Calendar,
   FileCheck,
   History,
+  AlertCircle,
 } from 'lucide-react';
+import { isValidEmail, EMAIL_WARNING_TEXT } from '../../services/validation';
 
 interface Wbase2010FormProps {
   activeTab: number;
@@ -94,19 +96,30 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
       placeholder: meta.placeholder || '',
     };
 
+    const isEmailField = fid === 'f3_email';
+    const isEmailInvalid = isEmailField && !isValidEmail(val);
+
     return (
       <div key={fid} className={isTextArea ? 'col-span-full' : ''}>
-        <label
-          htmlFor={fid}
-          className={`block text-[11px] font-bold mb-1.5 tracking-wide ${
-            isDark ? 'text-slate-300' : 'text-slate-800'
-          }`}
-        >
-          {meta.label}{' '}
-          <span className={`text-[10px] font-semibold ml-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-            {fid}
-          </span>
-        </label>
+        <div className="flex items-center justify-between mb-1.5">
+          <label
+            htmlFor={fid}
+            className={`block text-[11px] font-bold tracking-wide ${
+              isDark ? 'text-slate-300' : 'text-slate-800'
+            }`}
+          >
+            {meta.label}{' '}
+            <span className={`text-[10px] font-semibold ml-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+              {fid}
+            </span>
+          </label>
+          {isEmailField && isEmailInvalid && (
+            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 flex items-center gap-1 font-mono">
+              <AlertCircle size={11} />
+              格式非標準 (提示仍可存檔)
+            </span>
+          )}
+        </div>
         {isTextArea ? (
           <textarea
             {...inputProps}
@@ -124,9 +137,13 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
         ) : (
           <input
             {...inputProps}
-            type="text"
+            type={isEmailField ? 'email' : 'text'}
             className={`w-full h-8 rounded-[8px] border px-3 text-[13px] font-medium transition shadow-2xs ${
-              isDark
+              isEmailInvalid
+                ? isDark
+                  ? 'bg-slate-900 border-amber-500 text-amber-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold'
+                  : 'bg-amber-50/50 border-amber-500 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs font-bold'
+                : isDark
                 ? isDisabled
                   ? 'bg-slate-800/60 border-slate-700 text-slate-500 cursor-not-allowed'
                   : 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500'
@@ -135,6 +152,11 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
                 : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 shadow-2xs'
             }`}
           />
+        )}
+        {isEmailField && isEmailInvalid && (
+          <p className="mt-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
+            <span>⚠️ {EMAIL_WARNING_TEXT}</span>
+          </p>
         )}
       </div>
     );

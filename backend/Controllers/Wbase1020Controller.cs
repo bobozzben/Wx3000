@@ -456,11 +456,21 @@ namespace Wx3000.Backend.Controllers
             {
                 CpaCode = c.CpaCode?.Trim() ?? string.Empty,
                 CpaName = c.CpaName?.Trim() ?? string.Empty,
-                OfficeName = c.OfficeName?.Trim() ?? string.Empty,
+                CertType = c.CertType?.Trim() ?? string.Empty,
+                TaxId = c.TaxId?.Trim() ?? string.Empty,
                 LicenseNo = c.LicenseNo?.Trim() ?? string.Empty,
+                DocTrack = c.DocTrack?.Trim() ?? string.Empty,
+                CertNo = c.CertNo?.Trim() ?? string.Empty,
+                OfficeName = c.OfficeName?.Trim() ?? string.Empty,
+                MemberNo = c.MemberNo?.Trim() ?? string.Empty,
                 Tel = c.Tel?.Trim() ?? string.Empty,
+                Mobile = c.Mobile?.Trim() ?? string.Empty,
                 Fax = c.Fax?.Trim() ?? string.Empty,
+                UnifiedNo = c.UnifiedNo?.Trim() ?? string.Empty,
                 Address = c.Address?.Trim() ?? string.Empty,
+                GuildNo1 = c.GuildNo1?.Trim() ?? string.Empty,
+                GuildNo2 = c.GuildNo2?.Trim() ?? string.Empty,
+                Email = c.Email?.Trim() ?? string.Empty,
                 RecordNumber = c.RecordNumber
             }).ToList();
 

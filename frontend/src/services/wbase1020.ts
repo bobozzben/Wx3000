@@ -4,25 +4,49 @@ const API_BASE = '/api/wbase1020';
 
 export interface CpaItem {
   cpaCode: string;
+  certType?: string;
   cpaName: string;
-  licenseNo: string;
-  officeName: string;
-  tel: string;
-  fax: string;
-  address: string;
-  memo: string;
+  taxId?: string;
+  licenseNo?: string;
+  docTrack?: string;
+  certNo?: string;
+  tel?: string;
+  mobile?: string;
+  fax?: string;
+  unifiedNo?: string;
+  address?: string;
+  guildNo1?: string;
+  guildNo2?: string;
+  email?: string;
+  officeName?: string;
+  memberNo?: string;
+  memo?: string;
+  recordNumber?: number;
+  guid?: string;
   updatedAt?: string;
 }
 
 export interface CpaFormInput {
   cpaCode: string;
+  certType?: string;
   cpaName: string;
-  licenseNo: string;
-  officeName: string;
-  tel: string;
-  fax: string;
-  address: string;
-  memo: string;
+  taxId?: string;
+  licenseNo?: string;
+  docTrack?: string;
+  certNo?: string;
+  tel?: string;
+  mobile?: string;
+  fax?: string;
+  unifiedNo?: string;
+  address?: string;
+  guildNo1?: string;
+  guildNo2?: string;
+  email?: string;
+  officeName?: string;
+  memberNo?: string;
+  memo?: string;
+  recordNumber?: number;
+  guid?: string;
 }
 
 export interface CpaPrintFilter {

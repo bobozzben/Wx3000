@@ -4,6 +4,7 @@ import {
   type CompanyItem,
   TAB_FIELDS_MAP,
 } from './companyFieldDefs';
+import { isValidEmail } from '../../services/validation';
 
 const parseCapital = (val: any): number => {
   if (!val) return 0;
@@ -382,7 +383,9 @@ export function useWbase2010(onBackToMenu?: () => void) {
 
       // Refresh companies list from PostgreSQL upon success and maintain focus on saved record
       await fetchCompanies(payload.code);
-      alert(mode === 'add' ? '新增成功！' : '修改成功！');
+      const isEmailInvalid = !isValidEmail(payload.email);
+      const emailHint = isEmailInvalid ? '\n\n⚠️ 提示：電子郵件格式非標準，已照常存檔。' : '';
+      alert((mode === 'add' ? '新增成功！' : '修改成功！') + emailHint);
       cancelEdit();
     } catch (err: any) {
       console.error('PostgreSQL API error during save:', err);

@@ -25,6 +25,7 @@ export const Wbase1030Page: React.FC<Wbase1030PageProps> = ({ onBackToMenu }) =>
     errorToast,
     setErrorToast,
     showAutoCloseToast,
+    toastMessage,
     isDeleteConfirmOpen,
     setIsDeleteConfirmOpen,
     isPrintOpen,
@@ -227,9 +228,19 @@ export const Wbase1030Page: React.FC<Wbase1030PageProps> = ({ onBackToMenu }) =>
 
       {/* Auto-Close Toast (Saved) */}
       {showAutoCloseToast && (
-        <div className="fixed bottom-12 right-6 z-50 flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xl border border-emerald-400 animate-bounce font-bold text-sm">
-          <CheckCircle className="w-5 h-5" />
-          <span>已成功儲存至 PostgreSQL 資料庫！</span>
+        <div
+          className={`fixed bottom-12 right-6 z-50 flex items-center space-x-2 px-4 py-2.5 rounded-lg shadow-xl font-bold text-sm animate-bounce ${
+            toastMessage?.includes('⚠️')
+              ? 'bg-amber-600 text-white border border-amber-400'
+              : 'bg-emerald-600 text-white border border-emerald-400'
+          }`}
+        >
+          {toastMessage?.includes('⚠️') ? (
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+          ) : (
+            <CheckCircle className="w-5 h-5 shrink-0" />
+          )}
+          <span>{toastMessage || '已成功儲存至 PostgreSQL 資料庫！'}</span>
         </div>
       )}
 
