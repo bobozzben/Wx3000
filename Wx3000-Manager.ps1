@@ -221,9 +221,9 @@ function Start-Wx3000ApiSafely {
             Push-Location (Join-Path $RootDir "localagent")
             try {
                 if ($sub -eq "2") {
-                    cmd.exe /c "build_level2.bat"
+                    cmd.exe /c "build_level2.bat nopause"
                 } else {
-                    cmd.exe /c "build_level1.bat"
+                    cmd.exe /c "build_level1.bat nopause"
                 }
             } finally {
                 Pop-Location
