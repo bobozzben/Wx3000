@@ -1,0 +1,62 @@
+# === 換行 / 文字屬性 ===
+# 註:中文「檔名」顯示不是 .gitattributes 管的,是 git 設定 core.quotepath。
+#     要讓 git 正常顯示中文檔名(而非 \347\237... 八進位),各自執行一次:
+#       git config core.quotepath false      （本 repo;或加 --global 全域)
+#     詳見 docs/知識庫/新成員設定.md。
+
+# 後備:未明列者由 git 自動偵測文字/二進位並正規化換行,
+#       確保跨同事(不論各自 core.autocrlf)行為一致。明列規則會覆蓋此行。
+* text=auto
+
+# VFP 原始碼是 Big5 + CRLF:工作目錄維持 CRLF,git 不得當 binary(保留可 diff)
+*.prg text eol=crlf
+*.PRG text eol=crlf
+*.h   text eol=crlf
+
+# Lazarus 原始碼(UTF-8):LF
+*.pas text eol=lf
+*.pp  text eol=lf
+*.inc text eol=lf
+*.lpr text eol=lf
+*.lfm text eol=lf
+*.lpi text eol=lf
+
+# 文件
+*.md  text eol=lf
+*.sql text eol=lf
+
+# Windows 腳本 / 設定(CRLF 慣例;連線設定 Connect.cfg 走這條)
+*.ps1    text eol=crlf
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+*.cfg    text eol=crlf
+*.sample text eol=crlf
+
+# === 二進位(git 不做換行轉換、不做文字 diff)===
+*.dbf binary
+*.DBF binary
+*.fpt binary
+*.FPT binary
+*.cdx binary
+*.CDX binary
+*.fpw binary
+*.pjx binary
+*.pjt binary
+*.PJT binary
+*.scx binary
+*.sct binary
+*.SCT binary
+*.vcx binary
+*.vct binary
+*.VCT binary
+*.fll binary
+*.tlb binary
+*.vbr binary
+*.VBR binary
+*.dll binary
+*.exe binary
+*.app binary
+*.APP binary
+*.xlsx binary
+*.ico binary
+*.png binary
