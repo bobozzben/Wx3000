@@ -1,9 +1,9 @@
 # 規格書：wbase1020 會計師/記帳士資料維護作業
 
 > **模組代號**：`wbase1020`  
-> **功能名稱**：會計師/記帳士資料維護作業 (單檔主檔維護 CRUD + 列印)  
+> **功能名稱**：會計師/記帳士資料維護作業 (上方 `FoxProGridCard` 瀏覽清單 + 下方即時聯動 `Wbase1020Form` + 報表列印)  
 > **所屬模組**：`frontend/src/wbase/wbase1020/` & `backend/Controllers/Wbase1020Controller.cs`  
-> **原始 Visual FoxPro 來源**：`SourS9BASE\LIBS\wbase.vcx` Class: `wbase1020` (對應資料表 `e3000__comm.基本會計師`)
+> **原始 Visual FoxPro 來源**：`SourS9BASE\LIBS\wbase.vcx` Class: `wbase1020` (對應地端 `C:\w3000\comm\cpa.dbf` ⇄ PostgreSQL `"c:/w3000/comm"."cpa"`)
 
 ---
 
@@ -11,16 +11,16 @@
 
 本模組為系統核心主檔維護作業之一，用於登錄、修改、刪除與列印事務所合作之會計師與記帳士基本資料。
 具備以下功能特性：
-1. **單檔 AG Grid 盲打體驗 (`<FoxProGrid />`)**：支援 `↑` `↓` 上下瀏覽資料列、`F2` 新增、`F3` 查詢、`F4` 編輯、`F8` 刪除、`F9` 列印。
-2. **單筆編輯/新增 Modal (`wbase1020Form.tsx`)**：
-   - 支援 **Enter 鍵順序下跳欄位**。
-   - 會計師代號輸入自動英文字母轉大寫 (`toUpperCase()`)。
-   - `F9` 或 `Ctrl+S` 儲存，`Esc` 取消關閉。
-3. **列印預覽與報表輸出 Modal (`wbase1020Print.tsx`)**：
-   - 起訖代號區間篩選。
-   - 網頁報表格式預覽與瀏覽器直印 (Print / PDF)。
-   - CSV 檔案下載輸出能力。
-4. **RESTful API 後端整合**：連結 C# ASP.NET Core API 與 PostgreSQL `cpa_masters` 資料表。
+1. **上下分割即時聯動佈局 (`index.tsx`)**：
+   - **上半部 (`<FoxProGridCard />`)**：高對比瀏覽清單，支援 `↑`/`↓`/`PageUp`/`PageDown` 快速換筆與滑鼠滾輪防抖同步選取列 (`enableScrollSync`)。
+   - **下半部 (`<Wbase1020Form />`)**：隨上方選取列即時同步顯示該筆會計師完整 15 個欄位資料；按 `Enter` / `F6` 進入編輯、`Ins` 進入新增。
+2. **全鍵盤順序跳欄與防呆驗證 (`Wbase1020Form.tsx`)**：
+   - 支援 **`Enter` / `↓` 順序下跳欄位**、`↑` 跳回上一欄位，聚焦時自動全選文字便於直接打字覆蓋。
+   - **非阻斷式 Email 格式提示 (`isValidEmail`)**：若 `E-MAIL` 欄位格式非標準（如歷史舊資料填寫備註或無 `@`），於清單與表單顯示琥珀色 `⚠️ 格式` 提示徽章，但**不阻斷存檔**。
+3. **列印預覽與原生 FastReport 輸出 (`wbase1020Print.tsx`)**：
+   - 支援起訖代號區間篩選、瀏覽器預覽/CSV 匯出，以及透過 `LocalAgent` (`http://localhost:18889/report`) 呼叫 `wbaseRP.dll` (`waccrep3101_b`) 開啟原生報表預覽與列印。
+4. **混合雲地 DBF 雙向同步 (`Wbase1020Controller.cs`)**：
+   - 讀取前自動執行 `_dbfSyncService.EnsureTableSyncedAsync` 比對 `C:\w3000\comm\cpa.dbf` Checksum；新增/修改/刪除時優先寫入地端 `cpa.dbf` 再同步更新 PostgreSQL `"c:/w3000/comm"."cpa"`。
 
 ---
 
@@ -28,88 +28,60 @@
 
 ```text
 frontend/src/wbase/wbase1020/
-├── index.tsx              # 主頁面進入點 (包含 FoxProGrid 與工具列)
-├── wbase1020Form.tsx      # 單筆編輯/新增 Modal (全鍵盤順序跳欄)
-├── wbase1020Print.tsx      # 列印預覽與報表設定/CSV 輸出 Modal
-└── useWbase1020.ts        # Zustand 狀態管理 Store (CRUD + 搜尋 + 視窗控制)
+├── index.tsx              # 主頁面進入點 (頂部工具列 + FoxProGridCard + Wbase1020Form + F2 搜尋彈窗)
+├── Wbase1020Form.tsx      # 下方詳細資料表單組件 (全鍵盤順序跳欄 + Email 非阻斷格式提示)
+├── wbase1020Print.tsx     # 列印區間設定、原生 DLL 報表呼叫與 CSV 輸出 Modal
+└── useWbase1020.ts        # 狀態管理 Hook (CRUD、選取列同步、搜尋與確認對話框控制)
 
 frontend/src/services/
-└── wbase1020.ts           # Axios API Client 通訊模組
+├── wbase1020.ts           # Axios API Client 與 LocalAgent 報表呼叫
+└── validation.ts          # isValidEmail 非阻斷式驗證工具
 
 backend/
 ├── Controllers/
-│   └── Wbase1020Controller.cs  # RESTful CRUD & Print Query Endpoints
-├── Models/
-│   └── CpaMaster.cs            # EF Core Entity Model (cpa_masters)
-└── Data/
-    └── DbInitializer.cs        # DDL 表格建立與初始種子資料 (Seeding)
+│   └── Wbase1020Controller.cs  # RESTful CRUD、Print Query 與 DbfSyncService 雙向同步
+└── Models/
+    └── CpaMaster.cs            # EF Core Entity (Schema: "c:/w3000/comm", Table: "cpa")
 ```
 
 ---
 
-## 3. 資料庫 Schema (`e3000__comm` . `基本會計師`)
+## 3. 資料庫與 DBF Schema 對照 (`c:/w3000/comm` . `cpa`)
 
-| 欄位名稱 (Column) | 資料型別 (Type) | EF Core 屬性 (Property) | 說明 (Description) |
+| DBF / PG 欄位 | EF Core 屬性 (`CpaMaster`) | 前端屬性 (`CpaItem`) | 說明 |
 | :--- | :--- | :--- | :--- |
-| `編號` | `VARCHAR(10)` | `CpaCode` (PK) | 會計師/記帳士代號 |
-| `姓名` | `VARCHAR(30)` | `CpaName` | 姓名/名稱 |
-| `證書別` | `VARCHAR(20)` | `CertType` | 證書類別 |
-| `申報ID` | `VARCHAR(20)` | `TaxId` | 申報識別碼 |
-| `證書(登錄)字號` | `VARCHAR(50)` | `LicenseNo` | 證書/登錄字號 |
-| `發文字軌` | `VARCHAR(20)` | `DocTrack` | 公文發文字軌 |
-| `證書編號` | `VARCHAR(30)` | `CertNo` | 證書編號 |
-| `公會名稱` | `VARCHAR(60)` | `OfficeName` | 公會/事務所名稱 |
-| `會員證號` | `VARCHAR(30)` | `MemberNo` | 會員證號 |
-| `電話` | `VARCHAR(20)` | `Tel` | 聯絡電話 |
-| `手機` | `VARCHAR(20)` | `Mobile` | 行動電話 |
-| `傳真` | `VARCHAR(20)` | `Fax` | 傳真號碼 |
-| `統一編號` | `VARCHAR(20)` | `UnifiedNo` | 統一編號 |
-| `地址` | `VARCHAR(100)`| `Address` | 通訊/事務所地址 |
-| `會計師公會證號1` | `VARCHAR(50)`| `GuildNo1` | 公會證號一 |
-| `會計師公會證號2` | `VARCHAR(50)`| `GuildNo2` | 公會證號二 |
-| `EMAIL` | `VARCHAR(100)`| `Email` | 電子郵件地址 |
-| `guid` | `VARCHAR(50)` | `Guid` | 全球唯一識別碼 |
+| `no` | `CpaCode` (PK) | `cpaCode` | 會計師/記帳士代號 |
+| `kind` | `CertType` | `certType` | 證書別 (1.會計師 2.記帳士 3.記帳及報稅代理人) |
+| `name` | `CpaName` | `cpaName` | 姓名 |
+| `id` | `TaxId` | `taxId` | 申報 ID (身分證統一編號) |
+| `cno1` | `LicenseNo` | `licenseNo` | 證書年度或國稅別 |
+| `cword` | `DocTrack` | `docTrack` | 發文字軌 |
+| `cno2` | `CertNo` | `certNo` | 證書編號 |
+| `tel` | `Tel` | `tel` | 電話 |
+| `mobile` | `Mobile` | `mobile` | 手機 |
+| `fax` | `Fax` | `fax` | 傳真 |
+| `unino` | `UnifiedNo` | `unifiedNo` | 統一編號 (扣繳單位統一編號) |
+| `addr` | `Address` | `address` | 事務所地址 |
+| `hno1` | `GuildNo1` | `guildNo1` | 公會名稱 (登錄區域及國稅局別) |
+| `hno2` | `GuildNo2` | `guildNo2` | 會員證號 (登錄字號) |
+| `email` | `Email` | `email` | E-MAIL |
+| `_record_number` | `RecordNumber` | - | DBF 實體記錄號 |
 
 ---
 
-## 4. 後端 API 規格 (`Wbase1020Controller.cs`)
+## 4. 鍵盤熱鍵對照表 (Hotkeys)
 
-| HTTP Method | Route Endpoint | 說明 (Description) |
-| :--- | :--- | :--- |
-| `GET` | `/api/wbase1020?keyword={q}` | 查詢會計師列表 (可依代號、姓名、事務所模糊搜尋) |
-| `GET` | `/api/wbase1020/{code}` | 取得指定代號會計師詳細資料 |
-| `POST` | `/api/wbase1020` | 新增會計師資料 (重複代號傳回 400 Bad Request) |
-| `PUT` | `/api/wbase1020/{code}` | 更新指定代號會計師資料 |
-| `DELETE` | `/api/wbase1020/{code}` | 刪除指定代號會計師資料 |
-| `POST` | `/api/wbase1020/print` | 依 `startCode` 與 `endCode` 區間查詢報表資料 |
-
----
-
-## 5. 鍵盤熱鍵對照表 (Hotkeys)
-
-### 主表格視窗 (`index.tsx`)
-- `F2`：開啟新增視窗 (Add Modal)
-- `F3`：焦點移至搜尋關鍵字輸入框 (Search Filter)
-- `F4` 或 `Enter`：開啟選取列之編輯視窗 (Edit Modal)
-- `F8` 或 `Delete`：彈出刪除確認對話框
-- `F9`：開啟列印/報表對話框 (Print Modal)
+### 瀏覽模式 (`mode === 'browse'`)
+- `↑` / `↓` / `PageUp` / `PageDown`：於上方 `FoxProGridCard` 上下切換選取列，下方表單即時同步預覽
+- `Ins`：進入新增模式 (`startAdd`)，自動聚焦代號欄位
+- `Enter` / `F6` / 雙擊列：進入編修模式 (`startEdit`)，自動聚焦下方表單第一個可編輯欄位
+- `Del`：彈出刪除確認對話框（支援 `←` `→` 切換按鈕、`Enter`/`Y` 確認刪除）
+- `F2`：開啟快速查詢彈窗 (`SearchModal`)
+- `F7`：開啟列印設定視窗 (`Wbase1020Print`)
 - `Esc`：退回 wbase 系統主選單
 
-### 編輯視窗 (`wbase1020Form.tsx`)
-- `Enter`：欄位依序向下滑動焦點 (代號 ➔ 姓名 ➔ 證號 ➔ 事務所 ➔ 電話 ➔ 傳真 ➔ 地址 ➔ 備註)
-- `F9` 或 `Ctrl+S`：儲存提交 (Save & Submit)
-- `Esc`：取消並關閉編輯視窗
-
----
-
-## 6. 建置與測試說明
-
-```bash
-# 後端編譯與執行
-cd backend
-dotnet run
-
-# 前端專案編譯驗證
-cd frontend
-pnpm run build
-```
+### 編輯/新增模式 (`mode === 'edit' | 'add'`)
+- `Enter` / `↓`：依 `CPA_FIELDS_ORDERED` 順序跳至下一欄位；最後一欄 (`email`) 按 `Enter` 直接觸發儲存 (`saveForm`)
+- `↑`：跳回上一欄位
+- `F9` / `Ctrl+S`：立即儲存變更
+- `Esc`：放棄變更並退回瀏覽模式，焦點自動回到上方清單

@@ -1,6 +1,6 @@
-# Project Specification: Wx3000 (FoxPro to Modern Web Migration)
+# Project Specification: Wx3000 (FoxPro to Modern Hybrid Cloud/Local ERP Migration)
 
-> **專案目標**：建立全端專案 `Wx3000` 用以替代傳統 FoxPro / Delphi Win32 會計進銷存系統。核心關鍵在於**前端輸入手感必須 100% 模擬傳統 FoxPro 鍵盤操作模式**，達到無需滑鼠、全鍵盤盲打（Tab/Enter/F2/F9/F12）的高效率體驗，專為 50 歲以上資深倉管與會計人員設計。
+> **專案目標**：建立全端專案 `Wx3000` 用以無縫接軌並取代傳統 Visual FoxPro / Delphi Win32 會計師與記帳士事務所管理、營業稅申報與進銷存系統。核心關鍵在於**前端輸入手感 100% 模擬傳統 FoxPro 鍵盤盲打模式**（無須滑鼠），並透過 **PostgreSQL 16 與地端 VFP `.dbf` 雙向即時同步引擎 (`DbfSyncService` + `DBFBridge`)** 以及 **Lazarus 原生報表引擎 (`wbaseRP.dll`)**，讓新舊系統在轉型期間可於同一區域網路內安全並行運作。
 
 ---
 
@@ -9,12 +9,12 @@
 | 項目 | 選用技術 / 規格說明 |
 | :--- | :--- |
 | **專案名稱** | `Wx3000` |
-| **包管理工具** | `pnpm` (Monorepo / Workspace 管理 structure) |
-| **前端 (Frontend)** | React 19 + TypeScript + Vite + Axios + AG Grid Community + Tailwind CSS + Zustand |
-| **後端 (Backend)** | **C# .NET 8/9 (ASP.NET Core Web API)**<br>- 可發佈為獨立單一檔案可執行檔 (Single File EXE)<br>- 可註冊安裝為 Windows 服務 (Windows Service) |
-| **資料庫 (Database)** | **PostgreSQL 16**<br>- Server IP: `127.0.0.1` \| Port: `5432`<br>- User: `postgresql` \| Password: `0000`<br>- Database: `a3000` |
-| **ORM / Data Access** | Entity Framework Core (EF Core) + Npgsql |
-| **開發診斷與輔助** | `concurrently` + `ngrok` (用於 Reverse Proxy 區域開窗測試) |
+| **包管理工具** | `pnpm` (Monorepo / Workspace 管理架構) |
+| **前端 (Frontend)** | React 19 + TypeScript + Vite + Tailwind CSS + AG Grid Community + Zustand + Axios + SheetJS (`xlsx`) |
+| **桌面端 (Desktop)** | **Electron** (`frontend/electron/main.cjs`) — 支援獨立桌面視窗、動態切換後端伺服器 IP，並完整保留 `F1`~`F12` 功能鍵 |
+| **後端 (Backend)** | **C# .NET 8 (ASP.NET Core Web API)**<br>- 預設監聽埠號：`http://0.0.0.0:5007`<br>- 可發佈為獨立單一執行檔 (Single File EXE) 或完整伺服器包 (`publish/Wx3000_Server/api`，內含 `wwwroot` 靜態前端)<br>- 支援註冊為 Windows 服務 (`Wx3000Api`) |
+| **資料庫與雙向同步** | 1. **PostgreSQL 16**：`Host=localhost;Port=54320;Database=w3000;Username=postgres;Password=Pg_W3000`<br>2. **Visual FoxPro DBF**：`C:\w3000\comm\*.dbf`（映射至 PostgreSQL Schema `"c:/w3000/comm"`，以 `dictionary.w3000_dbf` 記錄 SHA256 Checksum 進行即時雙向同步） |
+| **本機代理 (LocalAgent)** | **Node.js (`localagent/agent.js`, Port `18889`, Windows Service `Wx3000Agent`)**<br>- **DBF 橋接**：透過 `DBFBridge.exe` 呼叫 `w3000_dbf.dll` (VFP COM) 執行 Checksum 計算、RLOCK 鎖定檢測與寫入<br>- **報表橋接**：透過 `WbaseBridge.exe` 或 `Koffi` 呼叫 Lazarus 編譯之 `wbaseRP.dll` 執行 FastReport 預覽與列印 |
 
 ---
 
@@ -22,226 +22,106 @@
 
 ```text
 Wx3000/
-├── .env.example
-├── package.json                   # Root package.json (concurrently, scripts)
-├── Wx3000.sln                     # C# Solution 檔案
-├── backend/                       # C# 後端 API 與 Win 服務專案
+├── Wx3000-Manager.bat / .ps1      # 互動式一鍵開發、編譯、部署與服務管理選單
+├── BUILD_AND_DEPLOY.md            # 四大模組開發與打包部署速查指南
+├── WORKSPACE.md                   # 工作區開發規範與熱鍵標準
+├── Wx3000_SPEC.md                 # 本系統完整規格書
+├── GEMINI.md                      # AI Agent 自動載入之核心行為準則
+├── package.json                   # Root package.json (dev, publish:server, electron scripts)
+├── docs/                          # 詳細模組規格書目錄
+│   ├── SPEC.md                    # 規格書總索引
+│   ├── backend/backend_SPEC.md    # 後端 API、DBF 雙向同步與 PostgreSQL 規格
+│   └── frontend/                  # 前端組件、wbase (1020~3060) 與 wtaxop 規格書
+├── backend/                       # C# 後端 API 與 Windows 服務專案 (Port: 5007)
 │   ├── Wx3000.Backend.csproj
-│   ├── Program.cs                 # Web API / Windows Service 啟動入口
+│   ├── Program.cs                 # Web API / Windows Service 啟動入口 & wwwroot 託管
+│   ├── appsettings.json           # 連線字串 (Port 54320, DB w3000) 與 LocalAgent URL
 │   ├── Data/
-│   │   ├── AppDbContext.cs        # EF Core PostgreSQL 連線與 DbSet 定義
-│   │   └── DbInitializer.cs       # 種子資料 (Products, Vendors 假資料)
-│   ├── Models/
-│   │   ├── Product.cs
-│   │   ├── Vendor.cs
-│   │   ├── PurchaseHeader.cs
-│   │   └── PurchaseLine.cs
-│   ├── DTOs/
-│   │   ├── SearchQueryDto.cs
-│   │   └── CreatePurchaseOrderDto.cs
-│   └── Controllers/
-│       ├── ProductsController.cs
-│       ├── VendorsController.cs
-│       └── PurchaseController.cs
-├── frontend/                      # React 前端專案
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tsconfig.json
+│   │   ├── AppDbContext.cs        # EF Core PostgreSQL DbContext
+│   │   └── DbInitializer.cs       # 冪等性原生 SQL DDL 建表與初始資料
+│   ├── Services/
+│   │   ├── IDbfSyncService.cs     # VFP DBF 雙向同步服務介面
+│   │   ├── DbfSyncService.cs      # DBF Checksum 比對、重灌與權威寫入實作
+│   │   ├── ISystemParamService.cs # 系統參數存取介面
+│   │   └── SystemParamService.cs  # 動態 Schema/Table 系統參數讀寫實作
+│   ├── Models/                    # CpaMaster, EmpMaster, TaxOfficerMaster, FeeItemMaster,
+│   │                              # NoteMaster, FeeSummaryMaster, CompanyMaster,
+│   │                              # TicketPlaceMaster, InvoicePurchaseMaster,
+│   │                              # Product, Vendor, PurchaseHeader, PurchaseLine
+│   └── Controllers/               # Wbase1020~1080, Wbase2010, Wbase3010~3060,
+│                                  # SystemParam, Products, Vendors, Purchase
+├── frontend/                      # React 19 + Vite + Electron 前端專案
+│   ├── electron/                  # Electron 主程序 (main.cjs, preload.cjs)
 │   └── src/
-│       ├── wbase/                 # 基本資料維護模組 (如：產品主檔、廠商主檔)
-│       │   ├── components/
-│       │   └── pages/
-│       ├── wtaxop/                # 單據作業模組 (如：進貨單、銷貨單)
-│       │   └── PurchaseOrder/
-│       │       ├── PurchaseOrderHeader.tsx
-│       │       └── PurchaseOrderPage.tsx
-│       ├── components/            # 共用與高度可複用元件
-│       │   ├── FoxProGrid/        # [核心元件 A] 單檔/主檔維護專用 盲打 AG Grid
-│       │   │   ├── FoxProGrid.tsx
-│       │   │   ├── useFoxProKeyboard.ts
-│       │   │   ├── SearchModal.tsx
-│       │   │   └── index.ts
-│       │   └── FoxProGridBill/    # [核心元件 B] 單據 Header+Detail 專用 盲打 AG Grid
-│       │       ├── FoxProGridBill.tsx
-│       │       ├── useFoxProBillKeyboard.ts
-│       │       └── index.ts
-│       ├── hooks/
-│       ├── services/
-│       │   └── api.ts             # Axios 實例配置
-│       ├── store/
-│       │   └── usePurchaseStore.ts# Zustand 狀態管理
-│       ├── App.tsx
-│       └── main.tsx
-└── scripts/
-    └── dbf_to_pg.js               # 舊 DBF 資料轉移至 PostgreSQL 工具腳本
+│       ├── components/
+│       │   ├── FoxProGrid/        # [核心元件 A] FoxProGridV2 整頁多列行內盲打表格 + SearchModal
+│       │   ├── FoxProGridCard/    # [核心元件 B] FoxProGridCard 主檔清單瀏覽卡片 (支援滾動同步游標)
+│       │   ├── FoxProGridBill/    # [核心元件 C] FoxProGridBill 單據 Header+Detail 盲打表格
+│       │   ├── SelectXlsxField/   # [核心元件 D] FormUtilSelectXlsxFieldsList Excel 動態欄位匯出器
+│       │   └── ServerConfigModal.tsx # 伺服器連線位址動態配置彈窗
+│       ├── wbase/                 # 事務所基本資料與營業稅發票統購模組
+│       │   ├── menu/              # 三階動態手風琴選單 + 雙色主題 (ThemeContext)
+│       │   ├── wbase1020/         # 會計師/記帳士資料維護 (FoxProGridCard + 下方聯動表單)
+│       │   ├── wbase1030/         # 建檔人員(員工)資料維護 (FoxProGridV2)
+│       │   ├── wbase1050/         # 稅務人員資料維護 (FoxProGridV2)
+│       │   ├── wbase1060/         # 收費項目資料維護 (FoxProGridV2)
+│       │   ├── wbase1070/         # 備註資料維護 (FoxProGridV2)
+│       │   ├── wbase1080/         # 收費摘要資料維護 (FoxProGridV2)
+│       │   ├── wbase2010/         # 公司基本資料維護 (上下/左右分割 + 6 大 Tab 跨頁盲打)
+│       │   ├── wbase3010/         # 發票購買地點資料維護 (FoxProGridV2)
+│       │   ├── wbase3020/         # 發票預購輸入 (01/02) 與預購表列印 (wbase3020_buyinv_print)
+│       │   ├── wbase3050/         # 統購發票清單列印 (A4/中一刀簽收單) 與單價設定
+│       │   └── wbase3060/         # 統購發票字軌輸入 (01/02) 與國稅局/代售點 Excel 匯入
+│       ├── wtaxop/                # 進銷存單據作業模組
+│       │   └── PurchaseOrder/     # 進貨單盲打登錄作業
+│       ├── services/              # Axios API 封裝、LocalAgent 呼叫與非阻斷欄位驗證 (validation.ts)
+│       └── store/                 # Zustand 狀態管理
+├── localagent/                    # 本機代理服務 (Port: 18889)
+│   ├── agent.js                   # 整合 DBFBridge 隊列與報表 DLL 呼叫之 HTTP/WS Server
+│   ├── dlls.json                  # 報表 DLL 函數簽名設定檔
+│   └── bridge/lazarus/            # DBFBridge.lpr / .exe & WbaseBridge_Generic.lpr / .exe
+├── report/                        # Lazarus FastReport 報表 DLL 源碼 (wbaseRP.lpr / wbaseRP.dll)
+└── publish/Wx3000_Server/         # 生產環境伺服器部署包與 Windows 服務管理腳本
 ```
 
 ---
 
-## 3. 開發階段規範與實施步驟 (Phases)
+## 3. 核心架構設計規範
 
-### Phase 1: 後端與資料庫 (C# .NET + PostgreSQL 16)
+### 3.1 混合雲地雙向資料同步架構 (`DbfSyncService` + `DBFBridge`)
+為確保現代化 Web/Electron 介面與傳統 FoxPro 桌面系統在過渡期能同時讀寫同一份資料且零衝突，系統實作了 **「地端 DBF 絕對權威」雙向同步機制**：
+1. **讀取快取與變更偵測 (`EnsureTableSyncedAsync`)**：
+   - 每次 API 讀取前，後端向 `LocalAgent` (`POST /api/dbf/checksum`) 取得地端 `C:\w3000\comm\<table_name>.dbf` 的即時 `SHA256:FileSize` 校驗碼。
+   - 與 PostgreSQL `dictionary.w3000_dbf` 中記錄的 `file_checksum` 比對：
+     - **相符 (Fast-path ~2ms)**：代表外部 VFP 未異動該表，直接由 EF Core 從 PostgreSQL Schema `"c:/w3000/comm"` 高速查詢。
+     - **不符**：自動觸發 `DBFBridge.exe` (`SYNC_TABLE`) 呼叫 `w3000_dbf.dll` 將最新 DBF 結構與內容重灌至 PostgreSQL。
+2. **權威雙寫與鎖定保護 (`WriteRecordAsync`)**：
+   - 當前端執行新增 (`INSERT`)、修改 (`UPDATE`)、刪除 (`DELETE`) 時，後端**優先呼叫 `LocalAgent` (`/api/dbf/call`) 寫入地端 DBF**。
+   - `LocalAgent` 內建 Promise 串列隊列 (`dbfQueue`) 防止併發撞檔；若另一台傳統 FoxPro 工作站正鎖定該筆紀錄 (`RLOCK`)，將回傳 `LOCK_TIMEOUT` (HTTP `409 Conflict`)，後端立即中止操作並向前端顯示明確提示，**絕不單邊寫入 PostgreSQL**。
+   - 地端 DBF 寫入成功後，後端同步更新 PostgreSQL 對應紀錄，並立即刷新 `dictionary.w3000_dbf` 的校驗碼，避免下次讀取時誤判重灌。
 
-#### 1. 資料庫連線配置 (`a3000`)
-- **Connection String**: `Host=127.0.0.1;Port=5432;Database=a3000;Username=postgresql;Password=0000`
-- 使用 EF Core Npgsql Provider。
+### 3.2 前端三大 FoxPro 盲打核心組件
+1. **`<FoxProGridV2 />`（多列試算表行內盲打組件）**：
+   - 預設顯示至少 15 列高對比表格，支援多層表頭 (`headerGroups`)、儲存格直接打字覆蓋、`Enter`/`Tab` 橫向跳欄、列末自動換行、底端自動新增空白列、離開該列或按 `Enter` 自動觸發 `onSaveRow`。
+2. **`<FoxProGridCard />`（主檔清單卡片組件）**：
+   - 用於「上方/左側主檔瀏覽清單 + 下方/右側詳細編輯表單」之複合佈局（如 `wbase1020` 會計師維護、`wbase2010` 公司維護）。
+   - 支援鍵盤 `↑`/`↓`/`PageUp`/`PageDown` 快速換筆、滑鼠滾輪防抖自動同步選取列 (`enableScrollSync`)，下方表單即時同步預覽當前選取之完整資料。
+3. **`<FoxProGridBill />`（單據 Header + Detail 連續登打組件）**：
+   - 用於進銷存單據（如 `wtaxop/PurchaseOrder`），支援品號/廠商開窗快查、數量×單價即時試算、列末 `Enter` 自動新增明細列。
 
-#### 2. 資料模型 (Models & Tables)
-- **Product** (`products`)
-  - `Code` (String, PK) - 品號
-  - `Name` (String) - 品名
-  - `Spec` (String) - 規格
-  - `Price` (Decimal) - 單價
-  - `Stock` (Decimal) - 庫存量
-- **Vendor** (`vendors`)
-  - `Code` (String, PK) - 廠商代號
-  - `Name` (String) - 廠商名稱
-- **PurchaseHeader** (`purchase_headers`)
-  - `Id` (Int, PK, AutoIncrement)
-  - `BillNo` (String, Unique) - 單號
-  - `VendorCode` (String)
-  - `VendorName` (String)
-  - `Total` (Decimal) - 總金額
-  - `CreatedAt` (DateTime)
-  - `Lines` (List<PurchaseLine>)
-- **PurchaseLine** (`purchase_lines`)
-  - `Id` (Int, PK, AutoIncrement)
-  - `HeaderId` (Int, FK)
-  - `LineNo` (Int) - 項次
-  - `ProductCode` (String) - 品號
-  - `ProductName` (String) - 品名
-  - `Qty` (Decimal) - 數量
-  - `Price` (Decimal) - 單價
-  - `Amount` (Decimal) - 小計
-  - `Remark` (String) - 備註
-
-#### 3. API Endpoints (需求支援 CORS)
-- `GET /api/products/search?q={keyword}` -> 回傳符合條件的品號、品名、規格、單價。
-- `GET /api/vendors/search?q={keyword}` -> 回傳符合條件的廠商代號與名稱。
-- `POST /api/purchase` -> 接收 Header 及 Lines，以資料庫交易 (DB Transaction) 寫入 DB。
-
----
-
-### Phase 2: 前端核心模組 — FoxPro 鍵盤體驗 (AG Grid 封裝)
-
-為了確保任何單檔輸入與單據作業都能 100% 盲打，需打造兩個高度可複用元件：
-1. `<FoxProGrid />`：適用於單檔/主檔多筆資料維護。
-2. `<FoxProGridBill />`：適用於單據頁面 (Header + Detail) 明細表格。
-
-#### 1. AG Grid 基礎設定參數 (Core AgGridReact Config)
-```tsx
-<AgGridReact
-  rowData={rows}
-  columnDefs={columnDefs}
-  editType="fullRow"
-  singleClickEdit={true}
-  stopEditingWhenCellsLoseFocus={false}
-  suppressClickEdit={false}
-  suppressRowClickSelection={true}
-  suppressCellFocus={false}
-  enterNavigatesVertically={true}
-  enterNavigatesVerticallyAfterEdit={true}
-  undoRedoCellEditing={true}
-  undoRedoCellEditingLimit={100}
-  enableCellTextSelection={false}
-  suppressScrollOnNewData={true}
-/>
-```
-
-#### 2. 鍵盤導引機制 (`useFoxProKeyboard` / `useFoxProBillKeyboard`)
-- **[Enter 鍵]**：
-  - 阻止預設行為，焦點右移至下一個可編輯儲存格。
-  - 當前列最後一欄按下 Enter -> 移動至下一列第一欄。
-  - 最後一列最後一欄按下 Enter -> 自動 **Append 新增一空列** 並聚焦至該列第一欄。
-- **[Tab / Shift+Tab 鍵]**：左右單元格切換。
-- **[Arrow Up / Arrow Down 鍵]**：上下切換列。到達底端時 Arrow Down 可自動新增列。
-- **[F2 鍵] (關鍵開窗與編輯鍵)**：
-  - 焦點位於「產品代號」或「品名」時 -> 觸發 `SearchModal` (開窗搜尋)。
-  - 焦點位於「數量」、「單價」、「備註」等數值欄位時 -> 進入儲存格編輯模式。
-- **[F9 鍵]**：觸發全頁單據 / 資料查詢。
-- **[F12 鍵]**：觸發存檔 (Save) 並計算與顯示總計。
-- **直接打字 (Direct Typing)**：直接輸入字元即可覆蓋目前單元格內容，無須先按 F2。
-
-#### 3. 視覺規格 (Visual Style Rules)
-- **字型與高矮**：`fontFamily: Consolas, monospace`, `fontSize: 16px`, `rowHeight: 38px`。
-- **Header 樣式**：深藍底色 `#1e3a8a`，文字純白 `#ffffff`，粗體高對比。
-- **焦點提示 (Focus State)**：選中 Cell 顯示 **2px 顯眼黃色外框 (`#eab308` / `#f59e0b`)**，讓使用者眼睛秒抓焦點。
-- **隔行變色**：偶數列套用背景 `#f9fafb`。
-- **底部狀態列 (StatusBar)**：即時顯示「總金額 | 總筆數 | [F2]開窗搜尋 [F9]查詢 [F12]存檔」。
-
-#### 4. 產品與廠商輸入驗證邏輯
-- **產品代號輸入 (onBlur 或 Enter 時)**：
-  - 發送 `/api/products/search?q={input}` 檢查。
-  - **存在**：自動帶入品名、規格、單價、預設數量 1，並自動計算小計金額。
-  - **不存在 (例如輸入 A999)**：自動重置該列欄位，並跳出警告提示：  
-    `⚠️ 品號 [A999] 不存在，請重新輸入或按 F2 開窗搜尋！`
-- **廠商代號驗證**：
-  - 廠商欄位按下 **F2** 可開啟廠商開窗彈窗。
-  - 輸入不存在的廠商代號時，離焦 (onBlur) 亦會自動清空並警示不存在。
-
----
-
-### Phase 3: 進貨單頁面實作 (`/wtaxop/PurchaseOrder`)
-
-結合 Header 表單與 `<FoxProGridBill />` 元件：
-- **上方區塊 (Header Field)**：
-  - 單別 (預設 'PI')
-  - 單號 (自動產生，如 `PI-20260805001`)
-  - 廠商代號 (支援鍵盤 **F2** 開窗搜尋) + 廠商名稱 (自動帶出)
-  - 進貨日期
-- **中間區塊 (Grid Detail)**：
-  - `<FoxProGridBill />` 包含 8 個欄位：`[項次, 產品代號(F2), 品名(F2), 規格, 數量, 單價, 小計, 備註]`
-- **下方區塊 (Footer Summary & Actions)**：
-  - 總數量、總金額統計欄
-  - 快捷鍵提示：`[F2] 開窗搜尋/編輯` \| `[F9] 查詢單據` \| `[F12] 存檔`
-
----
-
-### Phase 4: 開發環境與整合 (Dev Tools & Deployment)
-
-#### 1. `package.json` Root Scripts
-```json
-{
-  "name": "wx3000-root",
-  "private": true,
-  "scripts": {
-    "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:web\"",
-    "dev:web": "pnpm --filter frontend dev",
-    "dev:api": "dotnet run --project backend/Wx3000.Backend.csproj",
-    "build:api": "dotnet publish backend/Wx3000.Backend.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true",
-    "ngrok": "ngrok http 5173"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
-}
-```
-
-#### 2. `.env.example`
-```ini
-DATABASE_URL="Host=127.0.0.1;Port=5432;Database=a3000;Username=postgresql;Password=0000"
-VITE_API_URL="http://localhost:5000"
-```
-
-#### 3. C# 發佈與部署 (Win 服務 / 單一 EXE)
-- C# 後端可使用 `dotnet publish` 打包為單一可執行檔 `Wx3000.Backend.exe`。
-- 可整合 `.UseWindowsService()` 讓客戶端一鍵安裝為 Windows 服務開機自動執行。
+### 3.3 原生報表預覽與 Excel 動態欄位匯出
+1. **Lazarus FastReport 報表 (`wbaseRP.dll`)**：
+   - 前端將查詢結果 JSON 傳送至 `LocalAgent` (`http://localhost:18889/report` 或 `/wbase320_buyinv`、`/wbase350_buyinv_list`)。
+   - `LocalAgent` 自動將 JSON 寫入本機暫存檔並啟動 `WbaseBridge.exe` 載入 `wbaseRP.dll`，開啟原生高解析度預覽視窗或直接驅動點陣/雷射印表機（支援 A4 清冊與中一刀簽收單）。
+2. **Excel 動態欄位匯出器 (`<FormUtilSelectXlsxFieldsList />`)**：
+   - 還原 FoxPro 經典「左欄待選欄位 ⇄ 右欄已選匯出欄位」雙列表設計，支援自訂欄位標題、順序調整、金額/家數合計列自動附加，並持久化設定至 `localStorage`。
 
 ---
 
 ## 4. 開發防呆與禁忌 (Strict Guidelines - DO NOT)
 
-1. ❌ **禁止單筆表單設計**：明細表格必須為大容量 Multi-Row (至少 15 列) 表格，嚴禁設計成一次只能填一筆資料的彈窗或單筆輸入框。
-2. ❌ **禁止強迫使用滑鼠**：所有搜尋、換行、存檔必須能透過 Enter / Tab / F2 / F9 / F12 完成。
-3. ❌ **禁止 Dropdown 下拉搜尋**：產品與廠商搜尋必須使用 **F2 觸發的大型開窗 SearchModal**，以還原 FoxPro 開窗習慣。
-4. ❌ **禁止預設需要先按 F2 才能打字**：儲存格必須支援 Direct Keypress Overwrite。
-
----
-
-## 5. 啟動與測試流程指引 (Quick Start)
-
-1. **資料庫建置**：確保 PostgreSQL 16 服務已啟動，Database `a3000` 已建立。
-2. **安裝依賴**：執行 `pnpm install`。
-3. **後端資料庫初始化**：執行 `dotnet run --project backend` (自動套用 Migration 並寫入假資料)。
-4. **啟動全棧開發環境**：執行 `pnpm dev` (同時啟動 C# Backend 與 React Frontend)。
-5. **對外測試**：如需 Reverse Proxy 測試，執行 `pnpm ngrok`。
+1. ❌ **禁止強迫使用滑鼠**：所有搜尋、換行、切換頁籤、增刪列與存檔必須能透過鍵盤熱鍵完成。
+2. ❌ **禁止 Dropdown 下拉搜尋**：代號與條件搜尋必須使用 **`F2` / `F3` 觸發的大型開窗 `SearchModal`**。
+3. ❌ **禁止預設需要先按 F2 才能打字**：儲存格必須支援 Direct Keypress Overwrite；表單欄位聚焦時自動全選。
+4. ❌ **禁止繞過 DBF 同步單邊修改資料庫**：凡掛載 `IDbfSyncService` 之模組，寫入操作必須遵守 DBF 先行原則。
+5. ❌ **禁止因非關鍵格式瑕疵強制阻斷舊資料存檔**：如歷史客戶/會計師之非標準 Email 格式，應使用 `isValidEmail` (`frontend/src/services/validation.ts`) 顯示友善 `⚠️ 格式` 提示徽章，仍允許正常儲存。

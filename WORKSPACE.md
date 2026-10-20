@@ -1,6 +1,6 @@
 # Wx3000 Workspace Guidelines & Specification
 
-> **專案定位**：`Wx3000` 是一個旨在完全取代傳統 FoxPro / Delphi Win32 會計與進銷存系統的全端專案。核心優勢在於**前端輸入手感 100% 模擬 FoxPro 全鍵盤盲打**（全鍵盤流暢操作、無須滑鼠），專為高頻率會計與倉管人員設計。
+> **專案定位**：`Wx3000` 是一個旨在無縫接軌並取代傳統 Visual FoxPro / Delphi Win32 會計師與記帳士事務所管理、營業稅申報與進銷存系統的全端專案。核心優勢在於**前端輸入手感 100% 模擬 FoxPro 全鍵盤盲打**（無須滑鼠），並具備 **PostgreSQL 與地端 VFP `.dbf` 雙向即時同步引擎** 與 **Lazarus 原生報表引擎**。
 
 ---
 
@@ -9,11 +9,12 @@
 | 領域 | 選用技術 / 規格說明 |
 | :--- | :--- |
 | **專案架構** | Monorepo / `pnpm` Workspace 管理 |
-| **前端 (Frontend)** | React 19 + TypeScript + Vite + Tailwind CSS (v4) + AG Grid Community (v36) + Zustand + Axios |
-| **後端 (Backend)** | **C# .NET 8/9 (ASP.NET Core Web API)**<br>- 支援獨立單一可執行檔 (Single File EXE)<br>- 支援註冊為 Windows 服務 (Windows Service) |
-| **資料庫 (Database)** | **PostgreSQL 16**<br>- Server: `127.0.0.1:5432`<br>- DB: `a3000` \| User: `postgres` \| Password: `0000` |
-| **ORM / Data Access** | Entity Framework Core (EF Core) + Npgsql |
-| **開發診斷與工具** | `concurrently` + `ngrok` (Reverse Proxy) + `oxlint` |
+| **前端 (Frontend)** | React 19 + TypeScript + Vite + Tailwind CSS (v4) + AG Grid Community (v36) + Zustand + Axios + SheetJS (`xlsx`) |
+| **桌面端 (Desktop)** | **Electron** (`frontend/electron/main.cjs`) — 攔截瀏覽器預設熱鍵，完整保留 `F1`~`F12` 給 FoxPro 盲打操作 |
+| **後端 (Backend)** | **C# .NET 8 (ASP.NET Core Web API)**<br>- 預設監聽埠號：`http://0.0.0.0:5007`（支援區網多工作站連線與 `wwwroot` SPA 靜態託管）<br>- 支援發佈為獨立執行檔與註冊 Windows 服務 (`Wx3000Api`) |
+| **資料庫 (Database)** | **PostgreSQL 16 + Visual FoxPro DBF 雙向同步**<br>- PostgreSQL: `localhost:54320` \| DB: `w3000` \| User: `postgres` \| Schema: `c:/w3000/comm` & `public`<br>- 地端 DBF: `C:\w3000\comm\*.dbf`（透過 `DbfSyncService` 實現 Checksum 快照比對與雙向同步寫入） |
+| **本機代理 (LocalAgent)** | **Node.js (`localagent/agent.js`, Port: `18889`, Windows Service: `Wx3000Agent`)**<br>- `DBFBridge.exe` + `w3000_dbf.dll`：負責 VFP DBF 讀寫、RLOCK 鎖定檢測與 SHA256 Checksum<br>- `WbaseBridge.exe` / `Koffi` + `wbaseRP.dll`：負責呼叫 Lazarus FastReport 原生報表預覽與列印 |
+| **一鍵管理工具** | `Wx3000-Manager.bat` / `Wx3000-Manager.ps1`（互動式開發、打包、部署與服務管理選單） |
 
 ---
 
@@ -21,29 +22,40 @@
 
 ```text
 Wx3000/
+├── Wx3000-Manager.bat / .ps1          # 互動式一鍵開發、編譯、部署與服務管理選單
+├── BUILD_AND_DEPLOY.md                # 四大模組開發與打包部署速查指南
 ├── WORKSPACE.md                       # 本工作區開發規範與規則指引
 ├── README.md                          # 快速啟動與專案簡介
 ├── Wx3000_SPEC.md                     # 全系統規格與防呆開發文件
+├── GEMINI.md                          # AI Agent 自動載入之核心行為準則
 ├── docs/                              # 模組詳細規格索引與文件庫
 │   ├── SPEC.md                        # 規格文件總目錄
-│   ├── backend/backend_SPEC.md        # 後端 API 與 DB 規格
-│   └── frontend/                      # 各前端模組規格 (wbase, wtaxop, components)
-├── backend/                           # C# .NET Web API & Windows Service
-│   ├── Controllers/                   # RESTful API 控制器
-│   ├── Data/                          # AppDbContext (EF Core) & DbInitializer (種子資料)
-│   ├── Models/                        # Entity 資料模型
+│   ├── backend/backend_SPEC.md        # 後端 API、DBF 同步與 DB 規格
+│   └── frontend/                      # 各前端模組規格 (wbase 1020~3060, wtaxop, components)
+├── backend/                           # C# .NET 8 Web API & Windows Service (Port 5007)
+│   ├── Controllers/                   # Wbase1020~3060, SystemParam, Products, Vendors, Purchase
+│   ├── Data/                          # AppDbContext (EF Core) & DbInitializer
+│   ├── Models/                        # Entity 資料模型 (映射 c:/w3000/comm 與 public)
 │   ├── DTOs/                          # Data Transfer Objects
-│   └── Services/                      # 系統參數與業務邏輯服務
-├── frontend/                          # React 19 + AG Grid 前端專案
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── FoxProGrid/            # [核心組件] 單檔維護盲打 AG Grid + F2 Modal
-│   │   │   └── FoxProGridBill/        # [核心組件] 單據 (Header+Detail) 盲打 AG Grid
-│   │   ├── wbase/                     # 基本資料維護模組 (公司、記帳士、稅務人員、會計師等)
-│   │   ├── wtaxop/                    # 單據作業模組 (進貨單、銷貨單等)
-│   │   ├── store/                     # Zustand 全域/頁面狀態管理
-│   │   └── services/                  # Axios API 實例與連線
-└── scripts/                           # DBF 轉移與輔助腳本
+│   └── Services/                      # DbfSyncService (DBF 雙向同步) & SystemParamService
+├── frontend/                          # React 19 + Vite + Electron 前端專案
+│   ├── electron/                      # Electron 桌面端主程序與 Preload 腳本
+│   └── src/
+│       ├── components/
+│       │   ├── FoxProGrid/            # FoxProGridV2 (多列行內盲打表格) + SearchModal
+│       │   ├── FoxProGridCard/        # FoxProGridCard (主檔清單卡片 + 滾動游標同步)
+│       │   ├── FoxProGridBill/        # FoxProGridBill (單據 Header+Detail 盲打表格)
+│       │   └── SelectXlsxField/       # FormUtilSelectXlsxFieldsList (Excel 欄位自訂匯出器)
+│       ├── wbase/                     # 基本資料與發票統購模組 (menu, 1020~1080, 2010, 3010~3060)
+│       ├── wtaxop/                    # 單據作業模組 (PurchaseOrder 進貨單)
+│       ├── store/                     # Zustand 狀態管理
+│       └── services/                  # Axios API、動態 Server 設定與驗證工具 (validation.ts)
+├── localagent/                        # 本機 DLL / DBF 橋接代理服務 (Port 18889)
+│   ├── agent.js                       # HTTP & WebSocket 服務主程式
+│   ├── dlls.json                      # 報表 DLL 函數簽名配置
+│   └── bridge/lazarus/                # DBFBridge.exe 與 WbaseBridge.exe 源碼及執行檔
+├── report/                            # Lazarus FastReport 報表 DLL 源碼 (wbaseRP.dll)
+└── publish/Wx3000_Server/             # 伺服器部署包與 Windows 服務安裝/啟停批次檔
 ```
 
 ---
@@ -54,70 +66,58 @@ Wx3000/
 
 | 快捷鍵 / 操作 | 觸發行為與控制邏輯 |
 | :--- | :--- |
-| **Enter** | 1. 焦點移動至右側下一個可編輯儲存格。<br>2. 當前列最後一欄按下 Enter -> 自動移動至下一列第一欄。<br>3. **最後一列最後一欄按下 Enter -> 自動 Append 新增一空列**並聚焦至該列第一欄。 |
-| **Tab / Shift+Tab** | 在可編輯儲存格之間進行左右切換。 |
-| **Arrow Up / Down** | 切換上/下一列。在表格底端按下 Arrow Down 可自動新增列。 |
-| **F2 (關鍵開窗與編輯)** | 1. **代號/名稱欄位** (如產品代號、廠商代號、會計師代號)：觸發大型開窗搜尋對話框 (`SearchModal`)。<br>2. **數值/備註欄位** (如數量、單價、備註)：進入儲存格編輯模式。 |
-| **F9** | 觸發歷史單據/資料開窗查詢。 |
-| **F12** | 一鍵發送存檔 (Save)，並觸發全單據金額計算與驗證。 |
-| **直接打字 (Direct Typing)** | **無須先按 F2**，直接鍵入字元即可即時覆蓋 (Overwrite) 當前單元格內容。 |
+| **Enter** | 1. **表格模式 (`FoxProGridV2`)**：向右移動至下一個可編輯儲存格；列末跳至下一列第一欄；**最後一列最後一欄自動 Append 新增一空列**並觸發存檔。<br>2. **卡片+表單模式 (`wbase1020`/`2010`)**：在卡片上按 `Enter` 進入下方表單編修；在表單內按 `Enter` 依序跳至下一欄位（支援跨 Tab 自動切換）。 |
+| **Tab / Shift+Tab** | 在可編輯儲存格或表單欄位之間進行左右/前後切換。 |
+| **Arrow Up / Down** | 切換上/下一筆資料列。在 `FoxProGridV2` 底端按下 Arrow Down 自動新增空白列；在 `FoxProGridCard` 上下移動時下方表單即時同步預覽。 |
+| **Ins / F2** | `Ins` 新增一筆記錄或插入空白列；`F2` 觸發編輯或開啟快速查詢彈窗 (`SearchModal`)。 |
+| **F3** | 觸發大型開窗搜尋對話框 (`SearchModal`)，或於 `wbase2010` 切換頁籤。 |
+| **F6** | 於卡片+表單模式進入編修狀態 (`startEdit`)，或於表格模式重新整理資料 (`onRefreshData`)。 |
+| **F7 / F9** | `F7` 開啟區間報表列印與匯出視窗；`F9` 或 `Ctrl+S` 執行表單/批次存檔。 |
+| **Del / F8** | 刪除目前選取之資料列（附帶鍵盤可控之確認對話框）。 |
+| **Esc** | 取消當前編輯、觸發批次結算存檔，或退回上一層/系統主選單。 |
+| **直接打字 (Direct Typing)** | **無須先按 F2**，直接鍵入字元即可即時覆蓋當前單元格或已全選之表單輸入框內容。 |
 
 ### 3.2 視覺與 UI 渲染規範 (Visual Style Rules)
 
-- **字型與欄高**：字型 `Consolas, monospace`，字級 `16px`，預設列高 `rowHeight: 38px`。
-- **Header 樣式**：深藍背景色 `#1e3a8a`，文字純白 `#ffffff`，粗體高對比。
-- **焦點外框 (Focus Ring)**：選中儲存格必須顯示 **2px 顯眼黃色外框 (`#eab308` / `#f59e0b`)**，便於快速定位。
-- **隔行變色**：偶數列套用微灰背景 `#f9fafb`。
-- **狀態列 (StatusBar)**：表格底部即時顯示總金額、總筆數與熱鍵列 (`[F2]開窗 [F9]查詢 [F12]存檔`)。
+- **字型與欄高**：字型 `Consolas, Monaco, monospace`，字級 `16px`，預設列高 `rowHeight: 38px`。
+- **雙主題支援 (`ThemeContext`)**：支援淺藍色高對比主題（預設，Header `#1e3a8a` 深藍配白字）與深色主題（Dark Slate）。
+- **焦點外框 (Focus Ring)**：選中儲存格或焦點輸入框必須顯示 **顯眼黃色外框 (`#eab308` / `ring-yellow-400`)** 與高亮背景。
+- **非阻斷式驗證提示**：如 Email 格式檢查 (`isValidEmail`)，對不符合標準格式的歷史資料顯示琥珀色 `⚠️ 格式` 提示徽章與欄位提醒，但不阻斷存檔。
 
 ---
 
 ## 🚫 4. 開發防呆與嚴格禁忌 (Strict DO NOT Rules)
 
-1. ❌ **禁止單筆表單設計**：明細表格必須為大容量 Multi-Row (至少 15 列) 表格，嚴禁設計成一次只能填一筆資料的彈窗或單筆輸入框。
-2. ❌ **禁止強迫使用滑鼠**：所有搜尋、換行、切換欄位、增列與存檔必須 100% 可透過 Enter / Tab / F2 / F9 / F12 完成。
-3. ❌ **禁止 Dropdown 下拉選單搜尋**：代號與名稱搜尋必須使用 **F2 觸發的大型彈窗 SearchModal**，還原 FoxPro 開窗習慣。
-4. ❌ **禁止預設需要先按 F2 才能打字**：儲存格必須支援 Direct Keypress Overwrite。
-5. ❌ **禁止破壞既存 API 協定與靜態型別**：修改方法簽名或 DTO 時，必須全域搜尋並同步更新所有呼叫端與模型。
+1. ❌ **禁止強迫使用滑鼠**：所有搜尋、換行、切換欄位、切換頁籤、增刪列與存檔必須 100% 可透過鍵盤完成。
+2. ❌ **禁止 Dropdown 下拉選單搜尋**：代號與名稱搜尋必須使用 **`F2` / `F3` 觸發的大型彈窗 `SearchModal`**，還原 FoxPro 開窗習慣。
+3. ❌ **禁止單邊寫入破壞 DBF 同步**：在已接入 `IDbfSyncService` 的控制器中，任何新增/修改/刪除必須先通過 `_dbfSyncService.WriteRecordAsync` 寫入地端 DBF，嚴禁繞過 DBF 直接單邊修改 PostgreSQL。
+4. ❌ **禁止破壞既存 API 協定與靜態型別**：修改方法簽名或 DTO 時，必須全域搜尋並同步更新所有呼叫端與模型。
 
 ---
 
-## ⚙️ 5. 工程開發與品質規範 (Engineering Guidelines)
+## 🚀 5. 常用開發與編譯指令 (Commands & Workflows)
 
-1. **碼源探查優先 (No Guessing)**：禁止憑空猜測 API 簽名、資料庫 Schema 或元件 Prop，撰寫代碼前必須先檢視對應源碼。
-2. **完整錯誤日誌診斷**：出現錯誤時，必須閱讀完整 Log 及 Exception StackTrace，嚴禁採用遮蔽 Error、吞掉 Exception 或回傳預設假資料的掩耳盜鈴做法。
-3. **實機與編譯驗證**：完成代碼修改後，必須執行型別檢查或編譯指令（如 `pnpm run build` / `dotnet run`），驗證無誤後始可宣告完成。
-4. **保持文件與註解完整性**：修改代碼時需維護無關註解與 JSDoc/XML 文檔，並及時更新 `docs/` 下的對應 SPEC 文件。
+```powershell
+# 0. 啟動互動式一鍵管理選單 (涵蓋啟動、編譯、部署、重啟服務)
+.\Wx3000-Manager.ps1
 
----
-
-## 🚀 6. 常用開發與編譯指令 (Commands & Workflows)
-
-```bash
-# 1. 啟動全棧開發環境 (API + Web 並行)
+# 1. 啟動全棧開發環境 (API + Web + LocalAgent)
 pnpm dev
 
-# 2. 僅啟動前端 Vite 開發服務
+# 2. 單獨啟動前端 / 後端 / LocalAgent
 pnpm dev:web
-
-# 3. 僅啟動後端 C# API 服務
 pnpm dev:api
+node localagent/agent.js
 
-# 4. 前端型別檢查與 Vite 打包編譯
-cd frontend && pnpm run build
+# 3. 實機編譯驗證 (修改代碼後必跑)
+pnpm --filter frontend build
+dotnet build backend/Wx3000.Backend.csproj
 
-# 5. 後端發佈 Windows 獨立單一可執行檔 (Single-File EXE)
-pnpm build:api
+# 4. 打包完整伺服器發佈包 (前端 dist 自動複製至後端 wwwroot)
+pnpm publish:server
 
-# 6. 前端桌面端 (Electron) 開發熱重載
+# 5. Electron 桌面端開發與打包
 pnpm dev:electron
-
-# 7. 前端桌面端打包 (Windows 安裝檔與免安裝綠色版 EXE)
-pnpm build:electron
-
-# 8. 前端桌面端解壓打包 (快速免安裝測試目錄 release/win-unpacked)
 pnpm pack:electron
-
-# 9. 啟動 Reverse Proxy 測試對外開窗
-pnpm ngrok
+pnpm build:electron
 ```
