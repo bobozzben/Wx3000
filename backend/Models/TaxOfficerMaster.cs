@@ -18,37 +18,37 @@ namespace Wx3000.Backend.Models
 
         [Column("helpman")]
         [StringLength(255)]
-        public string? TaxBureau { get; set; }
+        public string TaxBureau { get; set; } = string.Empty;
 
         [Column("department")]
         [StringLength(255)]
-        public string? Unit { get; set; }
+        public string Unit { get; set; } = string.Empty;
 
         [Column("tel")]
         [StringLength(255)]
-        public string? Tel { get; set; }
+        public string Tel { get; set; } = string.Empty;
 
         [Column("memo")]
         [StringLength(255)]
-        public string? Memo { get; set; }
+        public string Memo { get; set; } = string.Empty;
 
         [Column("addr")]
         [StringLength(255)]
-        public string? Address { get; set; }
+        public string Address { get; set; } = string.Empty;
 
         [Column("_record_number")]
         public int RecordNumber { get; set; } = 0;
 
         [NotMapped]
-        public string? Ext { get; set; }
+        public string Ext { get; set; } = string.Empty;
 
         [NotMapped]
-        public string? Fax { get; set; }
+        public string Fax { get; set; } = string.Empty;
 
         [NotMapped]
-        public string? Mobile { get; set; }
+        public string Mobile { get; set; } = string.Empty;
 
         [NotMapped]
-        public string? Email { get; set; }
+        public string Email { get; set; } = string.Empty;
     }
 }

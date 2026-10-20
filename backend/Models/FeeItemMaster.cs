@@ -23,6 +23,6 @@ namespace Wx3000.Backend.Models
         public int RecordNumber { get; set; } = 0;
 
         [NotMapped]
-        public string? Guid { get; set; }
+        public string Guid { get; set; } = string.Empty;
     }
 }

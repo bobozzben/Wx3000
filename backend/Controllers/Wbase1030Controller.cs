@@ -1,7 +1,13 @@
-using Wx3000.Backend.Data;
-using Wx3000.Backend.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Wx3000.Backend.Data;
+using Wx3000.Backend.Models;
+using Wx3000.Backend.Services;
 
 namespace Wx3000.Backend.Controllers
 {
@@ -10,10 +16,18 @@ namespace Wx3000.Backend.Controllers
     public class Wbase1030Controller : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IDbfSyncService _dbfSyncService;
 
-        public Wbase1030Controller(AppDbContext context)
+        private const string DbfPath = @"C:\w3000\comm";
+        private const string DbfName = "keyin";
+        private const string PgSchema = "c:/w3000/comm";
+        private const string PgTable = "keyin";
+        private const string KeyField = "no";
+
+        public Wbase1030Controller(AppDbContext context, IDbfSyncService dbfSyncService)
         {
             _context = context;
+            _dbfSyncService = dbfSyncService;
         }
 
         // GET: api/wbase1030/inspect
@@ -67,6 +81,9 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
+                // 開檔前確保快照與 DBF Checksum 同步 (Checksum 相符則 ~2ms 放行)
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
+
                 var queryable = _context.EmpMasters.AsNoTracking();
 
                 if (!string.IsNullOrWhiteSpace(keyword))
@@ -106,6 +123,8 @@ namespace Wx3000.Backend.Controllers
         {
             if (string.IsNullOrWhiteSpace(code)) return BadRequest("編號不可為空");
 
+            await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
+
             var targetCode = code.Trim().ToUpper();
             var item = await _context.EmpMasters.FirstOrDefaultAsync(e => e.EmpCode.Trim() == targetCode);
             if (item == null)
@@ -134,25 +153,77 @@ namespace Wx3000.Backend.Controllers
             }
 
             var code = input.EmpCode.Trim().ToUpper();
-            input.EmpName ??= string.Empty;
+            input.EmpCode = code;
+            input.EmpName = input.EmpName?.Trim() ?? string.Empty;
+            input.DepName = input.DepName?.Trim() ?? string.Empty;
+            input.Mobile = input.Mobile?.Trim() ?? string.Empty;
+            input.Email = input.Email?.Trim() ?? string.Empty;
+            input.OneUserId = input.OneUserId?.Trim() ?? string.Empty;
+            input.OnePassNo = input.OnePassNo?.Trim() ?? string.Empty;
+            input.Psw = input.Psw?.Trim() ?? string.Empty;
+            input.Birthday = input.Birthday?.Trim() ?? string.Empty;
 
             var existing = await _context.EmpMasters.FirstOrDefaultAsync(e => e.EmpCode.Trim() == code);
+            var operation = existing != null ? "UPDATE" : "INSERT";
+
+            // 1. 組裝 DBF 欄位清單
+            var fields = new Dictionary<string, object?>
+            {
+                ["no"] = code,
+                ["name"] = input.EmpName,
+                ["memo"] = input.DepName,
+                ["phone"] = input.Mobile,
+                ["email"] = input.Email,
+                ["oneuserid"] = input.OneUserId,
+                ["onepassno"] = input.OnePassNo
+            };
+
+            // 2. 核心原則：DBF 絕對權威！先寫 DBF
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, code, fields);
+            if (!dbfResult.Success)
+            {
+                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        error = dbfResult.Error,
+                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消"
+                    });
+                }
+                return BadRequest(new
+                {
+                    error = dbfResult.Error,
+                    message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                });
+            }
+
+            // 3. DBF 寫入成功後才 Commit 至 PostgreSQL
             if (existing != null)
             {
-                existing.EmpName = input.EmpName.Trim();
-                existing.DepName = input.DepName?.Trim() ?? string.Empty;
-                existing.Mobile = input.Mobile?.Trim() ?? string.Empty;
-                existing.Email = input.Email?.Trim() ?? string.Empty;
-                existing.OneUserId = input.OneUserId?.Trim() ?? string.Empty;
-                existing.OnePassNo = input.OnePassNo?.Trim() ?? string.Empty;
+                existing.EmpName = input.EmpName;
+                existing.DepName = input.DepName;
+                existing.Mobile = input.Mobile;
+                existing.Email = input.Email;
+                existing.OneUserId = input.OneUserId;
+                existing.OnePassNo = input.OnePassNo;
+                existing.Psw = input.Psw;
+                existing.Birthday = input.Birthday;
+                if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
 
                 await _context.SaveChangesAsync();
+                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                if (!string.IsNullOrEmpty(newChecksum))
+                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+
                 return Ok(existing);
             }
 
-            input.EmpCode = code;
+            if (dbfResult.Recno > 0) input.RecordNumber = dbfResult.Recno;
             _context.EmpMasters.Add(input);
             await _context.SaveChangesAsync();
+            var newCsum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+            if (!string.IsNullOrEmpty(newCsum))
+                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newCsum);
 
             return CreatedAtAction(nameof(GetByCode), new { code = input.EmpCode }, input);
         }
@@ -164,30 +235,78 @@ namespace Wx3000.Backend.Controllers
             if (string.IsNullOrWhiteSpace(code)) return BadRequest("編號不可為空");
 
             var targetCode = code.Trim().ToUpper();
+            input.EmpCode = targetCode;
+            input.EmpName = input.EmpName?.Trim() ?? string.Empty;
+            input.DepName = input.DepName?.Trim() ?? string.Empty;
+            input.Mobile = input.Mobile?.Trim() ?? string.Empty;
+            input.Email = input.Email?.Trim() ?? string.Empty;
+            input.OneUserId = input.OneUserId?.Trim() ?? string.Empty;
+            input.OnePassNo = input.OnePassNo?.Trim() ?? string.Empty;
+            input.Psw = input.Psw?.Trim() ?? string.Empty;
+            input.Birthday = input.Birthday?.Trim() ?? string.Empty;
+
             var existing = await _context.EmpMasters.FirstOrDefaultAsync(e => e.EmpCode.Trim() == targetCode);
+            var operation = existing != null ? "UPDATE" : "INSERT";
+
+            // 1. 組裝 DBF 欄位清單
+            var fields = new Dictionary<string, object?>
+            {
+                ["no"] = targetCode,
+                ["name"] = input.EmpName,
+                ["memo"] = input.DepName,
+                ["phone"] = input.Mobile,
+                ["email"] = input.Email,
+                ["oneuserid"] = input.OneUserId,
+                ["onepassno"] = input.OnePassNo
+            };
+
+            // 2. 核心原則：DBF 絕對權威！先寫 DBF
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, targetCode, fields);
+            if (!dbfResult.Success)
+            {
+                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        error = dbfResult.Error,
+                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消"
+                    });
+                }
+                return BadRequest(new
+                {
+                    error = dbfResult.Error,
+                    message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                });
+            }
+
+            // 3. DBF 成功後才寫入 PostgreSQL
             if (existing == null)
             {
-                input.EmpCode = targetCode;
-                input.EmpName ??= string.Empty;
-                input.DepName ??= string.Empty;
-                input.Mobile ??= string.Empty;
-                input.Email ??= string.Empty;
-                input.OneUserId ??= string.Empty;
-                input.OnePassNo ??= string.Empty;
-
+                if (dbfResult.Recno > 0) input.RecordNumber = dbfResult.Recno;
                 _context.EmpMasters.Add(input);
                 await _context.SaveChangesAsync();
+                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                if (!string.IsNullOrEmpty(newChecksum))
+                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+
                 return Ok(input);
             }
 
-            existing.EmpName = input.EmpName?.Trim() ?? string.Empty;
-            existing.DepName = input.DepName?.Trim() ?? string.Empty;
-            existing.Mobile = input.Mobile?.Trim() ?? string.Empty;
-            existing.Email = input.Email?.Trim() ?? string.Empty;
-            existing.OneUserId = input.OneUserId?.Trim() ?? string.Empty;
-            existing.OnePassNo = input.OnePassNo?.Trim() ?? string.Empty;
+            existing.EmpName = input.EmpName;
+            existing.DepName = input.DepName;
+            existing.Mobile = input.Mobile;
+            existing.Email = input.Email;
+            existing.OneUserId = input.OneUserId;
+            existing.OnePassNo = input.OnePassNo;
+            existing.Psw = input.Psw;
+            existing.Birthday = input.Birthday;
+            if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
 
             await _context.SaveChangesAsync();
+            var updatedChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+            if (!string.IsNullOrEmpty(updatedChecksum))
+                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, updatedChecksum);
+
             return Ok(existing);
         }
 
@@ -204,8 +323,31 @@ namespace Wx3000.Backend.Controllers
                 return NotFound(new { message = $"找不到編號為 '{targetCode}' 的人員資料" });
             }
 
+            // 1. 核心原則：DBF 絕對權威！先刪除 DBF
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "DELETE", KeyField, targetCode, new Dictionary<string, object?>());
+            if (!dbfResult.Success)
+            {
+                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        error = dbfResult.Error,
+                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，刪除取消"
+                    });
+                }
+                return BadRequest(new
+                {
+                    error = dbfResult.Error,
+                    message = "地端 DBF 刪除失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                });
+            }
+
+            // 2. DBF 成功刪除後才刪除 PostgreSQL
             _context.EmpMasters.Remove(existing);
             await _context.SaveChangesAsync();
+            var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+            if (!string.IsNullOrEmpty(newChecksum))
+                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
 
             return Ok(new { message = $"人員 [{targetCode}] 已成功刪除" });
         }
@@ -220,6 +362,8 @@ namespace Wx3000.Backend.Controllers
         [HttpPost("print")]
         public async Task<ActionResult<IEnumerable<EmpMaster>>> PrintData([FromBody] PrintRequest req)
         {
+            await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
+
             var queryable = _context.EmpMasters.AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(req.CodeStart))

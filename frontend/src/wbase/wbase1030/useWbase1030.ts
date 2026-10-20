@@ -82,9 +82,10 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
       set({ showAutoCloseToast: true });
       setTimeout(() => set({ showAutoCloseToast: false }), 2000);
       await get().refreshData();
-    } catch (e) {
+    } catch (e: any) {
       console.error('Save employee row error:', e);
-      set({ errorToast: '儲存員工資料失敗' });
+      const msg = e?.response?.data?.message || e?.message || '儲存員工資料失敗';
+      set({ errorToast: msg });
     }
   },
 
@@ -99,9 +100,10 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
       set({ showAutoCloseToast: true });
       setTimeout(() => set({ showAutoCloseToast: false }), 2000);
       await get().refreshData();
-    } catch (e) {
+    } catch (e: any) {
       console.error('Batch save employee error:', e);
-      set({ errorToast: '儲存過程中發生例外' });
+      const msg = e?.response?.data?.message || e?.message || '儲存過程中發生例外';
+      set({ errorToast: msg });
     } finally {
       set({ loading: false });
     }
@@ -132,9 +134,10 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
         await refreshData();
         return true;
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Delete employee error:', e);
-      set({ errorToast: '刪除員工資料失敗' });
+      const msg = e?.response?.data?.message || e?.message || '刪除員工資料失敗';
+      set({ errorToast: msg });
     } finally {
       set({ isDeleteConfirmOpen: false });
     }

@@ -1,7 +1,13 @@
-using Wx3000.Backend.Data;
-using Wx3000.Backend.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Wx3000.Backend.Data;
+using Wx3000.Backend.Models;
+using Wx3000.Backend.Services;
 
 namespace Wx3000.Backend.Controllers
 {
@@ -10,16 +16,33 @@ namespace Wx3000.Backend.Controllers
     public class Wbase3020Controller : ControllerBase
     {
         private readonly AppDbContext _context;
-        private static readonly SemaphoreSlim _seedLock = new SemaphoreSlim(1, 1);
+        private readonly IDbfSyncService _dbfSyncService;
 
-        public Wbase3020Controller(AppDbContext context)
+        private const string DbfPath = @"C:\w3000\comm";
+        private const string DbfName = "buyinv";
+        private const string PgSchema = "c:/w3000/comm";
+        private const string PgTable = "buyinv";
+        private const string KeyField = "yymm,times,no";
+        private const string SyncKeyField = "_record_number";
+
+        public Wbase3020Controller(AppDbContext context, IDbfSyncService dbfSyncService)
         {
             _context = context;
+            _dbfSyncService = dbfSyncService;
         }
 
-        private async Task EnsureTableCreatedAndSeededAsync(string period, string times)
+        /// <summary>
+        /// 將前端期別格式 (如 "11505-06" 或 "1150506") 轉換為 FoxPro buyinv.dbf 的 6 碼 yymm 格式 (如 "150506")
+        /// </summary>
+        private static string NormalizeToDbfPeriod(string? period)
         {
-            await Task.CompletedTask;
+            var raw = string.IsNullOrWhiteSpace(period) ? "11505-06" : period.Trim();
+            var clean = raw.Replace("-", "").Trim();
+            if (clean.Length == 7 && clean.StartsWith("1"))
+            {
+                return clean.Substring(1);
+            }
+            return clean;
         }
 
         // GET: api/wbase3020?period=11505-06&times=1&keyword=xxx
@@ -34,13 +57,14 @@ namespace Wx3000.Backend.Controllers
             try
             {
                 var targetPeriod = string.IsNullOrWhiteSpace(period) ? "11505-06" : period.Trim();
+                var dbfPeriod = NormalizeToDbfPeriod(targetPeriod);
                 var targetTimes = string.IsNullOrWhiteSpace(times) ? "1" : times.Trim();
 
-                await EnsureTableCreatedAndSeededAsync(targetPeriod, targetTimes);
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, SyncKeyField);
 
                 var queryable = _context.InvoicePurchaseMasters
                     .AsNoTracking()
-                    .Where(x => x.Period == targetPeriod && x.Times == targetTimes);
+                    .Where(x => (x.Period == dbfPeriod || x.Period == targetPeriod) && x.Times == targetTimes);
 
                 // Input mode condition filtering & sorting
                 if (!string.IsNullOrWhiteSpace(inputMode))
@@ -53,14 +77,14 @@ namespace Wx3000.Backend.Controllers
                         case "1": // 稅籍編號
                             if (!string.IsNullOrWhiteSpace(cond))
                             {
-                                queryable = queryable.Where(x => x.TaxNo != null && x.TaxNo.ToLower().Contains(cond));
+                                queryable = queryable.Where(x => x.TaxNo.ToLower().Contains(cond));
                             }
                             queryable = queryable.OrderBy(x => x.TaxNo).ThenBy(x => x.CompanyCode);
                             break;
                         case "2": // 統一編號
                             if (!string.IsNullOrWhiteSpace(cond))
                             {
-                                queryable = queryable.Where(x => x.UnifiedNo != null && x.UnifiedNo.ToLower().Contains(cond));
+                                queryable = queryable.Where(x => x.UnifiedNo.ToLower().Contains(cond));
                             }
                             queryable = queryable.OrderBy(x => x.UnifiedNo).ThenBy(x => x.CompanyCode);
                             break;
@@ -111,9 +135,9 @@ namespace Wx3000.Backend.Controllers
                     var kw = keyword.Trim().ToLower();
                     queryable = queryable.Where(x =>
                         x.CompanyCode.ToLower().Contains(kw) ||
-                        (x.CompanyShortName != null && x.CompanyShortName.ToLower().Contains(kw)) ||
-                        (x.UnifiedNo != null && x.UnifiedNo.ToLower().Contains(kw)) ||
-                        (x.TaxNo != null && x.TaxNo.ToLower().Contains(kw))
+                        x.CompanyShortName.ToLower().Contains(kw) ||
+                        x.UnifiedNo.ToLower().Contains(kw) ||
+                        x.TaxNo.ToLower().Contains(kw)
                     );
                 }
 
@@ -132,14 +156,14 @@ namespace Wx3000.Backend.Controllers
 
                     if (companyDict.TryGetValue(code, out var comp))
                     {
-                        item.CompanyName = comp.CompanyName?.Trim() ?? string.Empty;
-                        item.CompanyAddr = comp.Address?.Trim() ?? string.Empty;
+                        item.CompanyName = comp.CompanyName.Trim();
+                        item.CompanyAddr = comp.Address.Trim();
                         if (string.IsNullOrWhiteSpace(item.CompanyShortName))
-                            item.CompanyShortName = comp.ShortName?.Trim() ?? comp.CompanyName?.Trim() ?? string.Empty;
+                            item.CompanyShortName = !string.IsNullOrWhiteSpace(comp.ShortName) ? comp.ShortName.Trim() : comp.CompanyName.Trim();
                         if (string.IsNullOrWhiteSpace(item.UnifiedNo))
-                            item.UnifiedNo = comp.UnifiedNo?.Trim() ?? string.Empty;
+                            item.UnifiedNo = comp.UnifiedNo.Trim();
                         if (string.IsNullOrWhiteSpace(item.TaxNo))
-                            item.TaxNo = comp.TaxNo?.Trim() ?? string.Empty;
+                            item.TaxNo = comp.TaxNo.Trim();
                     }
                     else
                     {
@@ -152,6 +176,7 @@ namespace Wx3000.Backend.Controllers
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"Wbase3020 GetList error: {ex.Message}");
                 return StatusCode(500, new { message = $"查詢發票購買資料失敗: {ex.Message}" });
             }
         }
@@ -162,11 +187,11 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
-                var p = period.Trim();
+                var p = NormalizeToDbfPeriod(period);
                 var t = times.Trim();
                 var c = companyCode.Trim();
 
-                await EnsureTableCreatedAndSeededAsync(p, t);
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, SyncKeyField);
 
                 var item = await _context.InvoicePurchaseMasters.FindAsync(p, t, c);
                 if (item == null)
@@ -186,37 +211,70 @@ namespace Wx3000.Backend.Controllers
         [HttpPost]
         public async Task<ActionResult<InvoicePurchaseMaster>> Create([FromBody] InvoicePurchaseMaster model)
         {
-            try
+            if (model == null || string.IsNullOrWhiteSpace(model.Period) || string.IsNullOrWhiteSpace(model.CompanyCode))
             {
-                if (string.IsNullOrWhiteSpace(model.Period) || string.IsNullOrWhiteSpace(model.CompanyCode))
+                return BadRequest(new { message = "期別與公司編號為必填欄位" });
+            }
+
+            var p = NormalizeToDbfPeriod(model.Period);
+            var t = string.IsNullOrWhiteSpace(model.Times) ? "1" : model.Times.Trim();
+            var c = model.CompanyCode.Trim().ToUpper();
+
+            model.Period = p;
+            model.Times = t;
+            model.CompanyCode = c;
+            model.CompanyShortName = model.CompanyShortName?.Trim() ?? string.Empty;
+            model.UnifiedNo = model.UnifiedNo?.Trim() ?? string.Empty;
+            model.TaxNo = model.TaxNo?.Trim() ?? string.Empty;
+
+            var existing = await _context.InvoicePurchaseMasters.FindAsync(p, t, c);
+            var operation = existing != null ? "UPDATE" : "INSERT";
+            var keyVal = $"{p},{t},{c}";
+
+            // 1. 組裝 DBF 欄位清單
+            var fields = AssembleDbfFields(model, p, t, c);
+
+            // 2. 核心原則：DBF 絕對權威！先寫 DBF
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, keyVal, fields);
+            if (!dbfResult.Success)
+            {
+                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
                 {
-                    return BadRequest(new { message = "期別與公司編號為必填欄位" });
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        error = dbfResult.Error,
+                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消"
+                    });
                 }
-
-                model.Period = model.Period.Trim();
-                model.Times = string.IsNullOrWhiteSpace(model.Times) ? "1" : model.Times.Trim();
-                model.CompanyCode = model.CompanyCode.Trim();
-                model.CompanyShortName = model.CompanyShortName?.Trim() ?? string.Empty;
-                model.UnifiedNo = model.UnifiedNo?.Trim() ?? string.Empty;
-                model.TaxNo = model.TaxNo?.Trim() ?? string.Empty;
-
-                await EnsureTableCreatedAndSeededAsync(model.Period, model.Times);
-
-                var existing = await _context.InvoicePurchaseMasters.FindAsync(model.Period, model.Times, model.CompanyCode);
-                if (existing != null)
+                return BadRequest(new
                 {
-                    return Conflict(new { message = $"發票購買紀錄 [{model.CompanyCode}] 在期別 {model.Period} 已存在" });
-                }
+                    error = dbfResult.Error,
+                    message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                });
+            }
 
-                _context.InvoicePurchaseMasters.Add(model);
+            // 3. DBF 成功後才寫入 PostgreSQL
+            if (existing != null)
+            {
+                UpdateEntityValues(existing, model);
+                if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
+
                 await _context.SaveChangesAsync();
+                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                if (!string.IsNullOrEmpty(newChecksum))
+                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
 
-                return CreatedAtAction(nameof(GetByCode), new { period = model.Period, times = model.Times, companyCode = model.CompanyCode }, model);
+                return Ok(existing);
             }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = $"新增發票購買紀錄失敗: {ex.Message}" });
-            }
+
+            if (dbfResult.Recno > 0) model.RecordNumber = dbfResult.Recno;
+            _context.InvoicePurchaseMasters.Add(model);
+            await _context.SaveChangesAsync();
+            var newCsum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+            if (!string.IsNullOrEmpty(newCsum))
+                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newCsum);
+
+            return CreatedAtAction(nameof(GetByCode), new { period = model.Period, times = model.Times, companyCode = model.CompanyCode }, model);
         }
 
         // PUT: api/wbase3020
@@ -241,7 +299,7 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
-                var p = System.Net.WebUtility.UrlDecode(period ?? model.Period ?? "").Trim();
+                var p = NormalizeToDbfPeriod(System.Net.WebUtility.UrlDecode(period ?? model.Period ?? ""));
                 var rawTimes = System.Net.WebUtility.UrlDecode(times ?? model.Times ?? "1").Trim();
                 var tMatch = System.Text.RegularExpressions.Regex.Match(rawTimes, @"\d+");
                 var t = tMatch.Success ? tMatch.Value : "1";
@@ -252,43 +310,60 @@ namespace Wx3000.Backend.Controllers
                     return BadRequest(new { message = "公司編號不可為空" });
                 }
 
-                await EnsureTableCreatedAndSeededAsync(p, t);
+                model.Period = p;
+                model.Times = t;
+                model.CompanyCode = c;
+                model.CompanyShortName = model.CompanyShortName?.Trim() ?? string.Empty;
+                model.UnifiedNo = model.UnifiedNo?.Trim() ?? string.Empty;
+                model.TaxNo = model.TaxNo?.Trim() ?? string.Empty;
 
                 var existing = await _context.InvoicePurchaseMasters.FindAsync(p, t, c);
+                var operation = existing != null ? "UPDATE" : "INSERT";
+                var keyVal = $"{p},{t},{c}";
+
+                // 1. 組裝 DBF 欄位清單
+                var fields = AssembleDbfFields(model, p, t, c);
+
+                // 2. 核心原則：DBF 絕對權威！先寫 DBF
+                var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, keyVal, fields);
+                if (!dbfResult.Success)
+                {
+                    if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                    {
+                        return StatusCode(StatusCodes.Status409Conflict, new
+                        {
+                            error = dbfResult.Error,
+                            message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消"
+                        });
+                    }
+                    return BadRequest(new
+                    {
+                        error = dbfResult.Error,
+                        message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                    });
+                }
+
+                // 3. DBF 成功後才寫入 PostgreSQL
                 if (existing == null)
                 {
-                    model.Period = p;
-                    model.Times = t;
-                    model.CompanyCode = c;
-                    model.CompanyShortName = model.CompanyShortName?.Trim() ?? string.Empty;
-                    model.UnifiedNo = model.UnifiedNo?.Trim() ?? string.Empty;
-                    model.TaxNo = model.TaxNo?.Trim() ?? string.Empty;
-                    model.City = model.City?.Trim() ?? string.Empty;
-                    model.PlaceCode = model.PlaceCode?.Trim() ?? string.Empty;
-                    model.EmpCode = model.EmpCode?.Trim() ?? string.Empty;
-                    model.Guid = string.IsNullOrWhiteSpace(model.Guid) ? Guid.NewGuid().ToString() : model.Guid;
-
+                    if (dbfResult.Recno > 0) model.RecordNumber = dbfResult.Recno;
                     _context.InvoicePurchaseMasters.Add(model);
                     await _context.SaveChangesAsync();
+                    var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                    if (!string.IsNullOrEmpty(newChecksum))
+                        await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+
                     return Ok(model);
                 }
 
-                existing.CompanyShortName = model.CompanyShortName?.Trim() ?? string.Empty;
-                existing.UnifiedNo = model.UnifiedNo?.Trim() ?? string.Empty;
-                existing.TaxNo = model.TaxNo?.Trim() ?? string.Empty;
-                existing.ManualTwoDup = model.ManualTwoDup;
-                existing.ManualTwoDupSub = model.ManualTwoDupSub;
-                existing.ManualThreeDup = model.ManualThreeDup;
-                existing.ManualThreeDupSub = model.ManualThreeDupSub;
-                existing.ManualSpecial = model.ManualSpecial;
-                existing.CashTwoDup = model.CashTwoDup;
-                existing.CashThreeDup = model.CashThreeDup;
-                existing.CashThreeDupSub = model.CashThreeDupSub;
-                existing.City = model.City?.Trim() ?? string.Empty;
-                existing.PlaceCode = model.PlaceCode?.Trim() ?? string.Empty;
-                existing.EmpCode = model.EmpCode?.Trim() ?? string.Empty;
+                UpdateEntityValues(existing, model);
+                if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
 
                 await _context.SaveChangesAsync();
+                var updatedChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                if (!string.IsNullOrEmpty(updatedChecksum))
+                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, updatedChecksum);
+
                 return Ok(existing);
             }
             catch (Exception ex)
@@ -303,11 +378,9 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
-                var p = period.Trim();
+                var p = NormalizeToDbfPeriod(period);
                 var t = times.Trim();
-                var c = companyCode.Trim();
-
-                await EnsureTableCreatedAndSeededAsync(p, t);
+                var c = companyCode.Trim().ToUpper();
 
                 var existing = await _context.InvoicePurchaseMasters.FindAsync(p, t, c);
                 if (existing == null)
@@ -315,8 +388,34 @@ namespace Wx3000.Backend.Controllers
                     return NotFound(new { message = "欲刪除的紀錄不存在" });
                 }
 
+                var keyVal = $"{p},{t},{c}";
+
+                // 1. 核心原則：DBF 絕對權威！先刪除 DBF
+                var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "DELETE", KeyField, keyVal, new Dictionary<string, object?>());
+                if (!dbfResult.Success)
+                {
+                    if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                    {
+                        return StatusCode(StatusCodes.Status409Conflict, new
+                        {
+                            error = dbfResult.Error,
+                            message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，刪除取消"
+                        });
+                    }
+                    return BadRequest(new
+                    {
+                        error = dbfResult.Error,
+                        message = "地端 DBF 刪除失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                    });
+                }
+
+                // 2. DBF 成功刪除後才刪除 PostgreSQL
                 _context.InvoicePurchaseMasters.Remove(existing);
                 await _context.SaveChangesAsync();
+                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                if (!string.IsNullOrEmpty(newChecksum))
+                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+
                 return Ok(new { message = "刪除成功" });
             }
             catch (Exception ex)
@@ -333,10 +432,8 @@ namespace Wx3000.Backend.Controllers
             {
                 if (list == null || list.Count == 0) return BadRequest(new { message = "無效的提交資料" });
 
-                var p = list[0].Period.Trim();
+                var p = NormalizeToDbfPeriod(list[0].Period);
                 var t = string.IsNullOrWhiteSpace(list[0].Times) ? "1" : list[0].Times.Trim();
-
-                await EnsureTableCreatedAndSeededAsync(p, t);
 
                 var validItems = list
                     .Where(x => !string.IsNullOrWhiteSpace(x.CompanyCode))
@@ -344,7 +441,7 @@ namespace Wx3000.Backend.Controllers
                     {
                         Period = p,
                         Times = t,
-                        CompanyCode = x.CompanyCode.Trim(),
+                        CompanyCode = x.CompanyCode.Trim().ToUpper(),
                         CompanyShortName = x.CompanyShortName?.Trim() ?? string.Empty,
                         UnifiedNo = x.UnifiedNo?.Trim() ?? string.Empty,
                         TaxNo = x.TaxNo?.Trim() ?? string.Empty,
@@ -356,18 +453,77 @@ namespace Wx3000.Backend.Controllers
                         CashTwoDup = x.CashTwoDup,
                         CashThreeDup = x.CashThreeDup,
                         CashThreeDupSub = x.CashThreeDupSub,
+                        ManualTwoTrack = x.ManualTwoTrack?.Trim() ?? string.Empty,
+                        ManualTwoStartNo = x.ManualTwoStartNo?.Trim() ?? string.Empty,
+                        ManualTwoEndNo = x.ManualTwoEndNo?.Trim() ?? string.Empty,
+                        ManualTwoSubTrack = x.ManualTwoSubTrack?.Trim() ?? string.Empty,
+                        ManualTwoSubStartNo = x.ManualTwoSubStartNo?.Trim() ?? string.Empty,
+                        ManualTwoSubEndNo = x.ManualTwoSubEndNo?.Trim() ?? string.Empty,
+                        ManualThreeTrack = x.ManualThreeTrack?.Trim() ?? string.Empty,
+                        ManualThreeStartNo = x.ManualThreeStartNo?.Trim() ?? string.Empty,
+                        ManualThreeEndNo = x.ManualThreeEndNo?.Trim() ?? string.Empty,
+                        ManualThreeSubTrack = x.ManualThreeSubTrack?.Trim() ?? string.Empty,
+                        ManualThreeSubStartNo = x.ManualThreeSubStartNo?.Trim() ?? string.Empty,
+                        ManualThreeSubEndNo = x.ManualThreeSubEndNo?.Trim() ?? string.Empty,
+                        SpecialTrack = x.SpecialTrack?.Trim() ?? string.Empty,
+                        SpecialStartNo = x.SpecialStartNo?.Trim() ?? string.Empty,
+                        SpecialEndNo = x.SpecialEndNo?.Trim() ?? string.Empty,
+                        CashTwoTrack = x.CashTwoTrack?.Trim() ?? string.Empty,
+                        CashTwoStartNo = x.CashTwoStartNo?.Trim() ?? string.Empty,
+                        CashTwoEndNo = x.CashTwoEndNo?.Trim() ?? string.Empty,
+                        CashThreeTrack = x.CashThreeTrack?.Trim() ?? string.Empty,
+                        CashThreeStartNo = x.CashThreeStartNo?.Trim() ?? string.Empty,
+                        CashThreeEndNo = x.CashThreeEndNo?.Trim() ?? string.Empty,
+                        CashThreeSubTrack = x.CashThreeSubTrack?.Trim() ?? string.Empty,
+                        CashThreeSubStartNo = x.CashThreeSubStartNo?.Trim() ?? string.Empty,
+                        CashThreeSubEndNo = x.CashThreeSubEndNo?.Trim() ?? string.Empty,
                         City = x.City?.Trim() ?? string.Empty,
                         PlaceCode = x.PlaceCode?.Trim() ?? string.Empty,
                         EmpCode = x.EmpCode?.Trim() ?? string.Empty,
                     }).ToList();
 
-                var currentDbList = await _context.InvoicePurchaseMasters
-                    .Where(x => x.Period == p && x.Times == t)
-                    .ToListAsync();
+                // 依序寫入 DBF (DBF 絕對權威)
+                foreach (var item in validItems)
+                {
+                    var existing = await _context.InvoicePurchaseMasters.FindAsync(p, t, item.CompanyCode);
+                    var op = existing != null ? "UPDATE" : "INSERT";
+                    var keyVal = $"{p},{t},{item.CompanyCode}";
+                    var fields = AssembleDbfFields(item, p, t, item.CompanyCode);
 
-                _context.InvoicePurchaseMasters.RemoveRange(currentDbList);
-                await _context.InvoicePurchaseMasters.AddRangeAsync(validItems);
+                    var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, keyVal, fields);
+                    if (!dbfRes.Success)
+                    {
+                        if (dbfRes.ErrorType == "LOCK_TIMEOUT")
+                        {
+                            return StatusCode(StatusCodes.Status409Conflict, new
+                            {
+                                error = dbfRes.Error,
+                                message = $"發票購買紀錄 [{item.CompanyCode}] 正被地端其他工作站編輯中，批次存檔取消"
+                            });
+                        }
+                        return BadRequest(new
+                        {
+                            error = dbfRes.Error,
+                            message = $"地端 DBF 寫入失敗 [{item.CompanyCode}]: " + (dbfRes.Message ?? dbfRes.Error)
+                        });
+                    }
+                    if (dbfRes.Recno > 0) item.RecordNumber = dbfRes.Recno;
+
+                    if (existing != null)
+                    {
+                        UpdateEntityValues(existing, item);
+                        existing.RecordNumber = item.RecordNumber;
+                    }
+                    else
+                    {
+                        _context.InvoicePurchaseMasters.Add(item);
+                    }
+                }
+
                 await _context.SaveChangesAsync();
+                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                if (!string.IsNullOrEmpty(newChecksum))
+                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
 
                 return Ok(new { message = "批次儲存成功", count = validItems.Count });
             }
@@ -389,16 +545,18 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
-                var targetPeriod = string.IsNullOrWhiteSpace(req.Period) ? "11505-06" : req.Period.Trim();
+                var targetPeriod = NormalizeToDbfPeriod(req.Period);
                 var targetTimes = string.IsNullOrWhiteSpace(req.Times) ? "1" : req.Times.Trim();
 
-                await EnsureTableCreatedAndSeededAsync(targetPeriod, targetTimes);
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, SyncKeyField);
 
-var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
+                var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
                 var existingPurchases = await _context.InvoicePurchaseMasters
                     .Where(x => x.Period == targetPeriod && (x.Times == targetTimes || x.Times == targetTimes.TrimStart('0')))
                     .ToListAsync();
-                var existingMap = existingPurchases.ToDictionary(x => x.CompanyCode.Trim().ToUpper(), x => x);
+                var existingMap = existingPurchases
+                    .GroupBy(x => x.CompanyCode.Trim().ToUpper())
+                    .ToDictionary(g => g.Key, g => g.First());
 
                 foreach (var c in companies)
                 {
@@ -411,28 +569,33 @@ var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
                             Period = targetPeriod,
                             Times = targetTimes,
                             CompanyCode = code,
-                            CompanyShortName = c.ShortName ?? c.CompanyName ?? string.Empty,
-                            UnifiedNo = c.UnifiedNo ?? string.Empty,
-                            TaxNo = c.TaxNo ?? string.Empty
+                            CompanyShortName = !string.IsNullOrWhiteSpace(c.ShortName) ? c.ShortName : (!string.IsNullOrWhiteSpace(c.CompanyName) ? c.CompanyName : string.Empty),
+                            UnifiedNo = c.UnifiedNo,
+                            TaxNo = c.TaxNo
                         };
+
+                        var fields = AssembleDbfFields(item, targetPeriod, targetTimes, code);
+                        var keyVal = $"{targetPeriod},{targetTimes},{code}";
+                        var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "INSERT", KeyField, keyVal, fields);
+                        if (dbfRes.Success && dbfRes.Recno > 0)
+                            item.RecordNumber = dbfRes.Recno;
+
                         _context.InvoicePurchaseMasters.Add(item);
-                    }
-                    else
-                    {
-                        item.CompanyShortName = c.ShortName ?? c.CompanyName ?? string.Empty;
-                        item.UnifiedNo = c.UnifiedNo ?? string.Empty;
-                        item.TaxNo = c.TaxNo ?? string.Empty;
                     }
                 }
                 await _context.SaveChangesAsync();
+                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                if (!string.IsNullOrEmpty(newChecksum))
+                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
 
                 var totalCount = await _context.InvoicePurchaseMasters
                     .CountAsync(x => x.Period == targetPeriod && x.Times == targetTimes);
 
-                return Ok(new { 
-                    success = true, 
-                    message = $"F3 轉檔成功！已將公司資料轉入【基本發票購買】(期別: {targetPeriod}, 次數: {targetTimes})", 
-                    totalCount 
+                return Ok(new
+                {
+                    success = true,
+                    message = $"F3 轉檔成功！已將公司資料轉入【基本發票購買】(期別: {targetPeriod}, 次數: {targetTimes})",
+                    totalCount
                 });
             }
             catch (Exception ex)
@@ -441,39 +604,32 @@ var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
             }
         }
 
-        public class PrintRangeQuery
+        public class BuyinvPrintQueryRequest
         {
             public string? Period { get; set; }
             public string? Times { get; set; }
-            public string? CodeStart { get; set; }
-            public string? CodeEnd { get; set; }
-        }
-
-        public class BuyinvPrintQueryRequest
-        {
-            public string? Period { get; set; }          // 依列印期別 (e.g. "11505-06" 或 "1150506")
-            public string? Times { get; set; }           // 次數 (e.g. "1")
-            public string? Year { get; set; }            // 資料年度 (e.g. "115")
-            public string? StartMonth { get; set; }      // 資料起月 (e.g. "05")
-            public string? EndMonth { get; set; }        // 資料迄月 (e.g. "06")
-            public string? Mode { get; set; }            // "1": 依地址縣市, "2": 依購買地點
-            public string? CityCondition { get; set; }   // e.g. "*" 代表全部, 或特定縣市
-            public string? PlaceCondition { get; set; }  // e.g. 購買地點代碼/名稱
-            public string? SortOrder { get; set; }       // "1": 依統一編號, "2": 依稅籍編號
+            public string? Year { get; set; }
+            public string? StartMonth { get; set; }
+            public string? EndMonth { get; set; }
+            public string? Mode { get; set; }
+            public string? CityCondition { get; set; }
+            public string? PlaceCondition { get; set; }
+            public string? SortOrder { get; set; }
         }
 
         // POST: api/wbase3020/buyinv-print-query
-        // 依 SQL 從 Postgresql Database: a3000 schema: e3000__comm Table: 基本發票購買 提取資料供報表使用
         [HttpPost("buyinv-print-query")]
         public async Task<ActionResult<IEnumerable<InvoicePurchaseMaster>>> BuyinvPrintQuery([FromBody] BuyinvPrintQueryRequest req)
         {
             try
             {
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, SyncKeyField);
+
                 var rawPeriod = string.IsNullOrWhiteSpace(req.Period) ? "11505-06" : req.Period.Trim();
-                var cleanPeriod = rawPeriod.Replace("-", "").Trim(); // e.g. "1150506"
+                var cleanPeriod = rawPeriod.Replace("-", "").Trim();
+                var dbfPeriod = NormalizeToDbfPeriod(rawPeriod);
                 var times = string.IsNullOrWhiteSpace(req.Times) ? "1" : req.Times.Trim();
 
-                // 解析年度與起迄月份
                 string dataYear = !string.IsNullOrWhiteSpace(req.Year) ? req.Year.Trim() : "";
                 string dataStartMonth = !string.IsNullOrWhiteSpace(req.StartMonth) ? req.StartMonth.Trim().PadLeft(2, '0') : "";
                 string dataEndMonth = !string.IsNullOrWhiteSpace(req.EndMonth) ? req.EndMonth.Trim().PadLeft(2, '0') : "";
@@ -496,23 +652,8 @@ var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
 
                 var hyphenPeriod = $"{dataYear}{dataStartMonth}-{dataEndMonth}";
 
-                await EnsureTableCreatedAndSeededAsync(hyphenPeriod, times);
-
-                // SQL:
-                // SELECT M.* ,CAST('115' AS VARChar(3) ) AS "資料年度" 
-                // ,CAST('05' AS VARChar(2) ) AS "資料起月" 
-                // ,CAST('06' AS VARChar(2) ) AS "資料迄月" 
-                // ,C.* 
-                //  FROM e3000__comm."基本發票購買" M 
-                //  LEFT JOIN e3000__comm."公司資料" C ON C."公司編號"=M."公司編號" 
-                //  WHERE ( "期別"='1150506' AND "購買次數"= 1) 
-                //  AND ( ( "手開二聯" > 0 )     OR ( "手開二聯副" > 0 )     OR ( "手開三聯" > 0 )     
-                //  OR ( "手開三聯副" > 0 )     OR ( "特種" > 0 )     OR ( "收銀二聯" > 0 )     
-                //  OR ( "收銀三聯" > 0 )     OR ( "收銀三聯副" > 0 )    ) 
-                //  ORDER BY M."公司統編"
-
                 var query = from p in _context.InvoicePurchaseMasters.AsNoTracking()
-                            where (p.Period == rawPeriod || p.Period == cleanPeriod || p.Period == hyphenPeriod)
+                            where (p.Period == rawPeriod || p.Period == cleanPeriod || p.Period == hyphenPeriod || p.Period == dbfPeriod)
                                && (p.Times == times || p.Times == times.TrimStart('0'))
                                && (p.ManualTwoDup > 0 ||
                                    p.ManualTwoDupSub > 0 ||
@@ -528,15 +669,15 @@ var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
                             select new { p, c };
 
                 var mode = (req.Mode ?? "1").Trim();
-                if (mode == "1") // 1.依地址縣市
+                if (mode == "1")
                 {
                     var city = (req.CityCondition ?? "*").Trim();
                     if (city != "*" && !string.IsNullOrWhiteSpace(city))
                     {
-                        query = query.Where(x => (x.p.City != null && x.p.City.Contains(city)) || (x.c != null && x.c.Address != null && x.c.Address.Contains(city)));
+                        query = query.Where(x => (x.p.City != null && x.p.City.Contains(city)) || (x.c != null && x.c.Address.Contains(city)));
                     }
                 }
-                else if (mode == "2") // 2.依購買地點
+                else if (mode == "2")
                 {
                     var place = (req.PlaceCondition ?? "").Trim();
                     if (!string.IsNullOrWhiteSpace(place))
@@ -546,14 +687,14 @@ var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
                 }
 
                 var sortOrder = (req.SortOrder ?? "1").Trim();
-                if (sortOrder == "2") // 2.依稅籍編號排序
+                if (sortOrder == "2")
                 {
-                    query = query.OrderBy(x => x.p.TaxNo != null && x.p.TaxNo != "" ? x.p.TaxNo : (x.c != null ? x.c.TaxNo : ""))
+                    query = query.OrderBy(x => !string.IsNullOrEmpty(x.p.TaxNo) ? x.p.TaxNo : (x.c != null ? x.c.TaxNo : ""))
                                  .ThenBy(x => x.p.CompanyCode);
                 }
-                else // 1.依統一編號排序 (預設: ORDER BY M."公司統編")
+                else
                 {
-                    query = query.OrderBy(x => x.p.UnifiedNo != null && x.p.UnifiedNo != "" ? x.p.UnifiedNo : (x.c != null ? x.c.UnifiedNo : ""))
+                    query = query.OrderBy(x => !string.IsNullOrEmpty(x.p.UnifiedNo) ? x.p.UnifiedNo : (x.c != null ? x.c.UnifiedNo : ""))
                                  .ThenBy(x => x.p.CompanyCode);
                 }
 
@@ -568,24 +709,24 @@ var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
                     p.DataEndMonth = dataEndMonth;
 
                     p.UnifiedNo = !string.IsNullOrWhiteSpace(p.UnifiedNo) ? p.UnifiedNo.Trim()
-                        : (!string.IsNullOrWhiteSpace(c?.UnifiedNo) ? c.UnifiedNo!.Trim() : string.Empty);
+                        : (!string.IsNullOrWhiteSpace(c?.UnifiedNo) ? c.UnifiedNo.Trim() : string.Empty);
 
                     p.TaxNo = !string.IsNullOrWhiteSpace(p.TaxNo) ? p.TaxNo.Trim()
-                        : (!string.IsNullOrWhiteSpace(c?.TaxNo) ? c.TaxNo!.Trim() : string.Empty);
+                        : (!string.IsNullOrWhiteSpace(c?.TaxNo) ? c.TaxNo.Trim() : string.Empty);
 
                     p.CompanyShortName = !string.IsNullOrWhiteSpace(p.CompanyShortName) ? p.CompanyShortName.Trim()
-                        : (!string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
-                        : (!string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim() : string.Empty));
+                        : (!string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName.Trim() : string.Empty));
 
-                    p.CompanyName = !string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim()
-                        : (!string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
+                    p.CompanyName = !string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName.Trim()
                         : (!string.IsNullOrWhiteSpace(p.CompanyShortName) ? p.CompanyShortName.Trim() : string.Empty));
 
-                    p.CompanyAddr = !string.IsNullOrWhiteSpace(c?.Address) ? c.Address!.Trim()
+                    p.CompanyAddr = !string.IsNullOrWhiteSpace(c?.Address) ? c.Address.Trim()
                         : (!string.IsNullOrWhiteSpace(p.City) ? p.City.Trim() : string.Empty);
 
-                    p.CompanyTel = !string.IsNullOrWhiteSpace(c?.Tel) ? c.Tel!.Trim() : string.Empty;
-                    p.CompanyFax = !string.IsNullOrWhiteSpace(c?.Fax) ? c.Fax!.Trim() : string.Empty;
+                    p.CompanyTel = !string.IsNullOrWhiteSpace(c?.Tel) ? c.Tel.Trim() : string.Empty;
+                    p.CompanyFax = !string.IsNullOrWhiteSpace(c?.Fax) ? c.Fax.Trim() : string.Empty;
 
                     return p;
                 }).ToList();
@@ -599,16 +740,24 @@ var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
             }
         }
 
+        public class PrintRangeQuery
+        {
+            public string? Period { get; set; }
+            public string? Times { get; set; }
+            public string? CodeStart { get; set; }
+            public string? CodeEnd { get; set; }
+        }
+
         // POST: api/wbase3020/print
         [HttpPost("print")]
         public async Task<ActionResult<IEnumerable<InvoicePurchaseMaster>>> PrintRange([FromBody] PrintRangeQuery query)
         {
             try
             {
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
+
                 var period = string.IsNullOrWhiteSpace(query.Period) ? "11505-06" : query.Period.Trim();
                 var times = string.IsNullOrWhiteSpace(query.Times) ? "1" : query.Times.Trim();
-
-                await EnsureTableCreatedAndSeededAsync(period, times);
 
                 var q = from p in _context.InvoicePurchaseMasters.AsNoTracking()
                         where p.Period == period && p.Times == times
@@ -635,21 +784,21 @@ var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
                     var p = x.p;
                     var c = x.c;
 
-                    p.UnifiedNo = !string.IsNullOrWhiteSpace(c?.UnifiedNo) ? c.UnifiedNo!.Trim()
+                    p.UnifiedNo = !string.IsNullOrWhiteSpace(c?.UnifiedNo) ? c.UnifiedNo.Trim()
                         : (!string.IsNullOrWhiteSpace(p.UnifiedNo) ? p.UnifiedNo.Trim() : string.Empty);
 
-                    p.TaxNo = !string.IsNullOrWhiteSpace(c?.TaxNo) ? c.TaxNo!.Trim()
+                    p.TaxNo = !string.IsNullOrWhiteSpace(c?.TaxNo) ? c.TaxNo.Trim()
                         : (!string.IsNullOrWhiteSpace(p.TaxNo) ? p.TaxNo.Trim() : string.Empty);
 
-                    p.CompanyShortName = !string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
-                        : (!string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim()
+                    p.CompanyShortName = !string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName.Trim()
                         : (!string.IsNullOrWhiteSpace(p.CompanyShortName) ? p.CompanyShortName.Trim() : string.Empty));
 
-                    p.CompanyName = !string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName!.Trim()
-                        : (!string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName!.Trim()
+                    p.CompanyName = !string.IsNullOrWhiteSpace(c?.CompanyName) ? c.CompanyName.Trim()
+                        : (!string.IsNullOrWhiteSpace(c?.ShortName) ? c.ShortName.Trim()
                         : (!string.IsNullOrWhiteSpace(p.CompanyShortName) ? p.CompanyShortName.Trim() : string.Empty));
 
-                    p.CompanyAddr = !string.IsNullOrWhiteSpace(c?.Address) ? c.Address!.Trim()
+                    p.CompanyAddr = !string.IsNullOrWhiteSpace(c?.Address) ? c.Address.Trim()
                         : (!string.IsNullOrWhiteSpace(p.City) ? p.City.Trim() : string.Empty);
 
                     return p;
@@ -662,6 +811,93 @@ var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
                 Console.WriteLine($"Wbase3020 Print error: {ex.Message}");
                 return Ok(new List<InvoicePurchaseMaster>());
             }
+        }
+
+        private static Dictionary<string, object?> AssembleDbfFields(InvoicePurchaseMaster model, string period, string times, string companyCode)
+        {
+            return new Dictionary<string, object?>
+            {
+                ["yymm"] = period,
+                ["times"] = times,
+                ["no"] = companyCode,
+                ["name"] = model.CompanyShortName,
+                ["unino"] = model.UnifiedNo,
+                ["taxno"] = model.TaxNo,
+                ["a02"] = model.ManualTwoDup,
+                ["a02b"] = model.ManualTwoDupSub,
+                ["a03"] = model.ManualThreeDup,
+                ["a03b"] = model.ManualThreeDupSub,
+                ["spec"] = model.ManualSpecial,
+                ["c02"] = model.CashTwoDup,
+                ["c03"] = model.CashThreeDup,
+                ["c03b"] = model.CashThreeDupSub,
+                ["a02beg"] = model.ManualTwoTrack,
+                ["a02begno"] = model.ManualTwoStartNo,
+                ["a02endno"] = model.ManualTwoEndNo,
+                ["a02bbeg"] = model.ManualTwoSubTrack,
+                ["a02bbegno"] = model.ManualTwoSubStartNo,
+                ["a02bendno"] = model.ManualTwoSubEndNo,
+                ["a03beg"] = model.ManualThreeTrack,
+                ["a03begno"] = model.ManualThreeStartNo,
+                ["a03endno"] = model.ManualThreeEndNo,
+                ["a03bbeg"] = model.ManualThreeSubTrack,
+                ["a03bbegno"] = model.ManualThreeSubStartNo,
+                ["a03bendno"] = model.ManualThreeSubEndNo,
+                ["specbeg"] = model.SpecialTrack,
+                ["specbegno"] = model.SpecialStartNo,
+                ["specendno"] = model.SpecialEndNo,
+                ["c02beg"] = model.CashTwoTrack,
+                ["c02begno"] = model.CashTwoStartNo,
+                ["c02endno"] = model.CashTwoEndNo,
+                ["c03beg"] = model.CashThreeTrack,
+                ["c03begno"] = model.CashThreeStartNo,
+                ["c03endno"] = model.CashThreeEndNo,
+                ["c03bbeg"] = model.CashThreeSubTrack,
+                ["c03bbegno"] = model.CashThreeSubStartNo,
+                ["c03bendno"] = model.CashThreeSubEndNo
+            };
+        }
+
+        private static void UpdateEntityValues(InvoicePurchaseMaster target, InvoicePurchaseMaster src)
+        {
+            target.CompanyShortName = src.CompanyShortName?.Trim() ?? string.Empty;
+            target.UnifiedNo = src.UnifiedNo?.Trim() ?? string.Empty;
+            target.TaxNo = src.TaxNo?.Trim() ?? string.Empty;
+            target.ManualTwoDup = src.ManualTwoDup;
+            target.ManualTwoDupSub = src.ManualTwoDupSub;
+            target.ManualThreeDup = src.ManualThreeDup;
+            target.ManualThreeDupSub = src.ManualThreeDupSub;
+            target.ManualSpecial = src.ManualSpecial;
+            target.CashTwoDup = src.CashTwoDup;
+            target.CashThreeDup = src.CashThreeDup;
+            target.CashThreeDupSub = src.CashThreeDupSub;
+            target.ManualTwoTrack = src.ManualTwoTrack?.Trim() ?? string.Empty;
+            target.ManualTwoStartNo = src.ManualTwoStartNo?.Trim() ?? string.Empty;
+            target.ManualTwoEndNo = src.ManualTwoEndNo?.Trim() ?? string.Empty;
+            target.ManualTwoSubTrack = src.ManualTwoSubTrack?.Trim() ?? string.Empty;
+            target.ManualTwoSubStartNo = src.ManualTwoSubStartNo?.Trim() ?? string.Empty;
+            target.ManualTwoSubEndNo = src.ManualTwoSubEndNo?.Trim() ?? string.Empty;
+            target.ManualThreeTrack = src.ManualThreeTrack?.Trim() ?? string.Empty;
+            target.ManualThreeStartNo = src.ManualThreeStartNo?.Trim() ?? string.Empty;
+            target.ManualThreeEndNo = src.ManualThreeEndNo?.Trim() ?? string.Empty;
+            target.ManualThreeSubTrack = src.ManualThreeSubTrack?.Trim() ?? string.Empty;
+            target.ManualThreeSubStartNo = src.ManualThreeSubStartNo?.Trim() ?? string.Empty;
+            target.ManualThreeSubEndNo = src.ManualThreeSubEndNo?.Trim() ?? string.Empty;
+            target.SpecialTrack = src.SpecialTrack?.Trim() ?? string.Empty;
+            target.SpecialStartNo = src.SpecialStartNo?.Trim() ?? string.Empty;
+            target.SpecialEndNo = src.SpecialEndNo?.Trim() ?? string.Empty;
+            target.CashTwoTrack = src.CashTwoTrack?.Trim() ?? string.Empty;
+            target.CashTwoStartNo = src.CashTwoStartNo?.Trim() ?? string.Empty;
+            target.CashTwoEndNo = src.CashTwoEndNo?.Trim() ?? string.Empty;
+            target.CashThreeTrack = src.CashThreeTrack?.Trim() ?? string.Empty;
+            target.CashThreeStartNo = src.CashThreeStartNo?.Trim() ?? string.Empty;
+            target.CashThreeEndNo = src.CashThreeEndNo?.Trim() ?? string.Empty;
+            target.CashThreeSubTrack = src.CashThreeSubTrack?.Trim() ?? string.Empty;
+            target.CashThreeSubStartNo = src.CashThreeSubStartNo?.Trim() ?? string.Empty;
+            target.CashThreeSubEndNo = src.CashThreeSubEndNo?.Trim() ?? string.Empty;
+            target.City = src.City?.Trim() ?? string.Empty;
+            target.PlaceCode = src.PlaceCode?.Trim() ?? string.Empty;
+            target.EmpCode = src.EmpCode?.Trim() ?? string.Empty;
         }
     }
 }

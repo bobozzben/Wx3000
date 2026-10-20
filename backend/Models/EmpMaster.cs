@@ -18,31 +18,31 @@ namespace Wx3000.Backend.Models
 
         [Column("memo")]
         [StringLength(255)]
-        public string? DepName { get; set; }
+        public string DepName { get; set; } = string.Empty;
 
         [Column("phone")]
         [StringLength(255)]
-        public string? Mobile { get; set; }
+        public string Mobile { get; set; } = string.Empty;
 
         [Column("email")]
         [StringLength(255)]
-        public string? Email { get; set; }
+        public string Email { get; set; } = string.Empty;
 
         [Column("oneuserid")]
         [StringLength(255)]
-        public string? OneUserId { get; set; }
+        public string OneUserId { get; set; } = string.Empty;
 
         [Column("onepassno")]
         [StringLength(255)]
-        public string? OnePassNo { get; set; }
+        public string OnePassNo { get; set; } = string.Empty;
 
         [Column("psw")]
         [StringLength(255)]
-        public string? Psw { get; set; }
+        public string Psw { get; set; } = string.Empty;
 
         [Column("birthday")]
         [StringLength(255)]
-        public string? Birthday { get; set; }
+        public string Birthday { get; set; } = string.Empty;
 
         [Column("_record_number")]
         public int RecordNumber { get; set; } = 0;

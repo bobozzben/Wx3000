@@ -1,0 +1,4 @@
+{
+  "script": "USE \"C:\\W3000\\comm\\keyin.dbf\" IN 0 ALIAS keyin SHARED\nLOCAL lcRes\nlcRes = \"\"\nSELECT keyin\nSCAN\n  lcRes = lcRes + ALLTRIM(no) + \": \" + ALLTRIM(name) + \" | \"\nENDSCAN\nUSE IN keyin\nRETURN lcRes",
+  "action": "EXEC_VFP"
+}

@@ -57,8 +57,78 @@ const CONFIG = {
     ];
     for (const p of cands) if (fs.existsSync(p)) return p;
     return cands[0];
+  },
+  getDbfBridgePath() {
+    const cands = [
+      path.join(__dirname, 'DBFBridge.exe'),
+      path.join(__dirname, 'bridge', 'lazarus', 'DBFBridge.exe'),
+      path.join(path.dirname(process.execPath), 'DBFBridge.exe'),
+      "F:\\ADSProject\\Wx3000\\localagent\\DBFBridge.exe",
+      "F:\\ADSProject\\Wx3000\\localagent\\bridge\\lazarus\\DBFBridge.exe"
+    ];
+    for (const p of cands) if (fs.existsSync(p)) return p;
+    return cands[0];
   }
 };
+
+// ========== DBF Bridge 串列執行隊列 (保證單一 DBF/COM 不撞檔) ==========
+let dbfQueue = Promise.resolve();
+
+function callDbfBridge(reqObj) {
+  const run = () => new Promise((resolve) => {
+    const bridgeExe = CONFIG.getDbfBridgePath();
+    if (!fs.existsSync(bridgeExe)) {
+      resolve({ success: false, error: `DBFBridge.exe 不存在: ${bridgeExe}` });
+      return;
+    }
+
+    const jsonStr = typeof reqObj === 'string' ? reqObj : JSON.stringify(reqObj);
+    const b64 = Buffer.from(jsonStr, 'utf8').toString('base64');
+
+    const child = spawn(bridgeExe, [b64], {
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    let stdoutData = '';
+    let stderrData = '';
+    let resolved = false;
+
+    child.stdout.on('data', (d) => { stdoutData += d.toString('utf8'); });
+    child.stderr.on('data', (d) => { stderrData += d.toString('utf8'); });
+
+    child.on('error', (err) => {
+      if (!resolved) {
+        resolved = true;
+        resolve({ success: false, error: 'DBFBridge 進程啟動失敗: ' + err.message });
+      }
+    });
+
+    child.on('close', (code) => {
+      if (!resolved) {
+        resolved = true;
+        const out = stdoutData.trim();
+        try {
+          const parsed = JSON.parse(out);
+          resolve(parsed);
+        } catch (e) {
+          if (code === 0 && out) {
+            resolve({ success: true, raw: out });
+          } else {
+            resolve({
+              success: false,
+              error: `DBFBridge 輸出非合法 JSON (Exit code ${code}): ${out || stderrData}`
+            });
+          }
+        }
+      }
+    });
+  });
+
+  const next = dbfQueue.then(run, run);
+  dbfQueue = next;
+  return next;
+}
 
 let koffi = null;
 try { koffi = require('koffi'); } catch (e) { console.warn('koffi not installed, 請 npm install koffi 或用 bridge 模式'); }
@@ -228,6 +298,55 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify(DLL_CONFIG));
     return;
   }
+
+  // ========== DBF Bridge API (/api/dbf/*) ==========
+  if (url.pathname.startsWith('/api/dbf/')) {
+    const dbfAction = url.pathname.replace('/api/dbf/', '').toUpperCase();
+
+    if (req.method === 'GET') {
+      if (dbfAction === 'PING') {
+        const result = await callDbfBridge({ action: 'PING' });
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(result));
+        return;
+      }
+      if (dbfAction === 'CHECKSUM') {
+        const filePath = url.searchParams.get('path') || url.searchParams.get('filePath') || '';
+        const dbfPath = url.searchParams.get('dbfPath') || '';
+        const dbfName = url.searchParams.get('dbfName') || '';
+        const result = await callDbfBridge({ action: 'CHECKSUM', filePath, dbfPath, dbfName });
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(result));
+        return;
+      }
+    }
+
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', async () => {
+        try {
+          const payload = JSON.parse(body || '{}');
+          if (dbfAction === 'CALL') {
+            const result = await callDbfBridge(payload);
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify(result));
+            return;
+          }
+
+          const reqPayload = { action: dbfAction, ...payload };
+          const result = await callDbfBridge(reqPayload);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify(result));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, error: e.message }));
+        }
+      });
+      return;
+    }
+  }
+
   // 相容 POST /report, /waccrep3101_b, /wbase320_buyinv 及 /wbase350_buyinv_list
   if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b' || url.pathname === '/wbase320_buyinv' || url.pathname === '/wbase350_buyinv_list') && req.method === 'POST') {
     let body = '';
@@ -394,6 +513,10 @@ wss.on('connection', (ws) => {
       if (data.cmd === 'wbaseReport') {
         const r = await genericCall('wbaseRP', 'waccrep3101_b', [data.hs_chk, data.top_mag, data.left_mag, data.PrtIndex, data.IsPrint, data.path]);
         ws.send(JSON.stringify({ cmd: 'wbaseReport', ...r }));
+      }
+      if (data.cmd === 'dbf' || data.cmd === 'dbf_call') {
+        const r = await callDbfBridge(data.payload || data);
+        ws.send(JSON.stringify({ cmd: data.cmd, ...r }));
       }
     } catch (e) { ws.send(JSON.stringify({ success: false, error: e.message })); }
   });

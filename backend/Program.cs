@@ -33,6 +33,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Register SystemParamService
 builder.Services.AddScoped<ISystemParamService, SystemParamService>();
 
+// Register LocalAgent DBF Sync Service
+var localAgentUrl = builder.Configuration["LocalAgent:Url"] ?? "http://localhost:18889";
+builder.Services.AddHttpClient<IDbfSyncService, DbfSyncService>(client =>
+{
+    client.BaseAddress = new Uri(localAgentUrl);
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
+
 // Add CORS Policy for Frontend & ngrok
 builder.Services.AddCors(options =>
 {

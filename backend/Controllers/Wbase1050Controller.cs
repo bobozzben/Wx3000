@@ -1,7 +1,13 @@
-using Wx3000.Backend.Data;
-using Wx3000.Backend.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Wx3000.Backend.Data;
+using Wx3000.Backend.Models;
+using Wx3000.Backend.Services;
 
 namespace Wx3000.Backend.Controllers
 {
@@ -10,15 +16,18 @@ namespace Wx3000.Backend.Controllers
     public class Wbase1050Controller : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IDbfSyncService _dbfSyncService;
 
-        public Wbase1050Controller(AppDbContext context)
+        private const string DbfPath = @"C:\w3000\comm";
+        private const string DbfName = "taxno";
+        private const string PgSchema = "c:/w3000/comm";
+        private const string PgTable = "taxno";
+        private const string KeyField = "no";
+
+        public Wbase1050Controller(AppDbContext context, IDbfSyncService dbfSyncService)
         {
             _context = context;
-        }
-
-        private async Task EnsureTableCreatedAsync()
-        {
-            await Task.CompletedTask;
+            _dbfSyncService = dbfSyncService;
         }
 
         // GET: api/wbase1050?keyword=xxx
@@ -27,7 +36,8 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
-                await EnsureTableCreatedAsync();
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
+
                 var queryable = _context.TaxOfficerMasters.AsNoTracking();
 
                 if (!string.IsNullOrWhiteSpace(keyword))
@@ -36,8 +46,8 @@ namespace Wx3000.Backend.Controllers
                     queryable = queryable.Where(t =>
                         t.TaxCode.ToLower().Contains(kw) ||
                         t.TaxName.ToLower().Contains(kw) ||
-                        (t.TaxBureau != null && t.TaxBureau.ToLower().Contains(kw)) ||
-                        (t.Unit != null && t.Unit.ToLower().Contains(kw))
+                        t.TaxBureau.ToLower().Contains(kw) ||
+                        t.Unit.ToLower().Contains(kw)
                     );
                 }
 
@@ -54,6 +64,8 @@ namespace Wx3000.Backend.Controllers
                     Mobile = t.Mobile?.Trim() ?? string.Empty,
                     Email = t.Email?.Trim() ?? string.Empty,
                     Memo = t.Memo?.Trim() ?? string.Empty,
+                    Address = t.Address?.Trim() ?? string.Empty,
+                    RecordNumber = t.RecordNumber
                 }).ToList();
 
                 return Ok(list);
@@ -70,6 +82,8 @@ namespace Wx3000.Backend.Controllers
         public async Task<ActionResult<TaxOfficerMaster>> GetByCode(string code)
         {
             if (string.IsNullOrWhiteSpace(code)) return BadRequest("編號不可為空");
+
+            await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
 
             var targetCode = code.Trim().ToUpper();
             var item = await _context.TaxOfficerMasters.FirstOrDefaultAsync(t => t.TaxCode.Trim() == targetCode);
@@ -88,11 +102,12 @@ namespace Wx3000.Backend.Controllers
             item.Mobile = item.Mobile?.Trim() ?? string.Empty;
             item.Email = item.Email?.Trim() ?? string.Empty;
             item.Memo = item.Memo?.Trim() ?? string.Empty;
+            item.Address = item.Address?.Trim() ?? string.Empty;
 
             return Ok(item);
         }
 
-        // POST: api/wbase1050
+        // POST: api/wbase1050 (Create or Upsert)
         [HttpPost]
         public async Task<ActionResult<TaxOfficerMaster>> Create([FromBody] TaxOfficerMaster input)
         {
@@ -102,28 +117,81 @@ namespace Wx3000.Backend.Controllers
             }
 
             var code = input.TaxCode.Trim().ToUpper();
-            input.TaxName ??= string.Empty;
+            input.TaxCode = code;
+            input.TaxName = input.TaxName?.Trim() ?? string.Empty;
+            input.TaxBureau = input.TaxBureau?.Trim() ?? string.Empty;
+            input.Unit = input.Unit?.Trim() ?? string.Empty;
+            input.Tel = input.Tel?.Trim() ?? string.Empty;
+            input.Ext = input.Ext?.Trim() ?? string.Empty;
+            input.Fax = input.Fax?.Trim() ?? string.Empty;
+            input.Mobile = input.Mobile?.Trim() ?? string.Empty;
+            input.Email = input.Email?.Trim() ?? string.Empty;
+            input.Memo = input.Memo?.Trim() ?? string.Empty;
+            input.Address = input.Address?.Trim() ?? string.Empty;
 
             var existing = await _context.TaxOfficerMasters.FirstOrDefaultAsync(t => t.TaxCode.Trim() == code);
+            var operation = existing != null ? "UPDATE" : "INSERT";
+
+            // 1. 組裝 DBF 欄位清單
+            var fields = new Dictionary<string, object?>
+            {
+                ["no"] = code,
+                ["name"] = input.TaxName,
+                ["helpman"] = input.TaxBureau,
+                ["department"] = input.Unit,
+                ["tel"] = input.Tel,
+                ["memo"] = input.Memo,
+                ["addr"] = input.Address
+            };
+
+            // 2. 核心原則：DBF 絕對權威！先寫 DBF
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, code, fields);
+            if (!dbfResult.Success)
+            {
+                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        error = dbfResult.Error,
+                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消"
+                    });
+                }
+                return BadRequest(new
+                {
+                    error = dbfResult.Error,
+                    message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                });
+            }
+
+            // 3. DBF 成功後才寫入 PostgreSQL
             if (existing != null)
             {
-                existing.TaxName = input.TaxName.Trim();
-                existing.TaxBureau = input.TaxBureau?.Trim() ?? string.Empty;
-                existing.Unit = input.Unit?.Trim() ?? string.Empty;
-                existing.Tel = input.Tel?.Trim() ?? string.Empty;
-                existing.Ext = input.Ext?.Trim() ?? string.Empty;
-                existing.Fax = input.Fax?.Trim() ?? string.Empty;
-                existing.Mobile = input.Mobile?.Trim() ?? string.Empty;
-                existing.Email = input.Email?.Trim() ?? string.Empty;
-                existing.Memo = input.Memo?.Trim() ?? string.Empty;
+                existing.TaxName = input.TaxName;
+                existing.TaxBureau = input.TaxBureau;
+                existing.Unit = input.Unit;
+                existing.Tel = input.Tel;
+                existing.Ext = input.Ext;
+                existing.Fax = input.Fax;
+                existing.Mobile = input.Mobile;
+                existing.Email = input.Email;
+                existing.Memo = input.Memo;
+                existing.Address = input.Address;
+                if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
 
                 await _context.SaveChangesAsync();
+                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                if (!string.IsNullOrEmpty(newChecksum))
+                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+
                 return Ok(existing);
             }
 
-            input.TaxCode = code;
+            if (dbfResult.Recno > 0) input.RecordNumber = dbfResult.Recno;
             _context.TaxOfficerMasters.Add(input);
             await _context.SaveChangesAsync();
+            var newCsum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+            if (!string.IsNullOrEmpty(newCsum))
+                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newCsum);
 
             return CreatedAtAction(nameof(GetByCode), new { code = input.TaxCode }, input);
         }
@@ -135,36 +203,82 @@ namespace Wx3000.Backend.Controllers
             if (string.IsNullOrWhiteSpace(code)) return BadRequest("編號不可為空");
 
             var targetCode = code.Trim().ToUpper();
+            input.TaxCode = targetCode;
+            input.TaxName = input.TaxName?.Trim() ?? string.Empty;
+            input.TaxBureau = input.TaxBureau?.Trim() ?? string.Empty;
+            input.Unit = input.Unit?.Trim() ?? string.Empty;
+            input.Tel = input.Tel?.Trim() ?? string.Empty;
+            input.Ext = input.Ext?.Trim() ?? string.Empty;
+            input.Fax = input.Fax?.Trim() ?? string.Empty;
+            input.Mobile = input.Mobile?.Trim() ?? string.Empty;
+            input.Email = input.Email?.Trim() ?? string.Empty;
+            input.Memo = input.Memo?.Trim() ?? string.Empty;
+            input.Address = input.Address?.Trim() ?? string.Empty;
+
             var existing = await _context.TaxOfficerMasters.FirstOrDefaultAsync(t => t.TaxCode.Trim() == targetCode);
+            var operation = existing != null ? "UPDATE" : "INSERT";
+
+            // 1. 組裝 DBF 欄位清單
+            var fields = new Dictionary<string, object?>
+            {
+                ["no"] = targetCode,
+                ["name"] = input.TaxName,
+                ["helpman"] = input.TaxBureau,
+                ["department"] = input.Unit,
+                ["tel"] = input.Tel,
+                ["memo"] = input.Memo,
+                ["addr"] = input.Address
+            };
+
+            // 2. 核心原則：DBF 絕對權威！先寫 DBF
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, targetCode, fields);
+            if (!dbfResult.Success)
+            {
+                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        error = dbfResult.Error,
+                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消"
+                    });
+                }
+                return BadRequest(new
+                {
+                    error = dbfResult.Error,
+                    message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                });
+            }
+
+            // 3. DBF 成功後才寫入 PostgreSQL
             if (existing == null)
             {
-                input.TaxCode = targetCode;
-                input.TaxName ??= string.Empty;
-                input.TaxBureau ??= string.Empty;
-                input.Unit ??= string.Empty;
-                input.Tel ??= string.Empty;
-                input.Ext ??= string.Empty;
-                input.Fax ??= string.Empty;
-                input.Mobile ??= string.Empty;
-                input.Email ??= string.Empty;
-                input.Memo ??= string.Empty;
-
+                if (dbfResult.Recno > 0) input.RecordNumber = dbfResult.Recno;
                 _context.TaxOfficerMasters.Add(input);
                 await _context.SaveChangesAsync();
+                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                if (!string.IsNullOrEmpty(newChecksum))
+                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+
                 return Ok(input);
             }
 
-            existing.TaxName = input.TaxName?.Trim() ?? string.Empty;
-            existing.TaxBureau = input.TaxBureau?.Trim() ?? string.Empty;
-            existing.Unit = input.Unit?.Trim() ?? string.Empty;
-            existing.Tel = input.Tel?.Trim() ?? string.Empty;
-            existing.Ext = input.Ext?.Trim() ?? string.Empty;
-            existing.Fax = input.Fax?.Trim() ?? string.Empty;
-            existing.Mobile = input.Mobile?.Trim() ?? string.Empty;
-            existing.Email = input.Email?.Trim() ?? string.Empty;
-            existing.Memo = input.Memo?.Trim() ?? string.Empty;
+            existing.TaxName = input.TaxName;
+            existing.TaxBureau = input.TaxBureau;
+            existing.Unit = input.Unit;
+            existing.Tel = input.Tel;
+            existing.Ext = input.Ext;
+            existing.Fax = input.Fax;
+            existing.Mobile = input.Mobile;
+            existing.Email = input.Email;
+            existing.Memo = input.Memo;
+            existing.Address = input.Address;
+            if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
 
             await _context.SaveChangesAsync();
+            var updatedChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+            if (!string.IsNullOrEmpty(updatedChecksum))
+                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, updatedChecksum);
+
             return Ok(existing);
         }
 
@@ -181,8 +295,31 @@ namespace Wx3000.Backend.Controllers
                 return NotFound(new { message = $"找不到編號為 '{code}' 的資料" });
             }
 
+            // 1. 核心原則：DBF 絕對權威！先刪除 DBF
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "DELETE", KeyField, targetCode, new Dictionary<string, object?>());
+            if (!dbfResult.Success)
+            {
+                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        error = dbfResult.Error,
+                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，刪除取消"
+                    });
+                }
+                return BadRequest(new
+                {
+                    error = dbfResult.Error,
+                    message = "地端 DBF 刪除失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                });
+            }
+
+            // 2. DBF 成功刪除後才刪除 PostgreSQL
             _context.TaxOfficerMasters.Remove(existing);
             await _context.SaveChangesAsync();
+            var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+            if (!string.IsNullOrEmpty(newChecksum))
+                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
 
             return Ok(new { message = $"稅務人員 [{code}] 已成功刪除" });
         }
@@ -199,6 +336,8 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
+
                 var queryable = _context.TaxOfficerMasters.AsNoTracking();
 
                 if (!string.IsNullOrWhiteSpace(query.CodeStart))
@@ -226,6 +365,8 @@ namespace Wx3000.Backend.Controllers
                     Mobile = t.Mobile?.Trim() ?? string.Empty,
                     Email = t.Email?.Trim() ?? string.Empty,
                     Memo = t.Memo?.Trim() ?? string.Empty,
+                    Address = t.Address?.Trim() ?? string.Empty,
+                    RecordNumber = t.RecordNumber
                 }).ToList();
 
                 return Ok(list);

@@ -1,0 +1,4 @@
+C:\w3000\comm\keyin.dbf
+EXCL
+1
+12

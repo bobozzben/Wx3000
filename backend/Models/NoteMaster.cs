@@ -14,10 +14,10 @@ namespace Wx3000.Backend.Models
 
         [Column("tx")]
         [StringLength(255)]
-        public string? NoteName { get; set; }
+        public string NoteName { get; set; } = string.Empty;
 
         [Column("memo")]
-        public string? Content { get; set; }
+        public string Content { get; set; } = string.Empty;
 
         [Column("_record_number")]
         public int RecordNumber { get; set; } = 0;
@@ -26,6 +26,6 @@ namespace Wx3000.Backend.Models
         public int? Seq { get; set; }
 
         [NotMapped]
-        public string? Guid { get; set; }
+        public string Guid { get; set; } = string.Empty;
     }
 }

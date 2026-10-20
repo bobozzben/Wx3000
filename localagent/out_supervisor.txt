@@ -1,0 +1,1 @@
+{ "success" : true, "found" : true, "recno" : 1, "data" : { "no" : "SUPERVISOR", "name" : "最大使用者", "addr" : "２２０新北市板橋區文化路２段５００號５樓" }, "elapsedMs" : 15 }

@@ -14,18 +14,18 @@ namespace Wx3000.Backend.Models
 
         [Column("note")]
         [StringLength(255)]
-        public string? SummaryName { get; set; }
+        public string SummaryName { get; set; } = string.Empty;
 
         [Column("_record_number")]
         public int RecordNumber { get; set; } = 0;
 
         [NotMapped]
-        public string? Content { get; set; }
+        public string Content { get; set; } = string.Empty;
 
         [NotMapped]
         public int? Seq { get; set; }
 
         [NotMapped]
-        public string? Guid { get; set; }
+        public string Guid { get; set; } = string.Empty;
     }
 }

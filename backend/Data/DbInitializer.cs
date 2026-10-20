@@ -178,7 +178,7 @@ namespace Wx3000.Backend.Data
                             serial numeric(4,0) NOT NULL DEFAULT 0,
                             tranflg boolean NOT NULL DEFAULT false,
                             buydate character varying(255) NOT NULL DEFAULT '',
-                            CONSTRAINT PK_buyinv PRIMARY KEY (yymm, times, no)
+                            CONSTRAINT PK_buyinv PRIMARY KEY (_record_number)
                         );
                     ");
                 }

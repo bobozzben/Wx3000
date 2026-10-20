@@ -21,7 +21,7 @@ export const isElectronApp = (): boolean => {
  */
 export const getApiServerUrl = (): string => {
   if (typeof window === 'undefined') return DEFAULT_API_SERVER;
-  
+
   const saved = localStorage.getItem(STORAGE_KEY_API_SERVER);
   if (saved && saved.trim()) {
     return saved.trim().replace(/\/+$/, '');
