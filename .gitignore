@@ -329,6 +329,10 @@ Error.log
 *.log
 *.fll
 *.vbr
-publish/
+# 僅忽略 publish 下的編譯產物子目錄，保留根目錄一鍵安裝與診斷腳本
+publish/*
+!publish/*.bat
+!publish/*.ps1
+!publish/*.md
 localagent/agent.obf.js
 localagent/package.obf.json

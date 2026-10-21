@@ -59,11 +59,14 @@ jobs:
       # ------------------------------------------------------------------------
       # 整理並上傳 GitHub Actions Artifacts (供隨時下載驗證)
       # ------------------------------------------------------------------------
-      - name: Upload Server Package Artifact (Frontend + Backend)
+      - name: Upload Server Package Artifact (Frontend + Backend + Installer Scripts)
         uses: actions/upload-artifact@v7
         with:
           name: Wx3000_Server_Package
           path: |
+            publish/*.bat
+            publish/*.ps1
+            publish/*.md
             publish/Wx3000_Server/**
           if-no-files-found: error
           retention-days: 14
@@ -88,6 +91,7 @@ jobs:
         run: |
           $tagName = "${{ github.ref_name }}"
           New-Item -ItemType Directory -Force -Path "release_bundle" | Out-Null
-          Compress-Archive -Path "publish/Wx3000_Server/*" -DestinationPath "release_bundle/Wx3000_Server_$tagName.zip" -Force
+          $itemsToZip = @("publish/Wx3000_Server") + (Get-ChildItem -Path "publish/*" -Include *.bat,*.ps1,*.md | Select-Object -ExpandProperty FullName)
+          Compress-Archive -Path $itemsToZip -DestinationPath "release_bundle/Wx3000_Server_$tagName.zip" -Force
           Copy-Item -Path "publish/frontend/Electron/release/*.exe" -Destination "release_bundle/" -Force
           gh release create $tagName (Get-ChildItem "release_bundle/*" | Select-Object -ExpandProperty FullName) --generate-notes --clobber
