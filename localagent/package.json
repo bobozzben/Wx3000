@@ -6,9 +6,7 @@
   "pkg": {
     "assets": [
       "test.html",
-      "wbase/*.dll",
-      "WbaseBridge.exe",
-      "bridge/*"
+      "dlls.json"
     ],
     "targets": [
       "node18-win-x64"

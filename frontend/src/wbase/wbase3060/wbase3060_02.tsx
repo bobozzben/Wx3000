@@ -409,7 +409,7 @@ export const Wbase3060_02: React.FC<Wbase3060_02Props> = ({
                 placeholder="搜尋公司編號 / 簡稱 / 統編..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-64 px-3 py-1 rounded text-xs focus:outline-none border transition ${
+                className={`w-44 sm:w-64 px-3 py-1 rounded text-xs focus:outline-none border transition ${
                   isDark
                     ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 placeholder-slate-400'
                     : 'bg-white border-slate-300 text-slate-800 focus:border-blue-600 placeholder-slate-400'
@@ -419,7 +419,7 @@ export const Wbase3060_02: React.FC<Wbase3060_02Props> = ({
             </div>
             <button
               type="submit"
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded transition border border-blue-500 cursor-pointer"
+              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded transition border border-blue-500 cursor-pointer whitespace-nowrap"
             >
               搜尋
             </button>
@@ -428,7 +428,7 @@ export const Wbase3060_02: React.FC<Wbase3060_02Props> = ({
           <button
             onClick={() => refreshData()}
             disabled={loading}
-            className={`flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-bold border transition cursor-pointer ${
+            className={`flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
               isDark
                 ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
                 : 'bg-white hover:bg-gray-100 border-slate-300 text-slate-700'
@@ -441,7 +441,7 @@ export const Wbase3060_02: React.FC<Wbase3060_02Props> = ({
       </div>
 
       {/* 核心 Grid 區域 (使用 FoxProGridV2) */}
-      <div className="flex-1 min-h-0 p-4 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 p-2 sm:p-4 flex flex-col overflow-hidden">
         <FoxProGridV2<InvoiceTrackRecord>
           rows={rows}
           columns={TRACK_COLUMNS}
@@ -466,60 +466,6 @@ export const Wbase3060_02: React.FC<Wbase3060_02Props> = ({
           escLabel="儲存/離開"
           customActions={
             <>
-              {/* F5 排序 */}
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchParams({
-                    period,
-                    times,
-                    sortOrder: sortOrder === '1' ? '2' : sortOrder === '2' ? '3' : '1',
-                  });
-                  refreshData(searchQuery);
-                }}
-                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
-                title="切換排序方式 (F5)"
-              >
-                <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F5</span>
-                <span>排序</span>
-              </button>
-
-              {/* F6 查詢 */}
-              <button
-                type="button"
-                onClick={() => refreshData(searchQuery)}
-                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
-                title="查詢過濾 (F6)"
-              >
-                <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F6</span>
-                <span>查詢</span>
-              </button>
-
-              {/* F7 匯出EXCEL */}
-              <button
-                type="button"
-                onClick={handleExportExcel}
-                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
-                title="匯出字軌清單為 Excel (F7)"
-              >
-                <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F7</span>
-                <span className="flex items-center gap-1">
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>匯出EXCEL</span>
-                </span>
-              </button>
-
-              {/* F8 資料清除 */}
-              <button
-                type="button"
-                onClick={handleClearTracks}
-                className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
-                title="清除當前期別所有字軌 (F8)"
-              >
-                <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">F8</span>
-                <span>資料清除</span>
-              </button>
-
               {/* F4 預覽畫面 */}
               <button
                 type="button"

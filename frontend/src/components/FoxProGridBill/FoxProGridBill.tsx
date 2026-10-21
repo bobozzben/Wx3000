@@ -236,13 +236,13 @@ export const FoxProGridBill: React.FC<FoxProGridBillProps> = ({
         />
       </div>
 
-      <div className="mt-2 shrink-0 flex items-center justify-between bg-blue-950 text-white px-4 py-2.5 rounded font-bold text-sm border-t-2 border-yellow-500 shadow">
-        <div className="flex space-x-6 text-base">
+      <div className="mt-2 shrink-0 flex flex-wrap items-center justify-between gap-2 bg-blue-950 text-white px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded font-bold text-xs sm:text-sm border-t-2 border-yellow-500 shadow">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-xs sm:text-base">
           <span>總筆數: <span className="text-yellow-400 font-extrabold">{rows.length}</span> 筆</span>
           <span>總數量: <span className="text-yellow-400 font-extrabold">{totalQty.toLocaleString()}</span></span>
-          <span>總金額: <span className="text-yellow-300 text-lg font-black">${totalAmount.toLocaleString()}</span></span>
+          <span>總金額: <span className="text-yellow-300 text-sm sm:text-lg font-black">${totalAmount.toLocaleString()}</span></span>
         </div>
-        <div className="flex space-x-3 text-xs font-normal">
+        <div className="hidden lg:flex space-x-3 text-xs font-normal">
           <span className="bg-blue-800 px-2 py-1 rounded border border-blue-600 text-yellow-300 font-bold">[F2] 編輯</span>
           <span className="bg-blue-800 px-2 py-1 rounded border border-blue-600 text-cyan-300 font-bold">[F4] 開窗搜尋</span>
           <span className="bg-blue-800 px-2 py-1 rounded border border-blue-600 text-green-300 font-bold">[F7] 列印</span>

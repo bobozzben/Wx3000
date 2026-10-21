@@ -213,7 +213,7 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
                 placeholder="搜尋公司編號 / 簡稱 / 統編..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-64 px-3 py-1 rounded text-xs focus:outline-none border transition ${
+                className={`w-44 sm:w-64 px-3 py-1 rounded text-xs focus:outline-none border transition ${
                   isDark
                     ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 placeholder-slate-400'
                     : 'bg-white border-slate-300 text-slate-800 focus:border-blue-600 placeholder-slate-400'
@@ -223,7 +223,7 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
             </div>
             <button
               type="submit"
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded transition border border-blue-500"
+              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded transition border border-blue-500 whitespace-nowrap"
             >
               搜尋
             </button>
@@ -232,7 +232,7 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
           <button
             onClick={() => refreshData()}
             disabled={loading}
-            className={`flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-bold border transition ${
+            className={`flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-bold border transition whitespace-nowrap ${
               isDark
                 ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
                 : 'bg-white hover:bg-gray-100 border-slate-300 text-slate-700'
@@ -245,7 +245,7 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
       </div>
 
       {/* Main Grid Area */}
-      <div className="flex-1 min-h-0 p-4 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 p-2 sm:p-4 flex flex-col overflow-hidden">
         <FoxProGridV2<InvoicePurchaseItem>
           rows={rows}
           columns={INVOICE_COLUMNS}

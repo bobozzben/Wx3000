@@ -120,15 +120,19 @@ export function FoxProGridV2<T extends Record<string, any>>({
     createEmptyRowRef.current = createEmptyRow;
   }, [createEmptyRow]);
 
-  // Auto scroll table body to keep active row in visible range
+  // Auto scroll table body to keep active cell in visible vertical and horizontal range
   useEffect(() => {
     if (tableBodyRef.current) {
       const rowEl = tableBodyRef.current.children[selectedCell.r] as HTMLElement | undefined;
       if (rowEl) {
         rowEl.scrollIntoView({ block: 'nearest' });
+        const cellEl = rowEl.children[selectedCell.c + 1] as HTMLElement | undefined;
+        if (cellEl) {
+          cellEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
       }
     }
-  }, [selectedCell.r]);
+  }, [selectedCell.r, selectedCell.c]);
 
   // Pad display rows up to minRows (15 rows) for seamless Excel experience
   const displayRows = useMemo(() => {
@@ -524,192 +528,199 @@ export function FoxProGridV2<T extends Record<string, any>>({
           isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-blue-900'
         }`}
       >
-        {/* Grouped Header Row */}
-        {headerGroups && headerGroups.length > 0 && (
-          <div
-            className={`flex text-xs font-bold tracking-wider h-[30px] shrink-0 border-b transition-colors ${
-              isDark ? 'bg-slate-950/90 text-slate-200 border-slate-800' : 'bg-[#0f2557] text-blue-100 border-blue-900'
-            }`}
-          >
-            {headerGroups.map((grp, gIdx) => (
+        {/* Horizontal Scroll Wrapper (Locks HeaderGroups, Header & Rows together) */}
+        <div className="overflow-x-auto flex-1 min-h-0 flex flex-col">
+          <div className="min-w-full w-max flex-1 min-h-0 flex flex-col">
+            {/* Grouped Header Row */}
+            {headerGroups && headerGroups.length > 0 && (
               <div
-                key={gIdx}
-                style={{ width: grp.width }}
-                className={`h-full flex items-center justify-center border-r last:border-r-0 shrink-0 ${
-                  grp.className || ''
+                className={`flex text-xs font-bold tracking-wider h-[30px] shrink-0 border-b transition-colors ${
+                  isDark ? 'bg-slate-950/90 text-slate-200 border-slate-800' : 'bg-[#0f2557] text-blue-100 border-blue-900'
                 }`}
               >
-                {grp.label}
+                {headerGroups.map((grp, gIdx) => (
+                  <div
+                    key={gIdx}
+                    style={{ width: grp.width }}
+                    className={`h-full flex items-center justify-center border-r last:border-r-0 shrink-0 ${
+                      grp.className || ''
+                    }`}
+                  >
+                    {grp.label}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {/* Header */}
-        <div
-          className={`flex text-sm font-bold tracking-wider h-[38px] shrink-0 border-b transition-colors ${
-            isDark ? 'bg-slate-950 text-yellow-300 border-slate-800' : 'bg-[#1e3a8a] text-white border-blue-900'
-          }`}
-        >
-          <div
-            className={`w-[50px] h-full flex items-center justify-center border-r shrink-0 ${
-              isDark ? 'border-slate-800' : 'border-blue-800'
-            }`}
-          >
-            項次
-          </div>
-          {columns.map((col) => (
+            {/* Header */}
             <div
-              key={col.key}
-              style={{
-                width: col.width || '150px',
-                flex: col.width === '1fr' ? 1 : undefined,
-              }}
-              className={`h-full flex items-center px-3 border-r last:border-r-0 shrink-0 font-bold ${
-                isDark ? 'border-slate-800' : 'border-blue-800'
-              } ${
-                col.align === 'center'
-                  ? 'justify-center'
-                  : col.align === 'right'
-                  ? 'justify-end'
-                  : 'justify-start'
+              className={`flex text-sm font-bold tracking-wider h-[38px] shrink-0 border-b transition-colors ${
+                isDark ? 'bg-slate-950 text-yellow-300 border-slate-800' : 'bg-[#1e3a8a] text-white border-blue-900'
               }`}
             >
-              {col.label}
-            </div>
-          ))}
-        </div>
-
-        {/* Rows Body */}
-        <div ref={tableBodyRef} className={`flex-1 min-h-0 overflow-y-auto ${isDark ? 'bg-slate-900' : 'bg-[#f8fafc]'}`}>
-          {displayRows.map((row, rIdx) => {
-            const isRowSelected = selectedCell.r === rIdx;
-            const isEven = rIdx % 2 === 1;
-            const rawKey = getRowKey ? getRowKey(row, rIdx) : '';
-            const rowKey = rawKey ? `${rawKey}_row_${rIdx}` : `row_${rIdx}`;
-
-            return (
               <div
-                key={rowKey}
-                className={`flex border-b h-[38px] items-center text-sm transition-colors ${
-                  isDark ? 'border-slate-800/80' : 'border-gray-200'
-                } ${
-                  isDark
-                    ? isEven
-                      ? 'bg-slate-800/60 text-white'
-                      : 'bg-slate-900 text-white'
-                    : isEven
-                    ? 'bg-[#ffecd9] text-slate-800'
-                    : 'bg-white text-slate-800'
-                } ${
-                  isRowSelected
-                    ? isDark
-                      ? 'bg-blue-950/90 text-white font-semibold'
-                      : 'bg-blue-100/60 font-medium'
-                    : ''
+                className={`w-[50px] h-full flex items-center justify-center border-r shrink-0 ${
+                  isDark ? 'border-slate-800' : 'border-blue-800'
                 }`}
               >
-                {/* Index Cell */}
+                項次
+              </div>
+              {columns.map((col) => (
                 <div
-                  className={`w-[50px] h-full flex items-center justify-center border-r font-bold shrink-0 ${
-                    isDark
-                      ? 'border-slate-800 text-yellow-400 bg-slate-950'
-                      : 'border-gray-200 text-gray-500 bg-gray-50'
+                  key={col.key}
+                  style={{
+                    width: col.width === '1fr' ? undefined : col.width || '150px',
+                    minWidth: col.width === '1fr' ? '180px' : undefined,
+                    flex: col.width === '1fr' ? 1 : undefined,
+                  }}
+                  className={`h-full flex items-center px-3 border-r last:border-r-0 shrink-0 font-bold ${
+                    isDark ? 'border-slate-800' : 'border-blue-800'
+                  } ${
+                    col.align === 'center'
+                      ? 'justify-center'
+                      : col.align === 'right'
+                      ? 'justify-end'
+                      : 'justify-start'
                   }`}
                 >
-                  {String(rIdx + 1).padStart(2, '0')}
+                  {col.label}
                 </div>
+              ))}
+            </div>
 
-                {/* Data Cells */}
-                {columns.map((col, cIdx) => {
-                  const isCellFocused = selectedCell.r === rIdx && selectedCell.c === cIdx;
-                  const cellVal = row[col.key] ?? '';
+            {/* Rows Body */}
+            <div ref={tableBodyRef} className={`flex-1 min-h-0 overflow-y-auto ${isDark ? 'bg-slate-900' : 'bg-[#f8fafc]'}`}>
+              {displayRows.map((row, rIdx) => {
+                const isRowSelected = selectedCell.r === rIdx;
+                const isEven = rIdx % 2 === 1;
+                const rawKey = getRowKey ? getRowKey(row, rIdx) : '';
+                const rowKey = rawKey ? `${rawKey}_row_${rIdx}` : `row_${rIdx}`;
 
-                  return (
+                return (
+                  <div
+                    key={rowKey}
+                    className={`flex border-b h-[38px] items-center text-sm transition-colors ${
+                      isDark ? 'border-slate-800/80' : 'border-gray-200'
+                    } ${
+                      isDark
+                        ? isEven
+                          ? 'bg-slate-800/60 text-white'
+                          : 'bg-slate-900 text-white'
+                        : isEven
+                        ? 'bg-[#ffecd9] text-slate-800'
+                        : 'bg-white text-slate-800'
+                    } ${
+                      isRowSelected
+                        ? isDark
+                          ? 'bg-blue-950/90 text-white font-semibold'
+                          : 'bg-blue-100/60 font-medium'
+                        : ''
+                    }`}
+                  >
+                    {/* Index Cell */}
                     <div
-                      key={col.key}
-                      style={{
-                        width: col.width || '150px',
-                        flex: col.width === '1fr' ? 1 : undefined,
-                      }}
-                      onClick={() => {
-                        if (isEditing && (selectedCell.r !== rIdx || selectedCell.c !== cIdx)) {
-                          const success = commitEdit(selectedCell.r, selectedCell.c, editValue);
-                          if (!success) return; // Block cell switch on duplicate PK!
-                        }
-                        setSelectedCell({ r: rIdx, c: cIdx });
-                        setIsEditing(false);
-                      }}
-                      onDoubleClick={() => {
-                        if (col.editable !== false) {
-                          setEditValue(String(cellVal));
-                          setIsEditing(true);
-                        }
-                      }}
-                      className={`h-full border-r flex items-center px-3 cursor-cell overflow-hidden shrink-0 relative ${
-                        isDark ? 'border-slate-800 text-white' : 'border-gray-200 text-slate-800'
-                      } ${
-                        isCellFocused
-                          ? isDark
-                            ? 'border-2 border-yellow-400 bg-yellow-950/90 font-bold text-white shadow-inner z-10'
-                            : 'border-2 border-[#eab308] bg-[#fef9c3] font-bold text-black shadow-inner z-10'
-                          : ''
-                      } ${
-                        isDark && col.className
-                          ? col.className.replace(/text-(black|blue-\d+|gray-\d+|slate-\d+)/g, 'text-white')
-                          : col.className || ''
+                      className={`w-[50px] h-full flex items-center justify-center border-r font-bold shrink-0 ${
+                        isDark
+                          ? 'border-slate-800 text-yellow-400 bg-slate-950'
+                          : 'border-gray-200 text-gray-500 bg-gray-50'
                       }`}
                     >
-                      {isCellFocused && isEditing ? (
-                        <input
-                          ref={inputRef}
-                          type="text"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onBlur={() => {
-                            if (isEditing) {
-                              commitEdit(selectedCell.r, selectedCell.c, editValue);
+                      {String(rIdx + 1).padStart(2, '0')}
+                    </div>
+
+                    {/* Data Cells */}
+                    {columns.map((col, cIdx) => {
+                      const isCellFocused = selectedCell.r === rIdx && selectedCell.c === cIdx;
+                      const cellVal = row[col.key] ?? '';
+
+                      return (
+                        <div
+                          key={col.key}
+                          style={{
+                            width: col.width === '1fr' ? undefined : col.width || '150px',
+                            minWidth: col.width === '1fr' ? '180px' : undefined,
+                            flex: col.width === '1fr' ? 1 : undefined,
+                          }}
+                          onClick={() => {
+                            if (isEditing && (selectedCell.r !== rIdx || selectedCell.c !== cIdx)) {
+                              const success = commitEdit(selectedCell.r, selectedCell.c, editValue);
+                              if (!success) return; // Block cell switch on duplicate PK!
+                            }
+                            setSelectedCell({ r: rIdx, c: cIdx });
+                            setIsEditing(false);
+                          }}
+                          onDoubleClick={() => {
+                            if (col.editable !== false) {
+                              setEditValue(String(cellVal));
+                              setIsEditing(true);
                             }
                           }}
-                          className={`w-full h-full bg-transparent outline-none border-none font-mono text-sm font-bold p-0 ${
-                            isDark ? 'text-white' : 'text-black'
+                          className={`h-full border-r flex items-center px-3 cursor-cell overflow-hidden shrink-0 relative ${
+                            isDark ? 'border-slate-800 text-white' : 'border-gray-200 text-slate-800'
+                          } ${
+                            isCellFocused
+                              ? isDark
+                                ? 'border-2 border-yellow-400 bg-yellow-950/90 font-bold text-white shadow-inner z-10'
+                                : 'border-2 border-[#eab308] bg-[#fef9c3] font-bold text-black shadow-inner z-10'
+                              : ''
+                          } ${
+                            isDark && col.className
+                              ? col.className.replace(/text-(black|blue-\d+|gray-\d+|slate-\d+)/g, 'text-white')
+                              : col.className || ''
                           }`}
-                        />
-                      ) : col.renderCell ? (
-                        col.renderCell(cellVal, row, rIdx)
-                      ) : (
-                        <span className="truncate">{cellVal}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
+                        >
+                          {isCellFocused && isEditing ? (
+                            <input
+                              ref={inputRef}
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={() => {
+                                if (isEditing) {
+                                  commitEdit(selectedCell.r, selectedCell.c, editValue);
+                                }
+                              }}
+                              className={`w-full h-full bg-transparent outline-none border-none font-mono text-sm font-bold p-0 ${
+                                isDark ? 'text-white' : 'text-black'
+                              }`}
+                            />
+                          ) : col.renderCell ? (
+                            col.renderCell(cellVal, row, rIdx)
+                          ) : (
+                            <span className="truncate">{cellVal}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* StatusBar */}
       <div
-        className={`mt-2 shrink-0 flex flex-wrap items-center justify-between px-4 py-2.5 rounded font-bold text-sm border-t-2 shadow gap-2 transition-colors ${
+        className={`mt-1.5 sm:mt-2 shrink-0 flex flex-wrap items-center justify-between px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded font-bold text-xs sm:text-sm border-t-2 shadow gap-1.5 sm:gap-2 transition-colors ${
           isDark
             ? 'bg-slate-950 text-slate-100 border-yellow-500'
             : 'bg-blue-950 text-white border-yellow-500'
         }`}
       >
-        <div className="flex items-center space-x-6">
-          <span className="text-yellow-400 font-bold">
-            總筆數: <span className="text-white font-mono text-base">{rows.length}</span> 筆
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span className="text-yellow-400 font-bold whitespace-nowrap">
+            總筆數: <span className="text-white font-mono text-sm sm:text-base">{rows.length}</span> 筆
           </span>
-          <span className="text-yellow-400 font-bold">
+          <span className="text-yellow-400 font-bold whitespace-nowrap">
             目前位置:{' '}
             <span className="text-white font-mono">
               第 {selectedCell.r + 1} 列 / 第 {selectedCell.c + 1} 欄
             </span>
           </span>
-          {evaluatedStatusBarInfo && <span className="text-gray-300 text-xs">{evaluatedStatusBarInfo}</span>}
+          {evaluatedStatusBarInfo && <span className="text-gray-300 text-xs hidden sm:inline">{evaluatedStatusBarInfo}</span>}
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs font-normal">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs font-normal">
           {/* Action buttons if callbacks provided */}
           {onInsertRow && (
             <button

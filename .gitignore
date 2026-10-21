@@ -330,3 +330,5 @@ Error.log
 *.fll
 *.vbr
 publish/
+localagent/agent.obf.js
+localagent/package.obf.json

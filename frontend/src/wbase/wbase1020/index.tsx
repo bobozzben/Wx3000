@@ -238,17 +238,17 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
 
       {/* Top Banner Header */}
       <div
-        className={`shrink-0 px-4 md:px-6 py-3 border-b flex items-center justify-between shadow-xs transition-colors ${
+        className={`shrink-0 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 border-b flex items-center justify-between gap-2 shadow-xs transition-colors ${
           isDark
             ? 'bg-slate-900 border-slate-800 text-white'
             : 'bg-white border-b-2 border-slate-200 text-slate-900 font-bold'
         }`}
       >
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
           {onBackToMenu && (
             <button
               onClick={onBackToMenu}
-              className={`p-1.5 rounded-lg transition ${
+              className={`p-1.5 rounded-lg transition shrink-0 ${
                 isDark ? 'hover:bg-slate-800 text-gray-300' : 'hover:bg-slate-200 text-slate-700'
               }`}
               title="返回主選單 (Esc)"
@@ -256,23 +256,23 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
-          <div className="p-2 bg-yellow-400 text-black rounded font-bold shadow-xs">
-            <Users className="w-5 h-5" />
+          <div className="p-1.5 sm:p-2 bg-yellow-400 text-black rounded font-bold shadow-xs shrink-0">
+            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <h1 className="text-lg font-black tracking-wider flex items-center gap-2">
-              1-2 會計師/記帳士資料維護
-              <span className="text-xs px-2 py-0.5 rounded bg-blue-800 text-white font-normal font-mono">
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-lg font-black tracking-wider flex items-center gap-2 truncate">
+              <span className="truncate">1-2 會計師/記帳士資料維護</span>
+              <span className="hidden sm:inline-block text-xs px-2 py-0.5 rounded bg-blue-800 text-white font-normal font-mono shrink-0">
                 wbase1020
               </span>
             </h1>
-            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+            <p className={`hidden sm:block text-xs truncate ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
               FoxProGridCard 輸入模式 · 支援上下鍵瀏覽、Enter/F6編修、Ins新增、F2查詢
             </p>
           </div>
 
           {/* Mode Pill Indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 ml-4">
+          <div className="hidden sm:flex items-center gap-1.5 ml-4 shrink-0">
             <span
               className={`text-[11px] px-2.5 py-0.5 rounded-full border font-bold ${
                 mode === 'grid'
@@ -290,7 +290,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
         </div>
 
         {/* Top Right Action & Search Trigger */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 shrink-0">
           {selectedRow && (
             <div
               className={`hidden md:flex text-xs rounded-full px-3 py-1 border font-mono ${
@@ -305,7 +305,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
 
           <button
             onClick={openSearchModal}
-            className={`px-3 py-1.5 rounded text-xs font-bold border flex items-center space-x-1.5 transition ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded text-xs font-bold border flex items-center space-x-1.5 transition shrink-0 whitespace-nowrap ${
               isDark
                 ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white'
                 : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800 shadow-2xs'
@@ -318,7 +318,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 min-h-0 p-4 md:p-6 flex flex-col gap-5 overflow-y-auto max-w-[1600px] w-full mx-auto">
+      <div className="flex-1 min-h-0 p-2.5 sm:p-4 md:p-6 flex flex-col gap-3 sm:gap-5 overflow-y-auto max-w-[1600px] w-full mx-auto">
         {/* Upper Part: FoxProGridCard */}
         <div className="w-full shrink-0">
           <FoxProGridCard<CpaItem>
@@ -406,11 +406,11 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
 
         {/* Action Button Bar */}
         {mode === 'grid' ? (
-          <div className="h-[46px] bg-[#1e293b] flex items-center justify-between px-4">
-            <div className="flex items-center gap-2">
+          <div className="h-[46px] bg-[#1e293b] flex items-center justify-between gap-2 px-2 sm:px-4 overflow-x-auto whitespace-nowrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <button
                 onClick={startAdd}
-                className="h-8 px-3 rounded text-xs font-bold flex items-center gap-1.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 shadow transition cursor-pointer"
+                className="h-8 px-2.5 sm:px-3 rounded text-xs font-bold flex items-center gap-1.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 shadow transition cursor-pointer shrink-0"
               >
                 <Plus size={14} />
                 <span>Ins 新增</span>
@@ -418,7 +418,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
 
               <button
                 onClick={startEdit}
-                className="h-8 px-3 rounded text-xs font-bold flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white shadow transition cursor-pointer"
+                className="h-8 px-2.5 sm:px-3 rounded text-xs font-bold flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white shadow transition cursor-pointer shrink-0"
               >
                 <Edit3 size={14} />
                 <span>F6 編修</span>
@@ -426,7 +426,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
 
               <button
                 onClick={() => openDeleteConfirm()}
-                className="h-8 px-3 rounded text-xs font-bold flex items-center gap-1.5 bg-red-700 hover:bg-red-600 text-white shadow transition cursor-pointer"
+                className="h-8 px-2.5 sm:px-3 rounded text-xs font-bold flex items-center gap-1.5 bg-red-700 hover:bg-red-600 text-white shadow transition cursor-pointer shrink-0"
               >
                 <Trash2 size={14} />
                 <span>Del 刪除</span>
@@ -436,7 +436,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
 
               <button
                 onClick={openSearchModal}
-                className="h-8 px-3 rounded text-xs font-bold flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
+                className="h-8 px-2.5 sm:px-3 rounded text-xs font-bold flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer shrink-0"
               >
                 <Search size={14} />
                 <span>F2 查詢</span>
@@ -444,20 +444,20 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
 
               <button
                 onClick={openPrint}
-                className="h-8 px-3 rounded text-xs font-bold flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
+                className="h-8 px-2.5 sm:px-3 rounded text-xs font-bold flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer shrink-0"
               >
                 <Printer size={14} />
                 <span>F7 列印</span>
               </button>
             </div>
 
-            <div>
+            <div className="shrink-0">
               <button
                 onClick={() => {
                   if (onBackToMenu) onBackToMenu();
                   else gridContainerRef.current?.focus();
                 }}
-                className="h-8 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition cursor-pointer"
+                className="h-8 px-2.5 sm:px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition cursor-pointer shrink-0"
               >
                 <LogOut size={14} />
                 <span>Esc 離開</span>
@@ -465,16 +465,16 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
             </div>
           </div>
         ) : (
-          <div className="h-[46px] bg-[#0f172a] flex items-center justify-between px-4">
-            <div className="flex items-center gap-3 text-xs text-slate-300">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>卡片編輯中 · 請依序填寫欄位，完成後按「儲存」或按 Esc</span>
+          <div className="h-[46px] bg-[#0f172a] flex items-center justify-between gap-2 px-2 sm:px-4 overflow-x-auto whitespace-nowrap">
+            <div className="hidden sm:flex items-center gap-3 text-xs text-slate-300 truncate">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="truncate">卡片編輯中 · 請依序填寫欄位，完成後按「儲存」或按 Esc</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto shrink-0">
               <button
                 onClick={cancelEdit}
-                className="h-8 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition cursor-pointer"
+                className="h-8 px-2.5 sm:px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition cursor-pointer shrink-0"
               >
                 <Undo2 size={14} />
                 <span>放棄取消 (F12)</span>
@@ -482,7 +482,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
 
               <button
                 onClick={saveForm}
-                className="h-8 px-4 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow transition cursor-pointer"
+                className="h-8 px-3 sm:px-4 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow transition cursor-pointer shrink-0"
               >
                 <Save size={14} />
                 <span>儲存並回清單 (Esc/F9)</span>

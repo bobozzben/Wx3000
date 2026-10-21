@@ -98,57 +98,57 @@ export const Wbase1030Page: React.FC<Wbase1030PageProps> = ({ onBackToMenu }) =>
     >
       {/* Banner */}
       <div
-        className={`shrink-0 px-6 py-4 border-b flex items-center justify-between shadow-md transition-colors ${
+        className={`shrink-0 px-3 sm:px-6 py-2 sm:py-3.5 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 shadow-md transition-colors ${
           isDark
             ? 'bg-slate-900 border-slate-800 text-white'
             : 'bg-white border-b-2 border-slate-200 text-slate-900 font-bold'
         }`}
       >
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
           {onBackToMenu && (
             <button
               onClick={onBackToMenu}
-              className="p-1.5 rounded-lg hover:bg-slate-800 text-gray-300 hover:text-white transition"
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-gray-300 hover:text-white transition shrink-0"
               title="返回主選單"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
-          <div className="p-2 bg-yellow-400 text-black rounded font-bold">
-            <UserCheck className="w-6 h-6" />
+          <div className="p-1.5 sm:p-2 bg-yellow-400 text-black rounded font-bold shrink-0">
+            <UserCheck className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <h1 className="text-xl font-black tracking-wider flex items-center gap-2">
-              建檔人員資料維護
-              <span className="text-xs px-2 py-0.5 rounded bg-blue-800 text-white font-normal">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-black tracking-wider flex items-center gap-2 flex-wrap">
+              <span className="truncate">建檔人員資料維護</span>
+              <span className="text-xs px-2 py-0.5 rounded bg-blue-800 text-white font-normal whitespace-nowrap">
                 wbase1030
               </span>
             </h1>
-            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+            <p className={`hidden md:block text-xs truncate ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
               管理系統建檔人員與權限對應主檔 (PostgreSQL Table: 員工檔)
             </p>
           </div>
         </div>
 
         {/* Search Bar */}
-        <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2">
-          <div className="relative">
+        <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
             <input
               type="text"
               placeholder="搜尋人員編號 / 姓名..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-64 px-3 py-1.5 rounded text-sm focus:outline-none border ${
+              className={`w-full sm:w-52 md:w-64 px-3 py-1 sm:py-1.5 rounded text-xs sm:text-sm focus:outline-none border ${
                 isDark
                   ? 'bg-slate-950 border-blue-500 text-white focus:border-yellow-400'
                   : 'bg-white border-slate-300 text-slate-800 focus:border-blue-500'
               }`}
             />
-            <Search className="w-4 h-4 text-gray-400 absolute right-2.5 top-2.5" />
+            <Search className="w-4 h-4 text-gray-400 absolute right-2.5 top-2" />
           </div>
           <button
             type="submit"
-            className="px-3 py-1.5 bg-blue-800 hover:bg-blue-700 text-white text-sm font-bold rounded border border-blue-600 transition"
+            className="px-3 py-1 sm:py-1.5 bg-blue-800 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold rounded border border-blue-600 transition whitespace-nowrap shrink-0"
           >
             搜尋
           </button>
@@ -156,7 +156,7 @@ export const Wbase1030Page: React.FC<Wbase1030PageProps> = ({ onBackToMenu }) =>
       </div>
 
       {/* Main Grid Content Area */}
-      <div className="flex-1 min-h-0 p-6 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 p-2 sm:p-4 md:p-6 flex flex-col overflow-hidden">
         <Wbase1030Form
           rows={rows}
           onRowsChange={setRows}

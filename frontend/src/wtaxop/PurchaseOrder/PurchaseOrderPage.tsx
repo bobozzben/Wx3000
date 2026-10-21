@@ -69,14 +69,14 @@ export const PurchaseOrderPage: React.FC = () => {
   };
 
   return (
-    <div className="h-full min-h-0 flex-1 flex flex-col bg-gray-100 p-4 font-mono overflow-hidden">
+    <div className="h-full min-h-0 flex-1 flex flex-col bg-gray-100 p-2 sm:p-4 font-mono overflow-y-auto md:overflow-hidden">
       {/* Top Header Form */}
       <div className="shrink-0">
         <PurchaseOrderHeader />
       </div>
 
       {/* Detail Grid */}
-      <div className="flex-1 min-h-0 mb-3 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-[260px] mb-2 sm:mb-3 flex flex-col overflow-hidden">
         <FoxProGridBill
           rows={lines}
           onRowsChange={setLines}
@@ -86,35 +86,35 @@ export const PurchaseOrderPage: React.FC = () => {
       </div>
 
       {/* Action Buttons Bar */}
-      <div className="shrink-0 bg-white border-2 border-blue-900 rounded-lg p-3 flex items-center justify-between shadow-md">
-        <div className="flex items-center space-x-2 text-sm text-gray-700">
+      <div className="shrink-0 bg-white border-2 border-blue-900 rounded-lg p-2 sm:p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-md">
+        <div className="hidden md:flex items-center space-x-2 text-sm text-gray-700">
           <span className="font-bold">盲打提示：</span>
           <span>按 [Enter] 右移，[F2] 開窗或編輯，[F12] 一鍵存檔。</span>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-3 ml-auto">
           <button
             type="button"
             onClick={resetForm}
-            className="flex items-center space-x-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold px-4 py-2 rounded border border-gray-400 transition"
+            className="flex items-center space-x-1 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs sm:text-sm font-bold px-3 sm:px-4 py-1.5 sm:py-2 rounded border border-gray-400 transition whitespace-nowrap"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>開新單據</span>
           </button>
           <button
             type="button"
             onClick={handleQuery}
-            className="flex items-center space-x-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-5 py-2 rounded border border-emerald-900 shadow transition"
+            className="flex items-center space-x-1 bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold px-3.5 sm:px-5 py-1.5 sm:py-2 rounded border border-emerald-900 shadow transition whitespace-nowrap"
           >
-            <Search className="w-4 h-4 text-yellow-300" />
+            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-300" />
             <span>[F9] 查詢單據</span>
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center space-x-1 bg-blue-900 hover:bg-blue-800 text-white font-bold px-6 py-2 rounded border-2 border-yellow-400 shadow-lg transition"
+            className="flex items-center space-x-1 bg-blue-900 hover:bg-blue-800 text-white text-xs sm:text-sm font-bold px-4 sm:px-6 py-1.5 sm:py-2 rounded border-2 border-yellow-400 shadow-lg transition whitespace-nowrap"
           >
-            <Save className="w-4 h-4 text-yellow-400" />
+            <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-400" />
             <span>{saving ? '存檔中...' : '[F12] 存檔進貨單'}</span>
           </button>
         </div>

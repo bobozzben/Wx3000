@@ -12,13 +12,31 @@ process.on('unhandledRejection', (reason) => {
   console.error('[unhandledRejection]', reason);
 });
 
+// ========== 實體磁碟路徑輔助 (防止 pkg 虛擬路徑 C:\snapshot\ 導致 spawn/LoadLibrary ENOENT) ==========
+const EXEC_DIR = process.pkg ? path.dirname(process.execPath) : __dirname;
+
+function isSnapshotPath(p) {
+  return !p || /^[a-zA-Z]:[\\/]snapshot([\\/]|$)/i.test(p) || p.startsWith('/snapshot/');
+}
+
+function existsOnRealDisk(p) {
+  return Boolean(p) && !isSnapshotPath(p) && fs.existsSync(p);
+}
+
 // ========== 通用設定檔 ==========
 let DLL_CONFIG = { dlls: {} };
 try {
-  const cfgPath = path.join(__dirname, 'dlls.json');
-  if (fs.existsSync(cfgPath)) {
-    DLL_CONFIG = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-    console.log('[CONFIG] 載入 dlls.json', Object.keys(DLL_CONFIG.dlls || {}));
+  const cfgCands = [
+    path.join(EXEC_DIR, 'dlls.json'),
+    path.join(process.cwd(), 'dlls.json'),
+    path.join(__dirname, 'dlls.json')
+  ];
+  for (const cfgPath of cfgCands) {
+    if (fs.existsSync(cfgPath)) {
+      DLL_CONFIG = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+      console.log(`[CONFIG] 載入 dlls.json (${cfgPath})`, Object.keys(DLL_CONFIG.dlls || {}));
+      break;
+    }
   }
 } catch (e) { console.error('dlls.json 載入失敗', e.message); }
 
@@ -26,15 +44,15 @@ const CONFIG = {
   MODE: process.env.WBASE_MODE || 'bridge',
   PORT: 18889,
   getDllPath(dllKey) {
-    if (process.env.WBASE_DLL_PATH && fs.existsSync(process.env.WBASE_DLL_PATH)) return process.env.WBASE_DLL_PATH;
+    if (process.env.WBASE_DLL_PATH && existsOnRealDisk(process.env.WBASE_DLL_PATH)) return process.env.WBASE_DLL_PATH;
     const info = (DLL_CONFIG.dlls || {})[dllKey];
     if (!info) return null;
     const cands = [
-      path.join(path.dirname(process.execPath), info.path),
-      path.join(__dirname, info.path),
+      path.join(EXEC_DIR, info.path),
+      path.join(process.cwd(), info.path),
       ...(info.fallback_paths || [])
     ];
-    const existing = cands.filter(p => fs.existsSync(p));
+    const existing = cands.filter(p => existsOnRealDisk(p));
     if (existing.length === 0) return cands[0];
     if (existing.length === 1) return existing[0];
     // 若有多個候選 DLL 存在，優先選用最新修改時間者
@@ -45,28 +63,29 @@ const CONFIG = {
   },
   getBridgePath() {
     const cands = [
+      path.join(EXEC_DIR, 'WbaseBridge.exe'),
+      path.join(EXEC_DIR, 'WbaseBridge_Generic.exe'),
+      path.join(EXEC_DIR, 'bridge', 'lazarus', 'WbaseBridge.exe'),
+      path.join(EXEC_DIR, 'bridge', 'lazarus', 'WbaseBridge_Generic.exe'),
+      path.join(EXEC_DIR, 'bridge', 'WbaseBridge.exe'),
+      path.join(process.cwd(), 'WbaseBridge.exe'),
+      "C:\\Wx3000\\LocalAgent\\WbaseBridge.exe",
       "F:\\ADSProject\\Wx3000\\localagent\\bridge\\lazarus\\WbaseBridge.exe",
       "F:\\ADSProject\\Wx3000\\localagent\\bridge\\lazarus\\WbaseBridge_Generic.exe",
-      path.join(__dirname, 'bridge', 'lazarus', 'WbaseBridge.exe'),
-      path.join(__dirname, 'bridge', 'lazarus', 'WbaseBridge_Generic.exe'),
-      path.join(path.dirname(process.execPath), 'WbaseBridge.exe'),
-      path.join(path.dirname(process.execPath), 'WbaseBridge_Generic.exe'),
-      path.join(__dirname, 'WbaseBridge.exe'),
-      path.join(__dirname, 'WbaseBridge_Generic.exe'),
-      path.join(__dirname, 'bridge', 'WbaseBridge.exe'),
     ];
-    for (const p of cands) if (fs.existsSync(p)) return p;
+    for (const p of cands) if (existsOnRealDisk(p)) return p;
     return cands[0];
   },
   getDbfBridgePath() {
     const cands = [
-      path.join(__dirname, 'DBFBridge.exe'),
-      path.join(__dirname, 'bridge', 'lazarus', 'DBFBridge.exe'),
-      path.join(path.dirname(process.execPath), 'DBFBridge.exe'),
+      path.join(EXEC_DIR, 'DBFBridge.exe'),
+      path.join(EXEC_DIR, 'bridge', 'lazarus', 'DBFBridge.exe'),
+      path.join(process.cwd(), 'DBFBridge.exe'),
+      "C:\\Wx3000\\LocalAgent\\DBFBridge.exe",
       "F:\\ADSProject\\Wx3000\\localagent\\DBFBridge.exe",
       "F:\\ADSProject\\Wx3000\\localagent\\bridge\\lazarus\\DBFBridge.exe"
     ];
-    for (const p of cands) if (fs.existsSync(p)) return p;
+    for (const p of cands) if (existsOnRealDisk(p)) return p;
     return cands[0];
   }
 };
@@ -77,8 +96,8 @@ let dbfQueue = Promise.resolve();
 function callDbfBridge(reqObj) {
   const run = () => new Promise((resolve) => {
     const bridgeExe = CONFIG.getDbfBridgePath();
-    if (!fs.existsSync(bridgeExe)) {
-      resolve({ success: false, error: `DBFBridge.exe 不存在: ${bridgeExe}` });
+    if (!existsOnRealDisk(bridgeExe)) {
+      resolve({ success: false, error: `DBFBridge.exe 不存在於實體磁碟: ${bridgeExe}` });
       return;
     }
 
@@ -86,6 +105,7 @@ function callDbfBridge(reqObj) {
     const b64 = Buffer.from(jsonStr, 'utf8').toString('base64');
 
     const child = spawn(bridgeExe, [b64], {
+      cwd: path.dirname(bridgeExe),
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe']
     });
@@ -191,8 +211,8 @@ function callViaBridge(dllKey, funcName, args) {
   return new Promise((resolve) => {
     const bridgePath = CONFIG.getBridgePath();
     console.log(`bridgePath: ${bridgePath}`);
-    if (!fs.existsSync(bridgePath)) {
-      resolve({ success: false, mode: 'bridge', error: `Bridge not found: ${bridgePath}` });
+    if (!existsOnRealDisk(bridgePath)) {
+      resolve({ success: false, mode: 'bridge', error: `Bridge not found on real disk: ${bridgePath}` });
       return;
     }
     // 使用 Base64 編碼傳遞 JSON 參數，徹底避免 Windows 命令行引號與反斜線轉義問題
@@ -206,6 +226,7 @@ function callViaBridge(dllKey, funcName, args) {
 
     try {
       const child = spawn(bridgePath, cmdArgs, {
+        cwd: path.dirname(bridgePath),
         windowsHide: false,
         detached: true,
         stdio: ['ignore', 'pipe', 'pipe']

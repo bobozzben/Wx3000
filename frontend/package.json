@@ -21,7 +21,7 @@
     "productName": "Wx3000 ERP Client",
     "copyright": "Copyright © 2026 Wx3000",
     "directories": {
-      "output": "release"
+      "output": "../publish/frontend/Electron/release"
     },
     "files": [
       "dist/**/*",

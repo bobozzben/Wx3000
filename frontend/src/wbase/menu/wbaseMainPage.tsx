@@ -127,39 +127,40 @@ export const WbaseMainPage: React.FC = () => {
       >
         {/* Navigation Breadcrumb Bar */}
         <div
-          className={`shrink-0 px-5 py-2.5 flex items-center justify-between transition-colors duration-300 ${
+          className={`shrink-0 px-2.5 sm:px-5 py-1.5 sm:py-2.5 flex items-center justify-between gap-2 transition-colors duration-300 ${
             isDark
               ? 'bg-slate-950 border-b border-slate-700/50 shadow-md'
               : 'bg-white border-b-2 border-slate-200/90 shadow-xs'
           }`}
         >
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-1.5 sm:space-x-3 min-w-0">
             <button
               onClick={() => setActiveModule(null)}
-              className="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-md shadow-indigo-600/20 transition-all duration-200 text-sm"
+              className="flex items-center space-x-1 sm:space-x-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg shadow-md shadow-indigo-600/20 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap shrink-0"
               title="返回主選單 (Esc)"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>返回主選單</span>
+              <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span className="sm:hidden">主選單</span>
+              <span className="hidden sm:inline">返回主選單</span>
             </button>
 
-            <span className={isDark ? 'text-slate-700' : 'text-slate-400 font-bold'}>|</span>
+            <span className={`shrink-0 ${isDark ? 'text-slate-700' : 'text-slate-400 font-bold'}`}>|</span>
 
             <div
-              className={`flex items-center space-x-1.5 text-sm ${
+              className={`flex items-center space-x-1 sm:space-x-1.5 text-xs sm:text-sm min-w-0 ${
                 isDark ? 'text-slate-400' : 'text-slate-800 font-semibold'
               }`}
             >
-              <LayoutGrid className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-indigo-600'}`} />
-              <span>
+              <LayoutGrid className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 hidden sm:block ${isDark ? 'text-slate-500' : 'text-indigo-600'}`} />
+              <span className="hidden sm:inline whitespace-nowrap">
                 {activeModule?.startsWith('wbase30')
                   ? '發票統購'
                   : activeModule?.startsWith('wbase20')
                   ? '客戶資料'
                   : '事務所資料'}
               </span>
-              <span className={isDark ? 'text-slate-700' : 'text-slate-400'}>/</span>
-              <span className={`font-black ${isDark ? 'text-white' : 'text-slate-950'}`}>
+              <span className={`hidden sm:inline shrink-0 ${isDark ? 'text-slate-700' : 'text-slate-400'}`}>/</span>
+              <span className={`font-black truncate ${isDark ? 'text-white' : 'text-slate-950'}`}>
                 {activeModule === 'wbase1020'
                   ? '會計師/記帳士資料'
                   : activeModule === 'wbase1050'
@@ -184,16 +185,16 @@ export const WbaseMainPage: React.FC = () => {
                   ? '統購發票種類金額設定'
                   : '員工資料'}
               </span>
-              <span className={`text-xs ml-1 font-bold ${isDark ? 'text-slate-600' : 'text-slate-500'}`}>
+              <span className={`hidden md:inline text-xs ml-1 font-bold whitespace-nowrap shrink-0 ${isDark ? 'text-slate-600' : 'text-slate-500'}`}>
                 ({activeModule})
               </span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
             <button
               onClick={toggleTheme}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border-2 text-xs font-bold transition-all duration-300 ${
+              className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border-2 text-xs font-bold transition-all duration-300 ${
                 isDark
                   ? 'bg-slate-800/80 border-slate-700/50 text-slate-300 hover:bg-slate-700/80'
                   : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 shadow-2xs'
@@ -203,7 +204,7 @@ export const WbaseMainPage: React.FC = () => {
               {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
             <kbd
-              className={`text-xs px-2.5 py-1 rounded border font-mono font-black transition-colors duration-300 ${
+              className={`hidden sm:inline-block text-xs px-2.5 py-1 rounded border font-mono font-black whitespace-nowrap transition-colors duration-300 ${
                 isDark
                   ? 'text-slate-500 bg-slate-800/80 border-slate-700/50'
                   : 'text-yellow-300 bg-slate-800 border-slate-700 shadow-2xs'

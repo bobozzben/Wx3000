@@ -120,30 +120,39 @@ export const WbaseMenuTree: React.FC<WbaseMenuTreeProps> = ({
     >
       {/* ──── Left Sidebar: Accordion Menu ──── */}
       <nav
-        className={`w-80 shrink-0 flex flex-col overflow-y-auto transition-colors duration-300 ${
+        className={`w-full md:w-72 lg:w-80 shrink-0 flex flex-col overflow-y-auto transition-colors duration-300 ${
           isDark
-            ? 'border-r border-slate-700/50 bg-slate-900/80 backdrop-blur'
-            : 'border-r-2 border-slate-200/90 bg-white shadow-sm'
+            ? 'md:border-r border-slate-700/50 bg-slate-900/80 backdrop-blur'
+            : 'md:border-r-2 border-slate-200/90 bg-white shadow-sm'
         }`}
       >
         {/* Sidebar Header */}
         <div
-          className={`px-5 py-4 transition-colors duration-300 ${
+          className={`px-3.5 sm:px-5 py-2.5 sm:py-4 transition-colors duration-300 ${
             isDark ? 'border-b border-slate-700/50' : 'border-b-2 border-slate-200 bg-slate-50 text-slate-900'
           }`}
         >
-          <div className="flex items-center space-x-2">
-            <Sparkles className={`w-5 h-5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
-            <h2
-              className={`text-sm font-black tracking-wide ${
-                isDark ? 'text-slate-200' : 'text-slate-900'
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Sparkles className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+              <h2
+                className={`text-sm font-black tracking-wide ${
+                  isDark ? 'text-slate-200' : 'text-slate-900'
+                }`}
+              >
+                系統功能選單
+              </h2>
+            </div>
+            <span
+              className={`md:hidden text-[11px] px-2 py-0.5 rounded-full font-bold ${
+                isDark ? 'bg-slate-800 text-slate-300' : 'bg-indigo-100 text-indigo-800'
               }`}
             >
-              系統功能選單
-            </h2>
+              共 {menuData.length} 模組
+            </span>
           </div>
           <p
-            className={`text-xs mt-1 font-semibold ${
+            className={`text-[11px] sm:text-xs mt-1 font-semibold truncate ${
               isDark ? 'text-slate-500' : 'text-slate-600'
             }`}
           >
@@ -334,7 +343,7 @@ export const WbaseMenuTree: React.FC<WbaseMenuTreeProps> = ({
 
       {/* ──── Right Content Area: Welcome Dashboard ──── */}
       <div
-        className={`flex-1 flex flex-col items-center justify-center p-8 transition-colors duration-300 ${
+        className={`hidden md:flex flex-1 flex-col items-center justify-center p-4 lg:p-8 overflow-y-auto transition-colors duration-300 ${
           isDark
             ? 'bg-gradient-to-br from-slate-900 via-slate-850 to-slate-800'
             : 'bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100'

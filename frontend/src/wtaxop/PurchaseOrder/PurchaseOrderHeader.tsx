@@ -51,18 +51,18 @@ export const PurchaseOrderHeader: React.FC = () => {
   };
 
   return (
-    <div className="bg-white border-2 border-blue-900 rounded-lg p-4 mb-3 shadow-md font-mono">
-      <div className="flex items-center justify-between border-b-2 border-blue-900 pb-2 mb-3">
-        <div className="flex items-center space-x-2 text-blue-950 font-bold text-xl">
-          <FileText className="h-6 w-6 text-blue-800" />
-          <h2>進貨單作業 (Purchase Order Entry)</h2>
+    <div className="bg-white border-2 border-blue-900 rounded-lg p-2.5 sm:p-4 mb-2 sm:mb-3 shadow-md font-mono">
+      <div className="flex items-center justify-between gap-2 border-b-2 border-blue-900 pb-2 mb-2.5 sm:mb-3">
+        <div className="flex items-center space-x-2 text-blue-950 font-bold text-base sm:text-xl min-w-0">
+          <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-blue-800 shrink-0" />
+          <h2 className="truncate">進貨單作業 <span className="hidden sm:inline">(Purchase Order Entry)</span></h2>
         </div>
-        <div className="text-xs bg-blue-100 text-blue-900 font-bold px-3 py-1 rounded border border-blue-300">
+        <div className="hidden sm:block text-xs bg-blue-100 text-blue-900 font-bold px-3 py-1 rounded border border-blue-300 shrink-0">
           系統代號: wtaxop/PurchaseOrder
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm font-bold">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 text-xs sm:text-sm font-bold">
         <div>
           <label className="block text-gray-700 mb-1 flex items-center">
             <FileText className="w-4 h-4 mr-1 text-blue-800" /> 進貨單號

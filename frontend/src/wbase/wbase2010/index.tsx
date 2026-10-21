@@ -426,23 +426,23 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
 
         {/* Bottom Action Bar (Edit / Add Mode) */}
         {(mode === 'edit' || mode === 'add') && (
-          <div className="h-[48px] bg-[#0F172A] flex items-center justify-between px-4">
-            <div className="flex items-center gap-3 text-[12px] text-slate-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              編輯模式 · Enter 依序跳格 · Esc 儲存並回清單
+          <div className="h-[48px] bg-[#0F172A] flex items-center justify-between gap-2 px-3 sm:px-4 overflow-x-auto whitespace-nowrap">
+            <div className="hidden sm:flex items-center gap-3 text-[12px] text-slate-300 truncate">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="truncate">編輯模式 · Enter 依序跳格 · Esc 儲存並回清單</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto shrink-0">
               <button
                 onClick={saveForm}
-                className="h-8 px-4 rounded-lg bg-blue-600 text-white text-[12px] font-semibold hover:bg-blue-500 transition flex items-center gap-1.5 shadow-sm"
+                className="h-8 px-3 sm:px-4 rounded-lg bg-blue-600 text-white text-[12px] font-semibold hover:bg-blue-500 transition flex items-center gap-1.5 shadow-sm shrink-0"
               >
                 <span>儲存並回清單</span>
                 <span className="text-[10px] opacity-80 border border-white/30 rounded px-1 font-mono">Esc</span>
               </button>
               <button
                 onClick={cancelEdit}
-                className="h-8 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[12px] font-medium border border-slate-700 transition"
+                className="h-8 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[12px] font-medium border border-slate-700 transition shrink-0"
               >
                 放棄修改
               </button>

@@ -18,26 +18,26 @@ export const WbaseMainLayout: React.FC<WbaseMainLayoutProps> = ({ children }) =>
     >
       {/* Top Title Bar */}
       <header
-        className={`shrink-0 px-5 py-2.5 flex items-center justify-between transition-colors duration-300 ${
+        className={`shrink-0 px-2.5 sm:px-5 py-1.5 sm:py-2.5 flex items-center justify-between gap-2 transition-colors duration-300 ${
           isDark
             ? 'bg-slate-950 border-b border-slate-700/50 shadow-md'
             : 'bg-white border-b-2 border-slate-200/90 shadow-xs'
         }`}
       >
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-xl shadow-md shadow-indigo-600/20">
-            <Monitor className="w-5 h-5 text-white" />
+        <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+          <div className="p-1.5 sm:p-2 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-lg sm:rounded-xl shadow-md shadow-indigo-600/20 shrink-0">
+            <Monitor className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1
-              className={`text-base font-black tracking-wide transition-colors duration-300 ${
+              className={`text-sm sm:text-base font-black tracking-wide truncate whitespace-nowrap transition-colors duration-300 ${
                 isDark ? 'text-white' : 'text-slate-900'
               }`}
             >
               WBASE 基本資料管理系統
             </h1>
             <p
-              className={`text-xs font-semibold transition-colors duration-300 ${
+              className={`hidden sm:block text-xs font-semibold truncate whitespace-nowrap transition-colors duration-300 ${
                 isDark ? 'text-slate-400' : 'text-slate-600'
               }`}
             >
@@ -46,11 +46,11 @@ export const WbaseMainLayout: React.FC<WbaseMainLayoutProps> = ({ children }) =>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 text-xs font-semibold">
+        <div className="flex items-center space-x-1.5 sm:space-x-2 text-xs font-semibold shrink-0 whitespace-nowrap">
           {/* Theme Toggle Button */}
           <button
             onClick={toggleTheme}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border-2 transition-all duration-200 ${
+            className={`flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border-2 transition-all duration-200 whitespace-nowrap shrink-0 ${
               isDark
                 ? 'bg-slate-800/80 border-slate-700/50 text-slate-300 hover:bg-slate-700/80 hover:text-amber-300'
                 : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 shadow-2xs font-bold'
@@ -59,35 +59,35 @@ export const WbaseMainLayout: React.FC<WbaseMainLayoutProps> = ({ children }) =>
           >
             {isDark ? (
               <>
-                <Sun className="w-3.5 h-3.5" />
+                <Sun className="w-3.5 h-3.5 shrink-0" />
                 <span>淺色</span>
               </>
             ) : (
               <>
-                <Moon className="w-3.5 h-3.5" />
+                <Moon className="w-3.5 h-3.5 shrink-0" />
                 <span>深色</span>
               </>
             )}
           </button>
 
           <div
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border transition-colors duration-200 ${
+            className={`hidden lg:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border transition-colors duration-200 whitespace-nowrap shrink-0 ${
               isDark
                 ? 'bg-slate-800/80 border-slate-700/50 text-slate-400'
                 : 'bg-white border-slate-300 text-slate-800 shadow-2xs'
             }`}
           >
-            <HardDrive className="w-3.5 h-3.5 text-emerald-600" />
+            <HardDrive className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>PostgreSQL a3000</span>
           </div>
           <div
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border transition-colors duration-200 ${
+            className={`hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border transition-colors duration-200 whitespace-nowrap shrink-0 ${
               isDark
                 ? 'bg-slate-800/80 border-slate-700/50 text-slate-400'
                 : 'bg-white border-slate-300 text-slate-800 shadow-2xs'
             }`}
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             <span>最高管理者</span>
           </div>
         </div>
