@@ -6,8 +6,8 @@
 -- ----------------------------------------------------------------------------
 -- 1. 讀取總體參數函數 (get_sys_param)
 -- 傳入參數：
---   p_schema  : Schema 名稱 (例如 'public' 或 'e3000__comm')
---   p_table   : Table 名稱 (例如 'sys_config' 或 'wbase_param')
+--   p_schema  : Schema 名稱 (例如 'public' 或 'c:/w3000/comm')
+--   p_table   : Table 名稱 (例如 'sys_config' 或 '參數設定')
 --   p_name    : 參數名稱 (搜尋 "名稱" 欄位)
 --   p_default : 找不到時的預設值 (選填，預設為空白字串 '')
 -- 回傳：
@@ -58,8 +58,8 @@ $$ LANGUAGE plpgsql;
 -- ----------------------------------------------------------------------------
 -- 2. 設定總體參數函數 (set_sys_param)
 -- 傳入參數：
---   p_schema : Schema 名稱 (例如 'public' 或 'e3000__comm')
---   p_table  : Table 名稱 (例如 'sys_config' 或 'wbase_param')
+--   p_schema : Schema 名稱 (例如 'public' 或 'c:/w3000/comm')
+--   p_table  : Table 名稱 (例如 'sys_config' 或 '參數設定')
 --   p_name   : 參數名稱 ("名稱" 欄位)
 --   p_value  : 參數數值 ("數值" 欄位)
 -- 回傳：

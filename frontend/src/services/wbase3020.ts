@@ -157,7 +157,7 @@ export interface BuyinvPrintQueryRequest {
 }
 
 /**
- * 依條件從 PostgreSQL Database: a3000 schema: e3000__comm Table: 基本發票購買 取得列印資料
+ * 依條件從 PostgreSQL Database: w3000 schema: c:/w3000/comm Table: 基本發票購買 取得列印資料
  */
 export const queryBuyinvPrintData = async (
   req: BuyinvPrintQueryRequest

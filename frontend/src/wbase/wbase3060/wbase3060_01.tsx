@@ -68,9 +68,9 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
   useEffect(() => {
     const loadParams = async () => {
       try {
-        const savedPeriod = await getSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買期別', '11505-06');
-        const savedTimes = await getSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買次數', '1');
-        const savedSort = await getSystemParam('e3000__comm', '總帳參數設定', '統購字軌排序方式', '1');
+        const savedPeriod = await getSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買期別', '11505-06');
+        const savedTimes = await getSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買次數', '1');
+        const savedSort = await getSystemParam('c:/w3000/comm', '參數設定', '統購字軌排序方式', '1');
 
         if (savedPeriod && savedPeriod.includes('-')) {
           const parts = savedPeriod.split('-');
@@ -94,9 +94,9 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
   const handleConfirm = useCallback(async () => {
     const formattedPeriod = `${year}${startMonth.padStart(2, '0')}-${endMonth.padStart(2, '0')}`;
     try {
-      await setSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買期別', formattedPeriod);
-      await setSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買次數', times);
-      await setSystemParam('e3000__comm', '總帳參數設定', '統購字軌排序方式', sortOrder);
+      await setSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買期別', formattedPeriod);
+      await setSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買次數', times);
+      await setSystemParam('c:/w3000/comm', '參數設定', '統購字軌排序方式', sortOrder);
     } catch (err) {
       console.error('Failed to save system params:', err);
     }

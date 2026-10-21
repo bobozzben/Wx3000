@@ -70,7 +70,7 @@ export interface BuyinvPriceConfig {
 const API_BASE = '/api/wbase3050';
 
 /**
- * 依條件從 PostgreSQL Database: a3000 schema: e3000__comm Table: 基本發票購買 取得列印資料
+ * 依條件從 PostgreSQL Database: w3000 schema: c:/w3000/comm Table: 基本發票購買 取得列印資料
  */
 export const queryBuyinvPrintData = async (
   req: BuyinvPrintQueryRequest
@@ -102,9 +102,9 @@ export const getBuyinvPrices = async (): Promise<BuyinvPriceConfig> => {
     console.warn('API /prices failed, fallback to systemParamService:', e);
   }
 
-  // Fallback 透過 systemParamService 直接向總帳參數設定提取
-  const schema = 'e3000__comm';
-  const table = '總帳參數設定';
+  // Fallback 透過 systemParamService 直接向參數設定提取
+  const schema = 'c:/w3000/comm';
+  const table = '參數設定';
   const [p1, p2, p3, p4, p5, p6, p7, p8] = await Promise.all([
     getSystemParam(schema, table, '手開二聯單價', '15'),
     getSystemParam(schema, table, '手開二聯副單價', '16'),
@@ -137,8 +137,8 @@ export const saveBuyinvPrices = async (config: BuyinvPriceConfig): Promise<boole
     return true;
   } catch (e) {
     console.warn('API save prices failed, fallback to systemParamService:', e);
-    const schema = 'e3000__comm';
-    const table = '總帳參數設定';
+    const schema = 'c:/w3000/comm';
+    const table = '參數設定';
     try {
       await Promise.all([
         setSystemParam(schema, table, '手開二聯單價', String(config.manualTwoDup)),

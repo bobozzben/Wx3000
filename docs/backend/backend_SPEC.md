@@ -34,7 +34,7 @@ backend/
 │   ├── IDbfSyncService.cs            # 地端 VFP DBF 雙向同步服務介面
 │   ├── DbfSyncService.cs             # Checksum 比對、自動快照重灌、DBF 權威寫入與鎖定檢測
 │   ├── ISystemParamService.cs        # 系統參數讀寫介面
-│   └── SystemParamService.cs         # 動態 Schema/Table 參數存取服務 (如 e3000__comm.總帳參數設定)
+│   └── SystemParamService.cs         # 動態 Schema/Table 參數存取服務 (如 "c:/w3000/comm"."參數設定")
 ├── Models/
 │   ├── CpaMaster.cs                  # 會計師主檔 (schema: c:/w3000/comm, table: cpa)
 │   ├── EmpMaster.cs                  # 建檔人員主檔 (schema: c:/w3000/comm, table: keyin)

@@ -91,6 +91,14 @@ namespace Wx3000.Backend.Models
         [StringLength(255)]
         public string Memo { get; set; } = string.Empty;
 
+        [Column("placeno")]
+        [StringLength(255)]
+        public string PlaceCode { get; set; } = string.Empty;
+
+        [Column("keyin")]
+        [StringLength(255)]
+        public string EmpCode { get; set; } = string.Empty;
+
         [Column("_record_number")]
         public int RecordNumber { get; set; } = 0;
 

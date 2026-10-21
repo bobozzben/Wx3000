@@ -169,14 +169,14 @@ export const Wbase3050_buylist_print: React.FC<Wbase3050BuylistPrintProps> = ({ 
     }, 50);
   };
 
-  // 1. 載入列印期別年月由 Database: a3000 schema: e3000__comm Table: 總帳參數設定 提取
+  // 1. 載入列印期別年月由 Database: w3000 schema: c:/w3000/comm Table: 參數設定 提取
   useEffect(() => {
     let isMounted = true;
     const loadSystemPeriod = async () => {
       try {
         const savedPeriod = await getSystemParam(
-          'e3000__comm',
-          '總帳參數設定',
+          'c:/w3000/comm',
+          '參數設定',
           '營業稅發票購買期別',
           '11505-06'
         );
@@ -199,10 +199,10 @@ export const Wbase3050_buylist_print: React.FC<Wbase3050BuylistPrintProps> = ({ 
     };
   }, []);
 
-  // 2. QueryData 函數：從 Postgresql Database: a3000 schema: e3000__comm Table: 基本發票購買 取得資料，並計算各金額與匯總欄位
+  // 2. QueryData 函數：從 Postgresql Database: w3000 schema: c:/w3000/comm Table: 基本發票購買 取得資料，並計算各金額與匯總欄位
   const QueryData = useCallback(async (): Promise<InvoicePurchaseItem[]> => {
     setIsLoading(true);
-    setStatusMessage('正在從資料庫 (Postgresql Database: a3000 schema: e3000__comm Table: 基本發票購買) 提取資料並進行金額試算...');
+    setStatusMessage('正在從資料庫 (Postgresql Database: w3000 schema: c:/w3000/comm Table: 基本發票購買) 提取資料並進行金額試算...');
     const formattedPeriod = `${year}${startMonth.padStart(2, '0')}-${endMonth.padStart(2, '0')}`;
 
     const queryParams: BuyinvPrintQueryRequest = {

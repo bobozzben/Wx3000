@@ -39,9 +39,28 @@ namespace Wx3000.Backend.Services
             await ((System.Data.Common.DbCommand)cmd).ExecuteNonQueryAsync();
         }
 
+        private static void NormalizeSchemaAndTable(ref string schema, ref string table)
+        {
+            if (string.IsNullOrWhiteSpace(schema))
+            {
+                schema = "public";
+            }
+            else if (string.Equals(schema, "e3000__comm", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(schema, "c:/w3000/comm", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(schema, "c:\\w3000\\comm", StringComparison.OrdinalIgnoreCase))
+            {
+                schema = "c:/w3000/comm";
+            }
+
+            if (string.Equals(table, "總帳參數設定", StringComparison.OrdinalIgnoreCase))
+            {
+                table = "參數設定";
+            }
+        }
+
         public async Task<string> GetParamAsync(string schema, string table, string name, string defaultValue = "")
         {
-            if (string.IsNullOrWhiteSpace(schema)) schema = "public";
+            NormalizeSchemaAndTable(ref schema, ref table);
             if (string.IsNullOrWhiteSpace(table)) throw new ArgumentException("Table 名稱不可為空", nameof(table));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("參數名稱不可為空", nameof(name));
 
@@ -106,7 +125,7 @@ namespace Wx3000.Backend.Services
 
         public async Task<string> SetParamAsync(string schema, string table, string name, string value)
         {
-            if (string.IsNullOrWhiteSpace(schema)) schema = "public";
+            NormalizeSchemaAndTable(ref schema, ref table);
             if (string.IsNullOrWhiteSpace(table)) throw new ArgumentException("Table 名稱不可為空", nameof(table));
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("參數名稱不可為空", nameof(name));
 

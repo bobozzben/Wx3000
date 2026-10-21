@@ -66,10 +66,10 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
   useEffect(() => {
     const loadParams = async () => {
       try {
-        const savedPeriod = await getSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買期別', '11505-06');
-        const savedTimes = await getSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買次數', '1');
-        const savedMode = await getSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買輸入方式', '1');
-        const savedCond = await getSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買輸入條件', '');
+        const savedPeriod = await getSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買期別', '11505-06');
+        const savedTimes = await getSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買次數', '1');
+        const savedMode = await getSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買輸入方式', '1');
+        const savedCond = await getSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買輸入條件', '');
 
         if (savedPeriod && savedPeriod.includes('-')) {
           const parts = savedPeriod.split('-');
@@ -94,10 +94,10 @@ export const Wbase3020_01: React.FC<Wbase3020_01Props> = ({ onConfirm, onClose }
   const handleConfirm = useCallback(async () => {
     const formattedPeriod = `${year}${startMonth.padStart(2, '0')}-${endMonth.padStart(2, '0')}`;
     try {
-      await setSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買期別', formattedPeriod);
-      await setSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買次數', times);
-      await setSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買輸入方式', inputMode);
-      await setSystemParam('e3000__comm', '總帳參數設定', '營業稅發票購買輸入條件', inputCondition);
+      await setSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買期別', formattedPeriod);
+      await setSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買次數', times);
+      await setSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買輸入方式', inputMode);
+      await setSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買輸入條件', inputCondition);
     } catch (err) {
       console.error('Failed to save system params:', err);
     }

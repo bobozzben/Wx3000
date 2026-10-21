@@ -3,7 +3,7 @@
 > **模組代號**：`wbase3050` (`wbase3050_buylist_print` & `wbase3050_buyinv_setamt`)  
 > **功能名稱**：統購發票清單列印 (A4 發票清單 / 中一刀發票領取簽收單) + 發票工本費單價設定  
 > **所屬模組**：`frontend/src/wbase/wbase3050/` & `backend/Controllers/Wbase3050Controller.cs`  
-> **原始 Visual FoxPro 來源**：`SourS9BASE\LIBS\wbase.vcx` Class: `wbase3050` (對應資料表 `"c:/w3000/comm"."buyinv"` 與 `"e3000__comm"."總帳參數設定"`)
+> **原始 Visual FoxPro 來源**：`SourS9BASE\LIBS\wbase.vcx` Class: `wbase3050` (對應資料表 `"c:/w3000/comm"."buyinv"` 與 `"c:/w3000/comm"."參數設定"`)
 
 ---
 
@@ -20,7 +20,7 @@
 2. **`Wbase3050_buyinv_setamt` 發票工本費單價設定彈窗 (`wbase3050_buyinv_setamt.tsx`)**：
    - 提供 8 種發票（手開二聯、二聯副、三聯、三聯副、特種；收銀二聯、三聯、三聯副）之每本工本費單價設定。
    - 支援全鍵盤 `Enter` / `↓` 順序跳欄、`↑` 上移、`F9` 儲存與 `Esc` 離開。
-   - 單價參數持久化於後端 `SystemParamService` (`e3000__comm.總帳參數設定`)。
+   - 單價參數持久化於後端 `SystemParamService` (`"c:/w3000/comm"."參數設定"`)。
 
 ---
 

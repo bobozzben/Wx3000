@@ -23,6 +23,22 @@ namespace Wx3000.Backend.Controllers
             _paramService = paramService;
         }
 
+        private static string ExtractCity(string? address)
+        {
+            if (string.IsNullOrWhiteSpace(address)) return string.Empty;
+            var raw = address.Trim();
+            var cleaned = System.Text.RegularExpressions.Regex.Replace(raw, @"^[\d\uFF10-\uFF19]+", "").Trim();
+            if (cleaned.Length >= 3)
+            {
+                var candidate = cleaned.Substring(0, 3);
+                if (candidate.EndsWith("市") || candidate.EndsWith("縣"))
+                {
+                    return candidate;
+                }
+            }
+            return cleaned.Length >= 3 ? cleaned.Substring(0, 3) : cleaned;
+        }
+
         public class BuyinvPrintQueryRequest
         {
             public string? Period { get; set; }          // 依列印期別 (e.g. "11505-06" 或 "1150506")
@@ -50,7 +66,7 @@ namespace Wx3000.Backend.Controllers
         }
 
         /// <summary>
-        /// QueryData: 從 Postgresql Database:a3000 schema:e3000__comm Table:基本發票購買 取得資料
+        /// QueryData: 從 Postgresql Database:w3000 schema:c:/w3000/comm Table:基本發票購買 取得資料
         /// </summary>
         [HttpPost("query")]
         public async Task<ActionResult<IEnumerable<InvoicePurchaseMaster>>> QueryData([FromBody] BuyinvPrintQueryRequest req)
@@ -107,7 +123,7 @@ namespace Wx3000.Backend.Controllers
                     var city = (req.CityCondition ?? "*").Trim();
                     if (city != "*" && !string.IsNullOrWhiteSpace(city))
                     {
-                        query = query.Where(x => (x.p.City != null && x.p.City.Contains(city)) || (x.c != null && x.c.Address != null && x.c.Address.Contains(city)));
+                        query = query.Where(x => x.c != null && x.c.Address != null && x.c.Address.Contains(city));
                     }
                 }
                 else if (mode == "2") // 2. 依購買地點
@@ -115,7 +131,7 @@ namespace Wx3000.Backend.Controllers
                     var place = (req.PlaceCondition ?? "").Trim();
                     if (!string.IsNullOrWhiteSpace(place))
                     {
-                        query = query.Where(x => (x.p.PlaceCode != null && x.p.PlaceCode.Contains(place)));
+                        query = query.Where(x => x.c != null && x.c.PlaceCode != null && x.c.PlaceCode.Contains(place));
                     }
                 }
 
@@ -160,6 +176,9 @@ namespace Wx3000.Backend.Controllers
 
                     p.CompanyTel = !string.IsNullOrWhiteSpace(c?.Tel) ? c.Tel!.Trim() : string.Empty;
                     p.CompanyFax = !string.IsNullOrWhiteSpace(c?.Fax) ? c.Fax!.Trim() : string.Empty;
+                    p.City = ExtractCity(c?.Address);
+                    p.PlaceCode = c?.PlaceCode?.Trim() ?? string.Empty;
+                    p.EmpCode = c?.EmpCode?.Trim() ?? string.Empty;
 
                     return p;
                 }).ToList();
@@ -174,7 +193,7 @@ namespace Wx3000.Backend.Controllers
         }
 
         /// <summary>
-        /// 讀取發票種類金額設定 (Postgresql Database: a3000 schema: e3000__comm Table: 總帳參數設定)
+        /// 讀取發票種類金額設定 (Postgresql Database: w3000 schema: c:/w3000/comm Table: 參數設定)
         /// </summary>
         [HttpGet("prices")]
         public async Task<ActionResult<BuyinvPriceConfig>> GetPrices()
@@ -182,7 +201,7 @@ namespace Wx3000.Backend.Controllers
             try
             {
                 var schema = "c:/w3000/comm";
-                var table = "總帳參數設定";
+                var table = "參數設定";
 
                 var v1 = await _paramService.GetParamAsync(schema, table, "手開二聯單價", "15");
                 var v2 = await _paramService.GetParamAsync(schema, table, "手開二聯副單價", "16");
@@ -214,7 +233,7 @@ namespace Wx3000.Backend.Controllers
         }
 
         /// <summary>
-        /// 儲存發票種類金額設定 (Postgresql Database: w3000 schema: c:/w3000/comm Table: 總帳參數設定)
+        /// 儲存發票種類金額設定 (Postgresql Database: w3000 schema: c:/w3000/comm Table: 參數設定)
         /// </summary>
         [HttpPost("prices")]
         public async Task<IActionResult> SavePrices([FromBody] BuyinvPriceConfig config)
@@ -224,7 +243,7 @@ namespace Wx3000.Backend.Controllers
             try
             {
                 var schema = "c:/w3000/comm";
-                var table = "總帳參數設定";
+                var table = "參數設定";
 
                 await _paramService.SetParamAsync(schema, table, "手開二聯單價", config.ManualTwoDup.ToString());
                 await _paramService.SetParamAsync(schema, table, "手開二聯副單價", config.ManualTwoDupSub.ToString());

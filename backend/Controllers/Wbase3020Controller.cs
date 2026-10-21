@@ -45,6 +45,22 @@ namespace Wx3000.Backend.Controllers
             return clean;
         }
 
+        private static string ExtractCity(string? address)
+        {
+            if (string.IsNullOrWhiteSpace(address)) return string.Empty;
+            var raw = address.Trim();
+            var cleaned = System.Text.RegularExpressions.Regex.Replace(raw, @"^[\d\uFF10-\uFF19]+", "").Trim();
+            if (cleaned.Length >= 3)
+            {
+                var candidate = cleaned.Substring(0, 3);
+                if (candidate.EndsWith("市") || candidate.EndsWith("縣"))
+                {
+                    return candidate;
+                }
+            }
+            return cleaned.Length >= 3 ? cleaned.Substring(0, 3) : cleaned;
+        }
+
         // GET: api/wbase3020?period=11505-06&times=1&keyword=xxx
         [HttpGet]
         public async Task<ActionResult<IEnumerable<InvoicePurchaseMaster>>> GetList(
@@ -62,93 +78,20 @@ namespace Wx3000.Backend.Controllers
 
                 await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, SyncKeyField);
 
-                var queryable = _context.InvoicePurchaseMasters
+                var rawList = await _context.InvoicePurchaseMasters
                     .AsNoTracking()
-                    .Where(x => (x.Period == dbfPeriod || x.Period == targetPeriod) && x.Times == targetTimes);
+                    .Where(x => (x.Period == dbfPeriod || x.Period == targetPeriod) && x.Times == targetTimes)
+                    .ToListAsync();
 
-                // Input mode condition filtering & sorting
-                if (!string.IsNullOrWhiteSpace(inputMode))
-                {
-                    var mode = inputMode.Trim();
-                    var cond = (inputCondition ?? "").Trim().ToLower();
-
-                    switch (mode)
-                    {
-                        case "1": // 稅籍編號
-                            if (!string.IsNullOrWhiteSpace(cond))
-                            {
-                                queryable = queryable.Where(x => x.TaxNo.ToLower().Contains(cond));
-                            }
-                            queryable = queryable.OrderBy(x => x.TaxNo).ThenBy(x => x.CompanyCode);
-                            break;
-                        case "2": // 統一編號
-                            if (!string.IsNullOrWhiteSpace(cond))
-                            {
-                                queryable = queryable.Where(x => x.UnifiedNo.ToLower().Contains(cond));
-                            }
-                            queryable = queryable.OrderBy(x => x.UnifiedNo).ThenBy(x => x.CompanyCode);
-                            break;
-                        case "3": // 客戶編號
-                            if (!string.IsNullOrWhiteSpace(cond))
-                            {
-                                queryable = queryable.Where(x => x.CompanyCode.ToLower().Contains(cond));
-                            }
-                            queryable = queryable.OrderBy(x => x.CompanyCode);
-                            break;
-                        case "4": // 上次次序
-                            queryable = queryable.OrderBy(x => x.CompanyCode);
-                            break;
-                        case "5": // 依縣市別
-                            if (!string.IsNullOrWhiteSpace(cond))
-                            {
-                                queryable = queryable.Where(x => x.City != null && x.City.ToLower().Contains(cond));
-                            }
-                            queryable = queryable.OrderBy(x => x.City).ThenBy(x => x.CompanyCode);
-                            break;
-                        case "6": // 購買地點
-                            if (!string.IsNullOrWhiteSpace(cond))
-                            {
-                                queryable = queryable.Where(x => x.PlaceCode != null && x.PlaceCode.ToLower().Contains(cond));
-                            }
-                            queryable = queryable.OrderBy(x => x.PlaceCode).ThenBy(x => x.CompanyCode);
-                            break;
-                        case "7": // 登入人員
-                            if (!string.IsNullOrWhiteSpace(cond))
-                            {
-                                queryable = queryable.Where(x => x.EmpCode != null && x.EmpCode.ToLower().Contains(cond));
-                            }
-                            queryable = queryable.OrderBy(x => x.EmpCode).ThenBy(x => x.CompanyCode);
-                            break;
-                        default:
-                            queryable = queryable.OrderBy(x => x.CompanyCode);
-                            break;
-                    }
-                }
-                else
-                {
-                    queryable = queryable.OrderBy(x => x.CompanyCode);
-                }
-
-                // General keyword search
-                if (!string.IsNullOrWhiteSpace(keyword))
-                {
-                    var kw = keyword.Trim().ToLower();
-                    queryable = queryable.Where(x =>
-                        x.CompanyCode.ToLower().Contains(kw) ||
-                        x.CompanyShortName.ToLower().Contains(kw) ||
-                        x.UnifiedNo.ToLower().Contains(kw) ||
-                        x.TaxNo.ToLower().Contains(kw)
-                    );
-                }
-
-                var list = await queryable.ToListAsync();
-                var deduplicatedList = list
+                var deduplicatedList = rawList
                     .GroupBy(x => x.CompanyCode.Trim().ToUpper())
                     .Select(g => g.First())
                     .ToList();
 
-                var companyDict = await _context.CompanyMasters.AsNoTracking()
-                    .ToDictionaryAsync(c => c.CompanyCode.Trim().ToUpper(), c => c);
+                var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
+                var companyDict = companies
+                    .GroupBy(c => c.CompanyCode.Trim().ToUpper())
+                    .ToDictionary(g => g.Key, g => g.First());
 
                 foreach (var item in deduplicatedList)
                 {
@@ -164,15 +107,100 @@ namespace Wx3000.Backend.Controllers
                             item.UnifiedNo = comp.UnifiedNo.Trim();
                         if (string.IsNullOrWhiteSpace(item.TaxNo))
                             item.TaxNo = comp.TaxNo.Trim();
+
+                        item.City = ExtractCity(comp.Address);
+                        item.PlaceCode = comp.PlaceCode?.Trim() ?? string.Empty;
+                        item.EmpCode = comp.EmpCode?.Trim() ?? string.Empty;
                     }
                     else
                     {
                         item.CompanyName = string.Empty;
                         item.CompanyAddr = string.Empty;
+                        item.City = string.Empty;
+                        item.PlaceCode = string.Empty;
+                        item.EmpCode = string.Empty;
                     }
                 }
 
-                return Ok(deduplicatedList);
+                IEnumerable<InvoicePurchaseMaster> filtered = deduplicatedList;
+
+                // Input mode condition filtering & sorting (performed safely in memory to support [NotMapped] City, PlaceCode, EmpCode)
+                if (!string.IsNullOrWhiteSpace(inputMode))
+                {
+                    var mode = inputMode.Trim();
+                    var cond = (inputCondition ?? "").Trim().ToLower();
+
+                    switch (mode)
+                    {
+                        case "1": // 稅籍編號
+                            if (!string.IsNullOrWhiteSpace(cond))
+                            {
+                                filtered = filtered.Where(x => (x.TaxNo ?? "").ToLower().Contains(cond));
+                            }
+                            filtered = filtered.OrderBy(x => x.TaxNo ?? "").ThenBy(x => x.CompanyCode);
+                            break;
+                        case "2": // 統一編號
+                            if (!string.IsNullOrWhiteSpace(cond))
+                            {
+                                filtered = filtered.Where(x => (x.UnifiedNo ?? "").ToLower().Contains(cond));
+                            }
+                            filtered = filtered.OrderBy(x => x.UnifiedNo ?? "").ThenBy(x => x.CompanyCode);
+                            break;
+                        case "3": // 客戶編號
+                            if (!string.IsNullOrWhiteSpace(cond))
+                            {
+                                filtered = filtered.Where(x => (x.CompanyCode ?? "").ToLower().Contains(cond));
+                            }
+                            filtered = filtered.OrderBy(x => x.CompanyCode);
+                            break;
+                        case "4": // 上次次序
+                            filtered = filtered.OrderBy(x => x.CompanyCode);
+                            break;
+                        case "5": // 依縣市別
+                            if (!string.IsNullOrWhiteSpace(cond))
+                            {
+                                filtered = filtered.Where(x => (x.City != null && x.City.ToLower().Contains(cond)) || (x.CompanyAddr != null && x.CompanyAddr.ToLower().Contains(cond)));
+                            }
+                            filtered = filtered.OrderBy(x => x.City ?? "").ThenBy(x => x.CompanyCode);
+                            break;
+                        case "6": // 購買地點
+                            if (!string.IsNullOrWhiteSpace(cond))
+                            {
+                                filtered = filtered.Where(x => (x.PlaceCode != null && x.PlaceCode.ToLower().Contains(cond)));
+                            }
+                            filtered = filtered.OrderBy(x => x.PlaceCode ?? "").ThenBy(x => x.CompanyCode);
+                            break;
+                        case "7": // 登入人員
+                            if (!string.IsNullOrWhiteSpace(cond))
+                            {
+                                filtered = filtered.Where(x => (x.EmpCode != null && x.EmpCode.ToLower().Contains(cond)));
+                            }
+                            filtered = filtered.OrderBy(x => x.EmpCode ?? "").ThenBy(x => x.CompanyCode);
+                            break;
+                        default:
+                            filtered = filtered.OrderBy(x => x.CompanyCode);
+                            break;
+                    }
+                }
+                else
+                {
+                    filtered = filtered.OrderBy(x => x.CompanyCode);
+                }
+
+                // General keyword search
+                if (!string.IsNullOrWhiteSpace(keyword))
+                {
+                    var kw = keyword.Trim().ToLower();
+                    filtered = filtered.Where(x =>
+                        (x.CompanyCode != null && x.CompanyCode.ToLower().Contains(kw)) ||
+                        (x.CompanyShortName != null && x.CompanyShortName.ToLower().Contains(kw)) ||
+                        (x.CompanyName != null && x.CompanyName.ToLower().Contains(kw)) ||
+                        (x.UnifiedNo != null && x.UnifiedNo.ToLower().Contains(kw)) ||
+                        (x.TaxNo != null && x.TaxNo.ToLower().Contains(kw))
+                    );
+                }
+
+                return Ok(filtered.ToList());
             }
             catch (Exception ex)
             {
@@ -674,7 +702,7 @@ namespace Wx3000.Backend.Controllers
                     var city = (req.CityCondition ?? "*").Trim();
                     if (city != "*" && !string.IsNullOrWhiteSpace(city))
                     {
-                        query = query.Where(x => (x.p.City != null && x.p.City.Contains(city)) || (x.c != null && x.c.Address.Contains(city)));
+                        query = query.Where(x => x.c != null && x.c.Address != null && x.c.Address.Contains(city));
                     }
                 }
                 else if (mode == "2")
@@ -682,7 +710,7 @@ namespace Wx3000.Backend.Controllers
                     var place = (req.PlaceCondition ?? "").Trim();
                     if (!string.IsNullOrWhiteSpace(place))
                     {
-                        query = query.Where(x => x.p.PlaceCode != null && x.p.PlaceCode.Contains(place));
+                        query = query.Where(x => x.c != null && x.c.PlaceCode != null && x.c.PlaceCode.Contains(place));
                     }
                 }
 
@@ -727,6 +755,9 @@ namespace Wx3000.Backend.Controllers
 
                     p.CompanyTel = !string.IsNullOrWhiteSpace(c?.Tel) ? c.Tel.Trim() : string.Empty;
                     p.CompanyFax = !string.IsNullOrWhiteSpace(c?.Fax) ? c.Fax.Trim() : string.Empty;
+                    p.City = ExtractCity(c?.Address);
+                    p.PlaceCode = c?.PlaceCode?.Trim() ?? string.Empty;
+                    p.EmpCode = c?.EmpCode?.Trim() ?? string.Empty;
 
                     return p;
                 }).ToList();

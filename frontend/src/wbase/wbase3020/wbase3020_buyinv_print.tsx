@@ -144,14 +144,14 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     }, 50);
   };
 
-  // 1. Fetch Year/Month period from Database: a3000 schema: e3000__comm Table: 總帳參數設定
+  // 1. Fetch Year/Month period from Database: w3000 schema: c:/w3000/comm Table: 參數設定
   useEffect(() => {
     let isMounted = true;
     const loadSystemPeriod = async () => {
       try {
         const savedPeriod = await getSystemParam(
-          'e3000__comm',
-          '總帳參數設定',
+          'c:/w3000/comm',
+          '參數設定',
           '營業稅發票購買期別',
           '11505-06'
         );
@@ -174,10 +174,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     };
   }, []);
 
-  // 2. QueryData Function: Fetch data from Postgresql Database: a3000 schema: e3000__comm Table: 基本發票購買
+  // 2. QueryData Function: Fetch data from Postgresql Database: w3000 schema: c:/w3000/comm Table: 基本發票購買
   const QueryData = useCallback(async (): Promise<InvoicePurchaseItem[]> => {
     setIsLoading(true);
-    setStatusMessage('正在從資料庫 (Postgresql Database: a3000 schema: e3000__comm Table: 基本發票購買) 提取資料...');
+    setStatusMessage('正在從資料庫 (Postgresql Database: w3000 schema: c:/w3000/comm Table: 基本發票購買) 提取資料...');
     const formattedPeriod = `${year}${startMonth.padStart(2, '0')}-${endMonth.padStart(2, '0')}`;
 
     const data = await queryBuyinvPrintData({
