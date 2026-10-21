@@ -3,8 +3,7 @@
     "wbaseRP": {
       "path": "wbase/wbaseRP.dll",
       "fallback_paths": [
-        "F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll",
-        "C:\\Wx3000\\wbaseRP.dll"
+        "../wbase/wbaseRP.dll"
       ],
       "abi": "stdcall",
       "functions": {

@@ -71,15 +71,19 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path $outExe)) {
 
 # 步驟 4: 複製 DLL、橋接器與設定檔
 Write-Host ""
-Write-Host "[步驟 4/4] 備齊 DLL、橋接執行檔與周邊依賴..." -ForegroundColor Green
-$wbaseDist = Join-Path $distDir "wbase"
-New-Item -ItemType Directory -Force -Path $wbaseDist | Out-Null
+Write-Host "[步驟 4/4] 備齊各系統別報表 DLL、橋接執行檔與周邊依賴..." -ForegroundColor Green
 
-# 報表 DLL (wbaseRP.dll)
-if (Test-Path "wbase\wbaseRP.dll") {
-    Copy-Item "wbase\wbaseRP.dll" (Join-Path $wbaseDist "wbaseRP.dll") -Force
-} elseif (Test-Path "..\report\wbase\wbaseRP.dll") {
-    Copy-Item "..\report\wbase\wbaseRP.dll" (Join-Path $wbaseDist "wbaseRP.dll") -Force
+# 自動掃描並複製 localagent 下各系統別子資料夾 (如 wbase 及未來其他系統) 的報表 DLL
+$excludeDirs = @("dist", "node_modules", "bridge")
+$sysDirs = Get-ChildItem -Path $LocalAgentRoot -Directory | Where-Object { $_.Name -notin $excludeDirs }
+foreach ($sysDir in $sysDirs) {
+    $dllFiles = Get-ChildItem -Path $sysDir.FullName -Filter "*.dll" -File -ErrorAction SilentlyContinue
+    if ($dllFiles) {
+        $destSysDir = Join-Path $distDir $sysDir.Name
+        New-Item -ItemType Directory -Force -Path $destSysDir | Out-Null
+        Copy-Item -Path (Join-Path $sysDir.FullName "*") -Destination $destSysDir -Recurse -Force
+        Write-Host "  -> 已複製系統別報表目錄: $($sysDir.Name)\ ($($dllFiles.Count) 個 DLL)" -ForegroundColor Gray
+    }
 }
 
 # 報表與 DBF 橋接器

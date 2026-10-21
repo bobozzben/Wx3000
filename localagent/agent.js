@@ -47,19 +47,20 @@ const CONFIG = {
     if (process.env.WBASE_DLL_PATH && existsOnRealDisk(process.env.WBASE_DLL_PATH)) return process.env.WBASE_DLL_PATH;
     const info = (DLL_CONFIG.dlls || {})[dllKey];
     if (!info) return null;
-    const cands = [
-      path.join(EXEC_DIR, info.path),
-      path.join(process.cwd(), info.path),
-      ...(info.fallback_paths || [])
-    ];
-    const existing = cands.filter(p => existsOnRealDisk(p));
-    if (existing.length === 0) return cands[0];
-    if (existing.length === 1) return existing[0];
-    // 若有多個候選 DLL 存在，優先選用最新修改時間者
-    existing.sort((a, b) => {
-      try { return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs; } catch (e) { return 0; }
-    });
-    return existing[0];
+    const relPaths = [info.path, ...(info.fallback_paths || [])].filter(Boolean);
+    const cands = [];
+    for (const p of relPaths) {
+      if (path.isAbsolute(p)) {
+        cands.push(p);
+      } else {
+        cands.push(path.resolve(EXEC_DIR, p));
+        cands.push(path.resolve(process.cwd(), p));
+      }
+    }
+    for (const p of cands) {
+      if (existsOnRealDisk(p)) return p;
+    }
+    return cands[0] || path.resolve(EXEC_DIR, info.path);
   },
   getBridgePath() {
     const cands = [
@@ -69,9 +70,7 @@ const CONFIG = {
       path.join(EXEC_DIR, 'bridge', 'lazarus', 'WbaseBridge_Generic.exe'),
       path.join(EXEC_DIR, 'bridge', 'WbaseBridge.exe'),
       path.join(process.cwd(), 'WbaseBridge.exe'),
-      "C:\\Wx3000\\LocalAgent\\WbaseBridge.exe",
-      "F:\\ADSProject\\Wx3000\\localagent\\bridge\\lazarus\\WbaseBridge.exe",
-      "F:\\ADSProject\\Wx3000\\localagent\\bridge\\lazarus\\WbaseBridge_Generic.exe",
+      path.join(process.cwd(), 'bridge', 'lazarus', 'WbaseBridge.exe')
     ];
     for (const p of cands) if (existsOnRealDisk(p)) return p;
     return cands[0];
@@ -81,9 +80,7 @@ const CONFIG = {
       path.join(EXEC_DIR, 'DBFBridge.exe'),
       path.join(EXEC_DIR, 'bridge', 'lazarus', 'DBFBridge.exe'),
       path.join(process.cwd(), 'DBFBridge.exe'),
-      "C:\\Wx3000\\LocalAgent\\DBFBridge.exe",
-      "F:\\ADSProject\\Wx3000\\localagent\\DBFBridge.exe",
-      "F:\\ADSProject\\Wx3000\\localagent\\bridge\\lazarus\\DBFBridge.exe"
+      path.join(process.cwd(), 'bridge', 'lazarus', 'DBFBridge.exe')
     ];
     for (const p of cands) if (existsOnRealDisk(p)) return p;
     return cands[0];

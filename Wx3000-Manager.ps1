@@ -96,6 +96,7 @@ function Start-Wx3000ApiSafely {
     Write-Host "   [4] 桌面端 (Electron) - 開啟主程序源碼 / 啟動 Electron 熱重載開發模式"
     Write-Host ""
     Write-Host " 【二、編譯與打包部署 (Build & Package -> 統一輸出至 Wx3000\publish\...)】" -ForegroundColor Magenta
+    Write-Host "   [A] ★ 全部一鍵打包 (5~10 全套)  ➔ 依序重編 5~10 所有模組至 Wx3000\publish\" -ForegroundColor Green
     Write-Host "   [5] ★ 全端伺服器一鍵發佈        ➔ Wx3000\publish\Wx3000_Server\" -ForegroundColor Yellow
     Write-Host "   [6] 僅打包【前端靜態網頁】      ➔ Wx3000\publish\frontend\dist\"
     Write-Host "   [7] 僅打包【後端單一執行檔】    ➔ Wx3000\publish\backend\Release\Wx3000.Backend.exe"
@@ -109,8 +110,8 @@ function Start-Wx3000ApiSafely {
     Write-Host "   [Q] 離開程式 (Quit)"
     Write-Host "==================================================================================" -ForegroundColor Cyan
 
-    $rawChoice = Read-Host "請輸入選項代號 [1-12 或 Q]"
-    $choice = if ($rawChoice) { $rawChoice.Trim() } else { "" }
+    $rawChoice = Read-Host "請輸入選項代號 [1-12, A 或 Q]"
+    $choice = if ($rawChoice) { $rawChoice.Trim().ToUpper() } else { "" }
 
     switch ($choice) {
         "1" {
@@ -174,6 +175,101 @@ function Start-Wx3000ApiSafely {
                 Open-InEditor "frontend\electron"
             } else {
                 pnpm dev:electron
+            }
+            Pause-Return
+        }
+        "A" {
+            Write-Host ""
+            $publishRoot = Join-Path $RootDir "publish"
+            Write-Host "==================================================================================" -ForegroundColor Green
+            Write-Host "  === [A] 開始執行【全部打包 (5~10 全套重編)】 ➔ $publishRoot\ ===" -ForegroundColor Green
+            Write-Host "==================================================================================" -ForegroundColor Green
+
+            # --- [5] 全端伺服器一鍵發佈 ---
+            Write-Host ""
+            $serverTargetDir = Join-Path $publishRoot "Wx3000_Server"
+            Write-Host ">>> [進度 1/6 - 項目 5] 全端伺服器一鍵發佈 ➔ $serverTargetDir\api" -ForegroundColor Yellow
+            Stop-Wx3000ApiSafely
+            pnpm publish:server
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[錯誤] 項目 [5] 全端伺服器發佈失敗，中止全部打包流程！" -ForegroundColor Red
+                Pause-Return
+                continue
+            }
+            Start-Wx3000ApiSafely
+
+            # --- [6] 僅打包前端靜態網頁 ---
+            Write-Host ""
+            $feTargetDir = Join-Path $publishRoot "frontend\dist"
+            Write-Host ">>> [進度 2/6 - 項目 6] 同步前端靜態網頁 ➔ $feTargetDir\" -ForegroundColor Magenta
+            if (Test-Path $feTargetDir) {
+                Remove-Item -Path "$feTargetDir\*" -Recurse -Force -ErrorAction SilentlyContinue
+            } else {
+                New-Item -ItemType Directory -Force -Path $feTargetDir | Out-Null
+            }
+            Copy-Item -Path (Join-Path $RootDir "frontend\dist\*") -Destination $feTargetDir -Recurse -Force
+
+            # --- [7] 僅打包後端單一執行檔 ---
+            Write-Host ""
+            $beTargetDir = Join-Path $publishRoot "backend\Release"
+            Write-Host ">>> [進度 3/6 - 項目 7] 打包後端單一執行檔 ➔ $beTargetDir\Wx3000.Backend.exe" -ForegroundColor Magenta
+            New-Item -ItemType Directory -Force -Path $beTargetDir | Out-Null
+            dotnet publish backend/Wx3000.Backend.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o "$beTargetDir"
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[錯誤] 項目 [7] 後端單一執行檔打包失敗，中止全部打包流程！" -ForegroundColor Red
+                Pause-Return
+                continue
+            }
+
+            # --- [8] 打包 LocalAgent 執行檔 ---
+            Write-Host ""
+            $agentTargetDir = Join-Path $publishRoot "localagent\dist"
+            Write-Host ">>> [進度 4/6 - 項目 8] 打包 LocalAgent 執行檔 (Level 1) ➔ $agentTargetDir\" -ForegroundColor Magenta
+            $localAgentDir = Join-Path $RootDir "localagent"
+            & "$localAgentDir\build.ps1" -Level 1 -TargetDir $agentTargetDir -NoPause
+
+            # --- [9] & [10] 打包 Electron 快速免安裝版與正式安裝包 ---
+            Write-Host ""
+            $outReleaseDir = Join-Path $publishRoot "frontend\Electron\release"
+            $outUnpackedDir = Join-Path $outReleaseDir "win-unpacked"
+            Write-Host ">>> [進度 5/6 - 項目 9] 打包 Electron 快速免安裝版 ➔ $outUnpackedDir\" -ForegroundColor Magenta
+            Push-Location (Join-Path $RootDir "frontend")
+            try {
+                $env:ELECTRON_BUILDER_BINARIES_MIRROR = "https://npmmirror.com/mirrors/electron-builder-binaries/"
+                $env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
+                npx electron-builder --dir --config.directories.output="$outReleaseDir"
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Electron 免安裝版打包失敗"
+                }
+
+                Write-Host ""
+                Write-Host ">>> [進度 6/6 - 項目 10] 打包 Electron 正式安裝包 ➔ $outReleaseDir\" -ForegroundColor Magenta
+                npx electron-builder --win --x64 --config.directories.output="$outReleaseDir"
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Electron 正式安裝包打包失敗"
+                }
+            } catch {
+                Write-Host "[錯誤] $_" -ForegroundColor Red
+                Pause-Return
+                continue
+            } finally {
+                Pop-Location
+            }
+
+            Write-Host ""
+            Write-Host "==================================================================================" -ForegroundColor Green
+            Write-Host "  🎉 [完成] 項目 5 ~ 10 已全部重新編譯並打包完畢！" -ForegroundColor Green
+            Write-Host "  - [5] 伺服器發佈包   : $serverTargetDir\api" -ForegroundColor White
+            Write-Host "  - [6] 前端靜態網頁   : $feTargetDir" -ForegroundColor White
+            Write-Host "  - [7] 後端單一執行檔 : $beTargetDir\Wx3000.Backend.exe" -ForegroundColor White
+            Write-Host "  - [8] LocalAgent     : $agentTargetDir" -ForegroundColor White
+            Write-Host "  - [9] Electron 免安裝: $outUnpackedDir" -ForegroundColor White
+            Write-Host "  - [10] Electron 安裝包: $outReleaseDir" -ForegroundColor White
+            Write-Host "==================================================================================" -ForegroundColor Green
+
+            $openNow = Read-Host "是否立即開啟 Wx3000\publish 目錄？[Y/N，預設 Y]"
+            if ($openNow -eq "" -or $openNow -match "^[Yy]") {
+                Invoke-Item $publishRoot
             }
             Pause-Return
         }

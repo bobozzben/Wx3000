@@ -21,10 +21,10 @@ if errorlevel 1 call npx pkg package.json -t node18-win-x64 -o dist\Wx3000Agent.
 
 echo.
 echo Step 4: copy assets
-if exist "..\report\wbase\wbaseRP.dll" (
+if exist "wbase\wbaseRP.dll" (
   if not exist dist\wbase mkdir dist\wbase
-  copy /Y "..\report\wbase\wbaseRP.dll" dist\wbase\ >nul
-  echo DLL copied from ..\report\wbase\wbaseRP.dll
+  xcopy /E /I /Y "wbase\*" "dist\wbase\" >nul
+  echo DLL copied from wbase\
 )
 if exist WbaseBridge.exe copy /Y WbaseBridge.exe dist\ >nul
 if exist bridge\WbaseBridge.exe copy /Y bridge\WbaseBridge.exe dist\ >nul

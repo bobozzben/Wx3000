@@ -25,12 +25,11 @@ Var
     If (cleanExplicit <> '') And FileExists(cleanExplicit) Then Exit(cleanExplicit);
 
     exePath := ExtractFilePath(ParamStr(0));
+    If (cleanExplicit <> '') And FileExists(exePath + cleanExplicit) Then Exit(exePath + cleanExplicit);
     If (dllKey <> '') And FileExists(exePath + 'wbase' + PathDelim + dllKey + '.dll') Then Exit(exePath + 'wbase' + PathDelim + dllKey + '.dll');
     If (dllKey <> '') And FileExists(exePath + dllKey + '.dll') Then Exit(exePath + dllKey + '.dll');
-    If (dllKey <> '') And FileExists('F:\ADSProject\Wx3000\report\wbase\' + dllKey + '.dll') Then Exit('F:\ADSProject\Wx3000\report\wbase\' + dllKey + '.dll');
     If FileExists(exePath + 'wbase' + PathDelim + 'wbaseRP.dll') Then Exit(exePath + 'wbase' + PathDelim + 'wbaseRP.dll');
     If FileExists(exePath + 'wbaseRP.dll') Then Exit(exePath + 'wbaseRP.dll');
-    If FileExists('F:\ADSProject\Wx3000\report\wbase\wbaseRP.dll') Then Exit('F:\ADSProject\Wx3000\report\wbase\wbaseRP.dll');
 
     Result := cleanExplicit;
   End;
