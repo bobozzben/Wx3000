@@ -121,6 +121,14 @@ function Install-ServerComponent {
         Write-Host "      已同步最新前端靜態網頁至 $destWwwroot" -ForegroundColor Green
     }
 
+    # 同步將 GitHub 自動更新工具複製到 C:\Wx3000\ 供日後排程或一鍵更新使用
+    foreach ($updaterFile in @("Update-Wx3000.bat", "Update-Wx3000.ps1")) {
+        $srcUpdater = Join-Path $SourceRoot $updaterFile
+        if (Test-Path $srcUpdater) {
+            Copy-Item -Path $srcUpdater -Destination (Join-Path $InstallRoot $updaterFile) -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     # 3. 註冊 Windows Service
     $exePath = Join-Path $destServerApi "Wx3000.Backend.exe"
     Write-Host "[3/5] 正在註冊 Windows 服務 ($ApiServiceName)..." -ForegroundColor Gray
@@ -338,13 +346,14 @@ function Show-LanConnectionGuide {
     Write-Host "   [6] 僅安裝/更新【Electron 桌面端程式】     (複製至 $InstallRoot\Client + 桌面捷徑)"
     Write-Host ""
     Write-Host " 【三、系統檢測與維護工具】" -ForegroundColor Cyan
+    Write-Host "   [U] ★ 啟動【GitHub 雲端自動熱更新與每日排程設定】 (Update-Wx3000.ps1)" -ForegroundColor Yellow
     Write-Host "   [7] 更改本機安裝目標路徑 (目前為: $InstallRoot)"
     Write-Host "   [8] 檢查服務狀態、防火牆與顯示區網連線 IP"
     Write-Host "   [9] 解除安裝本機 Wx3000 服務與開機自啟動項目"
     Write-Host "   [Q] 離開安裝程式"
     Write-Host "==============================================================================" -ForegroundColor Cyan
 
-    $rawChoice = Read-Host "請輸入選項代號 [1-9 或 Q]"
+    $rawChoice = Read-Host "請輸入選項代號 [1-9, U 或 Q]"
     $choice = if ($rawChoice) { $rawChoice.Trim().ToUpper() } else { "" }
 
     switch ($choice) {
@@ -426,10 +435,23 @@ function Show-LanConnectionGuide {
                 sc.exe delete $ApiServiceName | Out-Null
                 Stop-Process -Name "Wx3000.Backend", "Wx3000Agent", "Wx3000Agent_L2", "Wx3000 ERP Client" -Force -ErrorAction SilentlyContinue
                 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "Wx3000LocalAgent" -ErrorAction SilentlyContinue
-                Write-Host "[完成] 已移除 Wx3000Api 服務與 LocalAgent 開機自啟動設定。" -ForegroundColor Green
+                Unregister-ScheduledTask -TaskName "Wx3000_DailyAutoUpdate" -Confirm:$false -ErrorAction SilentlyContinue
+                Write-Host "[完成] 已移除 Wx3000Api 服務、LocalAgent 開機自啟動與每日自動更新排程。" -ForegroundColor Green
                 Write-Host "(程式檔案仍保留於 $InstallRoot，如需徹底刪除可手動刪除該資料夾)" -ForegroundColor Gray
             }
             Pause-Menu
+        }
+        "U" {
+            $updaterScript = Join-Path $SourceRoot "Update-Wx3000.ps1"
+            if (-not (Test-Path $updaterScript)) {
+                $updaterScript = Join-Path $InstallRoot "Update-Wx3000.ps1"
+            }
+            if (Test-Path $updaterScript) {
+                & $updaterScript -InstallRoot $InstallRoot
+            } else {
+                Write-Host "[錯誤] 找不到 Update-Wx3000.ps1 腳本！" -ForegroundColor Red
+                Pause-Menu
+            }
         }
         { $_ -in "Q", "QUIT", "EXIT" } {
             Write-Host "安裝程式已結束。" -ForegroundColor Cyan

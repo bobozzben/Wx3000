@@ -91,7 +91,13 @@ jobs:
         run: |
           $tagName = "${{ github.ref_name }}"
           New-Item -ItemType Directory -Force -Path "release_bundle" | Out-Null
-          $itemsToZip = @("publish/Wx3000_Server") + (Get-ChildItem -Path "publish/*" -Include *.bat,*.ps1,*.md | Select-Object -ExpandProperty FullName)
+          $itemsToZip = @("publish/Wx3000_Server") + @(Get-ChildItem -Path "publish/*" -Include *.bat,*.ps1,*.md | Select-Object -ExpandProperty FullName)
           Compress-Archive -Path $itemsToZip -DestinationPath "release_bundle/Wx3000_Server_$tagName.zip" -Force
           Copy-Item -Path "publish/frontend/Electron/release/*.exe" -Destination "release_bundle/" -Force
-          gh release create $tagName (Get-ChildItem "release_bundle/*" | Select-Object -ExpandProperty FullName) --generate-notes --clobber
+          $files = @(Get-ChildItem -Path "release_bundle/*" -File | Select-Object -ExpandProperty FullName)
+          $existing = gh release list --json tagName | ConvertFrom-Json | Where-Object { $_.tagName -eq $tagName }
+          if ($existing) {
+            gh release upload $tagName @files --clobber
+          } else {
+            gh release create $tagName @files --generate-notes
+          }
