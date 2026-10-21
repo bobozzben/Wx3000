@@ -20,22 +20,22 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
           run_install: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'pnpm'
 
       - name: Setup .NET 8 SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
@@ -60,7 +60,7 @@ jobs:
       # 整理並上傳 GitHub Actions Artifacts (供隨時下載驗證)
       # ------------------------------------------------------------------------
       - name: Upload Server Package Artifact (Frontend + Backend)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Wx3000_Server_Package
           path: |
@@ -69,7 +69,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Electron Desktop Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Wx3000_Electron_Client
           path: |
@@ -80,18 +80,14 @@ jobs:
       # ------------------------------------------------------------------------
       # 若為推送 Git Tag (v*.*.*)，自動壓縮並建立 GitHub Release
       # ------------------------------------------------------------------------
-      - name: Create Release Archive (Tag Push Only)
+      - name: Create & Publish GitHub Release (Tag Push Only)
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $tagName = "${{ github.ref_name }}"
           New-Item -ItemType Directory -Force -Path "release_bundle" | Out-Null
           Compress-Archive -Path "publish/Wx3000_Server/*" -DestinationPath "release_bundle/Wx3000_Server_$tagName.zip" -Force
           Copy-Item -Path "publish/frontend/Electron/release/*.exe" -Destination "release_bundle/" -Force
-
-      - name: Publish to GitHub Releases
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release_bundle/*
-          generate_release_notes: true
+          gh release create $tagName (Get-ChildItem "release_bundle/*" | Select-Object -ExpandProperty FullName) --generate-notes --clobber
