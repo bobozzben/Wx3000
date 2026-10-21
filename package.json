@@ -7,7 +7,7 @@
     "dev:web": "pnpm --filter frontend dev",
     "dev:api": "dotnet run --project backend/Wx3000.Backend.csproj",
     "dev:agent": "node localagent/agent.js",
-    "build:web": "pnpm --filter frontend build && powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path publish/frontend/dist | Out-Null; Copy-Item frontend/dist/* publish/frontend/dist -Recurse -Force\"",
+    "build:web": "pnpm --filter frontend build && powershell -NoProfile -Command \"foreach ($d in @('publish/frontend/dist', 'publish/Wx3000_Server/api/wwwroot', 'backend/wwwroot')) { New-Item -ItemType Directory -Force -Path $d | Out-Null; Remove-Item \\\"$d/*\\\" -Recurse -Force -ErrorAction SilentlyContinue; Copy-Item frontend/dist/* $d -Recurse -Force }\"",
     "build:api": "dotnet publish backend/Wx3000.Backend.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o publish/backend/Release",
     "publish:server": "pnpm --filter frontend build && dotnet publish backend/Wx3000.Backend.csproj -c Release -r win-x64 --self-contained true -o publish/Wx3000_Server/api && powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path publish/Wx3000_Server/api/wwwroot | Out-Null; Copy-Item frontend/dist/* publish/Wx3000_Server/api/wwwroot -Recurse -Force\"",
     "dev:electron": "pnpm --filter frontend electron:dev",

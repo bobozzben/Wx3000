@@ -128,7 +128,7 @@ export const WbaseMenuTree: React.FC<WbaseMenuTreeProps> = ({
       >
         {/* Sidebar Header */}
         <div
-          className={`px-3.5 sm:px-5 py-2.5 sm:py-4 transition-colors duration-300 ${
+          className={`px-3.5 sm:px-5 py-2 sm:py-3.5 transition-colors duration-300 ${
             isDark ? 'border-b border-slate-700/50' : 'border-b-2 border-slate-200 bg-slate-50 text-slate-900'
           }`}
         >
@@ -152,7 +152,7 @@ export const WbaseMenuTree: React.FC<WbaseMenuTreeProps> = ({
             </span>
           </div>
           <p
-            className={`text-[11px] sm:text-xs mt-1 font-semibold truncate ${
+            className={`hidden sm:block text-xs mt-1 font-semibold truncate ${
               isDark ? 'text-slate-500' : 'text-slate-600'
             }`}
           >
