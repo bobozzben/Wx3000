@@ -1,4 +1,5 @@
 @echo off
+pushd "%~dp0"
 echo === Wx3000Agent v22 Build (Dual Mode) ===
 echo Step 1: npm install
 call npm install
@@ -20,10 +21,10 @@ if errorlevel 1 call npx pkg package.json -t node18-win-x64 -o dist\Wx3000Agent.
 
 echo.
 echo Step 4: copy assets
-if exist "F:\ADSProject\Wx3000\report\wbase\wbaseRP.dll" (
+if exist "..\report\wbase\wbaseRP.dll" (
   if not exist dist\wbase mkdir dist\wbase
-  copy /Y "F:\ADSProject\Wx3000\report\wbase\wbaseRP.dll" dist\wbase\ >nul
-  echo DLL copied
+  copy /Y "..\report\wbase\wbaseRP.dll" dist\wbase\ >nul
+  echo DLL copied from ..\report\wbase\wbaseRP.dll
 )
 if exist WbaseBridge.exe copy /Y WbaseBridge.exe dist\ >nul
 if exist bridge\WbaseBridge.exe copy /Y bridge\WbaseBridge.exe dist\ >nul
@@ -44,14 +45,16 @@ echo.
 echo === Done ===
 dir "..\publish\localagent\dist\"
 echo.
-echo 產出目錄: F:\ADSProject\Wx3000\publish\localagent\dist\
+echo 產出目錄: ..\publish\localagent\dist\
 echo 測試:
 echo 1. koffi 模式: ..\publish\localagent\dist\Wx3000Agent.exe  (預設)
 echo 2. bridge 模式: set WBASE_MODE=bridge && ..\publish\localagent\dist\Wx3000Agent.exe
 echo    或 WS 發送 {"cmd":"setMode","mode":"bridge"}
-pause
+popd
+if /I not "%CI%"=="true" pause
 exit /b 0
 :err
 echo Build error
-pause
+popd
+if /I not "%CI%"=="true" pause
 exit /b 1

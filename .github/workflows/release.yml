@@ -1,0 +1,97 @@
+name: Wx3000 Release (Server + Web + Electron)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch: # 支援在 GitHub 網頁手動觸發打包並下載 Artifacts
+    inputs:
+      release_tag:
+        description: '自訂版本標籤 (選填，手動觸發時供命名識別)'
+        required: false
+        default: 'v1.0.0-manual'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-package:
+    name: Package Frontend, Backend & Electron
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Frontend Dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ------------------------------------------------------------------------
+      # 1. 前端 (React + Vite) + 2. 後端 (.NET 8 API) 整合發佈包
+      # ------------------------------------------------------------------------
+      - name: '[Module 1 & 2] Publish Full Server Package (Web + API)'
+        run: pnpm publish:server
+
+      # ------------------------------------------------------------------------
+      # 3. 桌面端 (Electron) 正式安裝包 (NSIS + Portable)
+      # ------------------------------------------------------------------------
+      - name: '[Module 3] Build Electron Installer & Portable EXE'
+        run: pnpm --filter frontend exec electron-builder --win --x64
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      # ------------------------------------------------------------------------
+      # 整理並上傳 GitHub Actions Artifacts (供隨時下載驗證)
+      # ------------------------------------------------------------------------
+      - name: Upload Server Package Artifact (Frontend + Backend)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wx3000_Server_Package
+          path: |
+            publish/Wx3000_Server/**
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Electron Desktop Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wx3000_Electron_Client
+          path: |
+            publish/frontend/Electron/release/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      # ------------------------------------------------------------------------
+      # 若為推送 Git Tag (v*.*.*)，自動壓縮並建立 GitHub Release
+      # ------------------------------------------------------------------------
+      - name: Create Release Archive (Tag Push Only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tagName = "${{ github.ref_name }}"
+          New-Item -ItemType Directory -Force -Path "release_bundle" | Out-Null
+          Compress-Archive -Path "publish/Wx3000_Server/*" -DestinationPath "release_bundle/Wx3000_Server_$tagName.zip" -Force
+          Copy-Item -Path "publish/frontend/Electron/release/*.exe" -Destination "release_bundle/" -Force
+
+      - name: Publish to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_bundle/*
+          generate_release_notes: true
