@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet(1, 2)]
     [int]$Level = 1,
 
@@ -34,6 +34,9 @@ if ($LASTEXITCODE -ne 0) {
 # 步驟 2: 橋接器與混淆前置
 Write-Host ""
 Write-Host "[步驟 2/4] 準備橋接程式與混淆前置..." -ForegroundColor Green
+Stop-Process -Name "Wx3000Agent", "Wx3000Agent_L2", "WbaseBridge", "DBFBridge" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 200
+
 if (Test-Path "bridge\lazarus\WbaseBridge.exe") {
     Copy-Item "bridge\lazarus\WbaseBridge.exe" "WbaseBridge.exe" -Force
     Write-Host "  -> 已從 bridge\lazarus\ 備妥 64-bit WbaseBridge.exe" -ForegroundColor Gray
@@ -103,7 +106,10 @@ if (Test-Path "DBFBridge.exe") {
 }
 
 # 設定檔、FoxPro COM DLL 與服務註冊腳本
-$assets = @("dlls.json", "test.html", "w3000_dbf.dll", "vfpencryption.fll", "w3000_dbf.VBR", "install_service.bat")
+$assets = @(
+    "dlls.json", "test.html", "w3000_dbf.dll", "vfpencryption.fll", "w3000_dbf.VBR", "install_service.bat",
+    "GdiPlus.dll", "msvcp71.dll", "msvcr71.dll", "vfp9r.dll", "vfp9rcht.dll", "VFP9RENU.DLL", "vfp9t.dll"
+)
 foreach ($asset in $assets) {
     if (Test-Path $asset) {
         Copy-Item $asset $distDir -Force

@@ -227,6 +227,11 @@ function Start-Wx3000ApiSafely {
             Write-Host ">>> [進度 4/6 - 項目 8] 打包 LocalAgent 執行檔 (Level 1) ➔ $agentTargetDir\" -ForegroundColor Magenta
             $localAgentDir = Join-Path $RootDir "localagent"
             & "$localAgentDir\build.ps1" -Level 1 -TargetDir $agentTargetDir -NoPause
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[錯誤] 項目 [8] LocalAgent 打包失敗，中止全部打包流程！" -ForegroundColor Red
+                Pause-Return
+                continue
+            }
 
             # --- [9] & [10] 打包 Electron 快速免安裝版與正式安裝包 ---
             Write-Host ""
@@ -396,19 +401,39 @@ function Start-Wx3000ApiSafely {
         "11" {
             Write-Host ""
             Write-Host "--- [11] 管理 Wx3000Api Windows 服務 ---" -ForegroundColor Cyan
-            Write-Host "  1. 檢查服務狀態與區網連線 IP (Check-Status)"
-            Write-Host "  2. 啟動服務 (Start-Services)"
-            Write-Host "  3. 停止服務 (Stop-Services)"
-            Write-Host "  4. 安裝 / 重新註冊服務 (Install-Service)"
-            Write-Host "  5. 解除安裝服務 (Uninstall-Service)"
+            Write-Host "  1. 檢查服務狀態與連線 (Check-Status)"
+            Write-Host "  2. 啟動服務 (Start-Service)"
+            Write-Host "  3. 停止服務 (Stop-Service)"
+            Write-Host "  4. 重新註冊服務 (Install-Service 透過 Install-Wx3000.ps1)"
+            Write-Host "  5. 解除安裝服務 (sc.exe delete)"
             $sub = Read-Host "請選擇 [1-5，預設 1]"
-            $scriptDir = Join-Path $RootDir "publish\Wx3000_Server\scripts"
             switch ($sub) {
-                "2" { & "$scriptDir\Start-Services.ps1" }
-                "3" { & "$scriptDir\Stop-Services.ps1" }
-                "4" { & "$scriptDir\Install-Service.ps1" }
-                "5" { & "$scriptDir\Uninstall-Service.ps1" }
-                default { & "$scriptDir\Check-Status.ps1" }
+                "2" {
+                    Start-Wx3000ApiSafely
+                }
+                "3" {
+                    Stop-Wx3000ApiSafely
+                }
+                "4" {
+                    $installScript = Join-Path $RootDir "publish\Install-Wx3000.ps1"
+                    if (Test-Path $installScript) {
+                        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$installScript"
+                    } else {
+                        Write-Host "[錯誤] 找不到 $installScript" -ForegroundColor Red
+                    }
+                }
+                "5" {
+                    if (-not (Test-IsAdmin)) {
+                        Write-Host "[提示] 需要系統管理員權限解除安裝服務..." -ForegroundColor Yellow
+                        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"sc.exe delete Wx3000Api`"" -Verb RunAs -Wait
+                    } else {
+                        sc.exe delete Wx3000Api
+                    }
+                }
+                default {
+                    $svc = Get-Service -Name "Wx3000Api" -ErrorAction SilentlyContinue
+                    Write-Host "Wx3000Api 服務狀態: $(if ($svc) { $svc.Status } else { '未安裝 (Not Installed)' })" -ForegroundColor Yellow
+                }
             }
             Pause-Return
         }
