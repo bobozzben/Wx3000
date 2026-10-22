@@ -1,4 +1,4 @@
-﻿param(
+param(
     [ValidateSet(1, 2)]
     [int]$Level = 1,
 
@@ -34,9 +34,12 @@ if ($LASTEXITCODE -ne 0) {
 # 步驟 2: 橋接器與混淆前置
 Write-Host ""
 Write-Host "[步驟 2/4] 準備橋接程式與混淆前置..." -ForegroundColor Green
-if (-not (Test-Path "WbaseBridge.exe") -and (Test-Path "bridge\lazarus\WbaseBridge.exe")) {
+if (Test-Path "bridge\lazarus\WbaseBridge.exe") {
     Copy-Item "bridge\lazarus\WbaseBridge.exe" "WbaseBridge.exe" -Force
-    Write-Host "  -> 已從 bridge\lazarus\ 備妥 WbaseBridge.exe" -ForegroundColor Gray
+    Write-Host "  -> 已從 bridge\lazarus\ 備妥 64-bit WbaseBridge.exe" -ForegroundColor Gray
+} elseif (Test-Path "bridge\lazarus\WbaseBridge_Generic.exe") {
+    Copy-Item "bridge\lazarus\WbaseBridge_Generic.exe" "WbaseBridge.exe" -Force
+    Write-Host "  -> 已從 bridge\lazarus\ 備妥 64-bit WbaseBridge_Generic.exe 為 WbaseBridge.exe" -ForegroundColor Gray
 }
 
 if ($Level -eq 2) {

@@ -105,7 +105,18 @@ pnpm build:api
 - **主程式**：`localagent/agent.js`
 - **DLL 函數映射設定檔**：`localagent/dlls.json`
   - 💡 *若只是擴充或調整 Delphi / VFP DLL 函數與參數，在 Koffi 模式下只需修改 `dlls.json`，無須重新編譯 `agent.js`。*
-- **Lazarus Bridge 源碼**：`localagent/bridge/`
+- **Lazarus Bridge 源碼**：`localagent/bridge/lazarus/`
+  - `DBFBridge.lpr`：地端 VFP DBF COM 橋接程式（**必須編譯為 32-bit x86**）
+  - `WbaseBridge_Generic.lpr`：FastReport 報表 DLL 橋接程式（**必須編譯為 64-bit x64**）
+
+### 🏛️ Bridge 執行檔架構規格與編譯
+| 橋接程式 | 目標架構 | 呼叫對象 | FPC 手動編譯指令 |
+| :--- | :---: | :--- | :--- |
+| **`DBFBridge.exe`** | **32-bit (x86)** | `w3000_dbf.dll` (VFP COM) | `fpc -Pi386 -Twin32 -O3 -FE"bridge\lazarus" -o"DBFBridge.exe" "bridge\lazarus\DBFBridge.lpr"` |
+| **`WbaseBridge.exe`** | **64-bit (x64)** | `wbaseRP.dll` (FastReport) | `fpc -Px86_64 -Twin64 -O3 -FE"bridge\lazarus" -o"WbaseBridge.exe" "bridge\lazarus\WbaseBridge_Generic.lpr"` |
+
+> ⚠️ **排錯提醒 (ERROR: LoadLibrary ... Code=193)**：
+> 若前端按下 `F7.列印` 出現 `Code=193`（`ERROR_BAD_EXE_FORMAT`），代表 `WbaseBridge.exe` 誤用 32 位元版本載入 64 位元的 `wbaseRP.dll`。請執行上方 FPC 64-bit 指令重新編譯即可。
 
 ### 💻 開發啟動 (Dev)
 ```powershell
@@ -119,13 +130,13 @@ pnpm dev:agent
 ```powershell
 cd localagent
 
-# 一般打包 (Koffi + Bridge 雙模式，並自動同步至 Wx3000\publish\localagent\dist\)
+# 一般打包 (Koffi + Bridge 雙模式，自動備齊 64-bit WbaseBridge 與 32-bit DBFBridge，並同步至 Wx3000\publish\localagent\dist\)
 .\build_level1.bat
 
 # 進階混淆打包 (先經過 javascript-obfuscator 混淆後再打包成 Wx3000Agent_L2.exe)
 .\build_level2.bat
 ```
-- **產出位置**：`Wx3000\publish\localagent\dist\`（內含 `Wx3000Agent.exe`、`wbase/*.dll`、`WbaseBridge.exe`、`DBFBridge.exe`、`dlls.json` 與 `install_service.bat`）
+- **產出位置**：`Wx3000\publish\localagent\dist\`（內含 `Wx3000Agent.exe`、`wbase/*.dll`、`WbaseBridge.exe` (x64)、`DBFBridge.exe` (x86)、`dlls.json` 與 `install_service.bat`）
 
 ---
 

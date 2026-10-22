@@ -49,3 +49,8 @@
      - 前端：`pnpm --filter frontend build`
      - 後端：`dotnet build backend/Wx3000.Backend.csproj`
    - 未通過編譯與型別檢查前，不得宣佈任務完成。
+
+6. **本機代理雙位元架構防呆 (Dual-Bitness Bridge Rule)**
+   - `DBFBridge.exe` 必須為 **32-bit (x86)**：專職載入地端 32 位元 Visual FoxPro COM (`w3000_dbf.dll`)。
+   - `WbaseBridge.exe` 必須為 **64-bit (x64)**：專職載入 64 位元 Lazarus FastReport 原生報表庫 (`wbaseRP.dll`)。
+   - 嚴禁位元架構交叉混淆；若報表出現 `LoadLibrary ... Code=193` (ERROR_BAD_EXE_FORMAT)，即表示使用了 32 位元橋接器嘗試載入 64 位元 DLL，必須以 64-bit FPC 重新編譯 `WbaseBridge.exe`。

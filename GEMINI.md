@@ -18,7 +18,8 @@
    - 讀取前透過 `IDbfSyncService.EnsureTableSyncedAsync` 比對地端 DBF SHA256 Checksum，若有外部異動自動重灌快照；寫入（新增/修改/刪除）時優先透過 `LocalAgent` (`http://localhost:18889/api/dbf/*` ➔ `DBFBridge.exe` ➔ `w3000_dbf.dll`) 寫入地端 DBF，成功後才同步寫入 PostgreSQL 並更新 `dictionary.w3000_dbf` 校驗碼。
 
 3. **本機報表與週邊整合 (LocalAgent + Lazarus FastReport)**
-   - 傳統中一刀/A4 報表預覽與直印透過 `LocalAgent` (`http://localhost:18889`) 以 `WbaseBridge.exe` 或 `Koffi` 呼叫 Lazarus 編譯之 `wbaseRP.dll`（如 `waccrep3101_b`、`wbase320_buyinv`、`wbase350_buyinv_list`）。
+   - 傳統中一刀/A4 報表預覽與直印透過 `LocalAgent` (`http://localhost:18889`) 以 **64-bit `WbaseBridge.exe`** 或 `Koffi` 呼叫 64-bit Lazarus 編譯之 `wbaseRP.dll`（如 `waccrep3101_b`、`wbase320_buyinv`、`wbase350_buyinv_list`）。
+   - ⚠️ **位元架構防呆**：`DBFBridge.exe` 必須為 **32-bit**（橋接 32-bit VFP COM `w3000_dbf.dll`）；`WbaseBridge.exe` 必須為 **64-bit**（橋接 64-bit `wbaseRP.dll`），嚴禁混淆以避免 Windows `Code=193` 錯誤。
    - Excel 動態欄位匯出統一使用共用組件 `<FormUtilSelectXlsxFieldsList />`。
 
 4. **工程品質與嚴謹度**

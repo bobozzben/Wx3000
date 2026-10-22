@@ -7,10 +7,12 @@ if errorlevel 1 goto :err
 
 echo.
 echo Step 2: check bridge
-if exist bridge\lazarus\WbaseBridge.dpr (
-  echo lazarus bridge source exists at bridge\lazarus\WbaseBridge.dpr
-  echo 請用 lazarus 編譯成 WbaseBridge.exe 到根目錄或 dist\
-  echo 如果已編譯，build 會自動複製
+if exist bridge\lazarus\WbaseBridge.exe (
+  copy /Y bridge\lazarus\WbaseBridge.exe WbaseBridge.exe >nul
+  echo WbaseBridge.exe copied from bridge\lazarus\
+) else if exist bridge\lazarus\WbaseBridge_Generic.exe (
+  copy /Y bridge\lazarus\WbaseBridge_Generic.exe WbaseBridge.exe >nul
+  echo WbaseBridge.exe copied from bridge\lazarus\WbaseBridge_Generic.exe
 )
 
 echo.

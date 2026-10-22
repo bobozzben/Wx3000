@@ -16,11 +16,30 @@ namespace Wx3000.Backend.Controllers
     {
         private readonly AppDbContext _context;
         private readonly ISystemParamService _paramService;
+        private readonly IDbfSyncService _dbfSyncService;
 
-        public Wbase3050Controller(AppDbContext context, ISystemParamService paramService)
+        private const string DbfPath = @"C:\w3000\comm";
+        private const string DbfName = "buyinv";
+        private const string PgSchema = "c:/w3000/comm";
+        private const string PgTable = "buyinv";
+        private const string SyncKeyField = "yymm,times,no";
+
+        public Wbase3050Controller(AppDbContext context, ISystemParamService paramService, IDbfSyncService dbfSyncService)
         {
             _context = context;
             _paramService = paramService;
+            _dbfSyncService = dbfSyncService;
+        }
+
+        private static string NormalizeToDbfPeriod(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+            var clean = raw.Replace("-", "").Trim();
+            if (clean.Length == 7 && clean.StartsWith("1"))
+            {
+                return clean.Substring(1); // "1150506" -> "150506"
+            }
+            return clean;
         }
 
         private static string ExtractCity(string? address)
@@ -73,8 +92,11 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, SyncKeyField);
+
                 var rawPeriod = string.IsNullOrWhiteSpace(req.Period) ? "11505-06" : req.Period.Trim();
                 var cleanPeriod = rawPeriod.Replace("-", "").Trim(); // e.g. "1150506"
+                var dbfPeriod = NormalizeToDbfPeriod(rawPeriod);     // e.g. "150506"
                 var times = string.IsNullOrWhiteSpace(req.Times) ? "1" : req.Times.Trim();
 
                 // 解析年度與起迄月份
@@ -90,6 +112,12 @@ namespace Wx3000.Backend.Controllers
                         dataStartMonth = cleanPeriod.Substring(cleanPeriod.Length - 4, 2);
                         dataEndMonth = cleanPeriod.Substring(cleanPeriod.Length - 2, 2);
                     }
+                    else if (cleanPeriod.Length >= 6)
+                    {
+                        dataYear = cleanPeriod.Substring(0, cleanPeriod.Length - 4);
+                        dataStartMonth = cleanPeriod.Substring(cleanPeriod.Length - 4, 2);
+                        dataEndMonth = cleanPeriod.Substring(cleanPeriod.Length - 2, 2);
+                    }
                     else if (cleanPeriod.Length >= 5)
                     {
                         dataYear = cleanPeriod.Substring(0, cleanPeriod.Length - 2);
@@ -98,24 +126,69 @@ namespace Wx3000.Backend.Controllers
                     }
                 }
 
-                var hyphenPeriod = $"{dataYear}{dataStartMonth}-{dataEndMonth}";
+                string shortYear = dataYear.Length >= 3 && dataYear.StartsWith("1") ? dataYear.Substring(dataYear.Length - 2) : dataYear;
+                string fullYear = dataYear.Length == 2 ? ("1" + dataYear) : dataYear;
 
-                // 查詢 基本發票購買 且發票數量大於 0
-                var query = from p in _context.InvoicePurchaseMasters.AsNoTracking()
-                            where (p.Period == rawPeriod || p.Period == cleanPeriod || p.Period == hyphenPeriod)
-                               && (p.Times == times || p.Times == times.TrimStart('0'))
-                               && (p.ManualTwoDup > 0 ||
-                                   p.ManualTwoDupSub > 0 ||
-                                   p.ManualThreeDup > 0 ||
-                                   p.ManualThreeDupSub > 0 ||
-                                   p.ManualSpecial > 0 ||
-                                   p.CashTwoDup > 0 ||
-                                   p.CashThreeDup > 0 ||
-                                   p.CashThreeDupSub > 0)
-                            join c in _context.CompanyMasters.AsNoTracking()
-                            on p.CompanyCode equals c.CompanyCode into gc
-                            from c in gc.DefaultIfEmpty()
-                            select new { p, c };
+                var periodCandidates = new List<string>
+                {
+                    rawPeriod,
+                    cleanPeriod,
+                    dbfPeriod
+                };
+
+                if (!string.IsNullOrWhiteSpace(dataYear) && !string.IsNullOrWhiteSpace(dataStartMonth) && !string.IsNullOrWhiteSpace(dataEndMonth))
+                {
+                    periodCandidates.Add($"{dataYear}{dataStartMonth}-{dataEndMonth}");
+                    periodCandidates.Add($"{dataYear}{dataStartMonth}{dataEndMonth}");
+                    periodCandidates.Add($"{shortYear}{dataStartMonth}{dataEndMonth}"); // e.g. "150506" (DBF 標準格式)
+                    periodCandidates.Add($"{shortYear}{dataStartMonth}-{dataEndMonth}");
+                    periodCandidates.Add($"{fullYear}{dataStartMonth}{dataEndMonth}");  // e.g. "1150506"
+                    periodCandidates.Add($"{fullYear}{dataStartMonth}-{dataEndMonth}"); // e.g. "11505-06"
+                }
+
+                var targetPeriods = periodCandidates.Distinct().Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+
+                var targetTimes = string.IsNullOrWhiteSpace(req.Times) ? "1" : req.Times.Trim();
+                var timesCandidates = new List<string>
+                {
+                    targetTimes,
+                    targetTimes.TrimStart('0'),
+                    targetTimes.PadLeft(2, '0')
+                }.Distinct().Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+
+                // 查詢 基本發票購買
+                var baseQuery = from p in _context.InvoicePurchaseMasters.AsNoTracking()
+                                where targetPeriods.Contains(p.Period)
+                                   && timesCandidates.Contains(p.Times)
+                                join c in _context.CompanyMasters.AsNoTracking()
+                                on p.CompanyCode equals c.CompanyCode into gc
+                                from c in gc.DefaultIfEmpty()
+                                select new { p, c };
+
+                // 優先只納入有購買發票本數之公司紀錄 (> 0)；若該期皆為 0 則不限制
+                var hasAnyPurchased = await baseQuery.AnyAsync(x =>
+                    x.p.ManualTwoDup > 0 ||
+                    x.p.ManualTwoDupSub > 0 ||
+                    x.p.ManualThreeDup > 0 ||
+                    x.p.ManualThreeDupSub > 0 ||
+                    x.p.ManualSpecial > 0 ||
+                    x.p.CashTwoDup > 0 ||
+                    x.p.CashThreeDup > 0 ||
+                    x.p.CashThreeDupSub > 0);
+
+                var query = baseQuery;
+                if (hasAnyPurchased)
+                {
+                    query = query.Where(x =>
+                        x.p.ManualTwoDup > 0 ||
+                        x.p.ManualTwoDupSub > 0 ||
+                        x.p.ManualThreeDup > 0 ||
+                        x.p.ManualThreeDupSub > 0 ||
+                        x.p.ManualSpecial > 0 ||
+                        x.p.CashTwoDup > 0 ||
+                        x.p.CashThreeDup > 0 ||
+                        x.p.CashThreeDupSub > 0);
+                }
 
                 var mode = (req.Mode ?? "1").Trim();
                 if (mode == "1") // 1. 依地址縣市
@@ -123,7 +196,8 @@ namespace Wx3000.Backend.Controllers
                     var city = (req.CityCondition ?? "*").Trim();
                     if (city != "*" && !string.IsNullOrWhiteSpace(city))
                     {
-                        query = query.Where(x => x.c != null && x.c.Address != null && x.c.Address.Contains(city));
+                        query = query.Where(x => (x.c != null && x.c.Address != null && x.c.Address.Contains(city))
+                                              || (x.p.City != null && x.p.City.Contains(city)));
                     }
                 }
                 else if (mode == "2") // 2. 依購買地點
@@ -131,7 +205,8 @@ namespace Wx3000.Backend.Controllers
                     var place = (req.PlaceCondition ?? "").Trim();
                     if (!string.IsNullOrWhiteSpace(place))
                     {
-                        query = query.Where(x => x.c != null && x.c.PlaceCode != null && x.c.PlaceCode.Contains(place));
+                        query = query.Where(x => (x.c != null && x.c.PlaceCode != null && x.c.PlaceCode.Contains(place))
+                                              || (x.p.PlaceCode != null && x.p.PlaceCode.Contains(place)));
                     }
                 }
 
@@ -153,7 +228,8 @@ namespace Wx3000.Backend.Controllers
                     var p = x.p;
                     var c = x.c;
 
-                    p.DataYear = dataYear;
+                    p.Period = !string.IsNullOrWhiteSpace(rawPeriod) ? rawPeriod : $"{fullYear}{dataStartMonth}-{dataEndMonth}";
+                    p.DataYear = fullYear;
                     p.DataStartMonth = dataStartMonth;
                     p.DataEndMonth = dataEndMonth;
 

@@ -788,10 +788,11 @@ namespace Wx3000.Backend.Controllers
                 await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
 
                 var period = string.IsNullOrWhiteSpace(query.Period) ? "11505-06" : query.Period.Trim();
+                var dbfPeriod = NormalizeToDbfPeriod(period);
                 var times = string.IsNullOrWhiteSpace(query.Times) ? "1" : query.Times.Trim();
 
                 var q = from p in _context.InvoicePurchaseMasters.AsNoTracking()
-                        where p.Period == period && p.Times == times
+                        where (p.Period == period || p.Period == dbfPeriod) && p.Times == times
                         join c in _context.CompanyMasters.AsNoTracking()
                         on p.CompanyCode equals c.CompanyCode into gc
                         from c in gc.DefaultIfEmpty()
