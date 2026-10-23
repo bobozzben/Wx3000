@@ -15,6 +15,16 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/health': {
+        target: 'http://127.0.0.1:5007',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/swagger': {
+        target: 'http://127.0.0.1:5007',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 })

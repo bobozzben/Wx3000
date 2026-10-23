@@ -303,7 +303,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
   return (
     <div
-      className={`min-h-[calc(100vh-3rem)] w-full flex flex-col items-center justify-start p-2 sm:p-4 font-sans select-none overflow-y-auto transition-colors duration-300 ${
+      className={`h-full w-full flex flex-col items-center justify-center p-2 sm:p-3 font-sans select-none overflow-y-auto transition-colors duration-300 ${
         isDark
           ? 'bg-slate-950 text-slate-100 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-950/40 via-slate-950 to-slate-950'
           : 'bg-slate-100 text-slate-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-100/50 via-slate-100 to-slate-100'
@@ -320,22 +320,22 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
       {/* 主卡片 Container */}
       <div
-        className={`w-full max-w-2xl flex flex-col mt-2 rounded-2xl shadow-2xl overflow-hidden transition-all border-2 ${
+        className={`w-full max-w-2xl flex flex-col rounded-2xl shadow-2xl overflow-hidden transition-all border-2 max-h-full ${
           isDark
             ? 'bg-slate-900/95 border-slate-800 shadow-indigo-950/20 backdrop-blur-xl'
             : 'bg-white border-slate-300 shadow-slate-400/30 backdrop-blur-xl'
         }`}
       >
         {/* Header 頂部藍色 Banner */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-[#1e3a8a] via-[#1e40af] to-[#2563eb] px-5 py-3 text-white shrink-0">
+        <div className="relative overflow-hidden bg-gradient-to-r from-[#1e3a8a] via-[#1e40af] to-[#2563eb] px-4 py-2 sm:px-5 sm:py-2.5 text-white shrink-0">
           <div className="absolute -right-6 -top-6 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
           <div className="flex items-center justify-between relative z-10">
-            <div className="flex items-center space-x-2.5">
-              <div className="p-1.5 bg-white/15 backdrop-blur-md rounded-lg border border-white/20 shadow-inner">
-                <FileSpreadsheet className="w-5 h-5 text-white" />
+            <div className="flex items-center space-x-2 sm:space-x-2.5">
+              <div className="p-1 sm:p-1.5 bg-white/15 backdrop-blur-md rounded-lg border border-white/20 shadow-inner">
+                <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-base sm:text-lg font-black tracking-wide drop-shadow-sm flex items-center gap-2">
+                <h1 className="text-sm sm:text-base font-black tracking-wide drop-shadow-sm flex items-center gap-2">
                   <span>統購發票字軌期別設定</span>
                   <span className="text-[10px] px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-mono font-extrabold shadow-2xs">
                     Enter/F8 送出
@@ -349,31 +349,31 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl text-white/80 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
+              className="p-1 sm:p-1.5 rounded-xl text-white/80 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
               title="離開 (Esc)"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>
 
         {/* 表單內容 */}
-        <div className="p-3 sm:p-4 space-y-3 overflow-y-auto">
+        <div className="p-2.5 sm:p-3.5 space-y-2 sm:space-y-2.5 overflow-y-auto min-h-0 flex-1">
           {/* Section 1: 發票購買期別 */}
           <div
-            className={`p-2.5 sm:p-3 rounded-xl border-2 transition-colors ${
+            className={`p-2 sm:p-2.5 rounded-xl border-2 transition-colors ${
               isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/90 shadow-2xs'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center space-x-2">
-                <Calendar className={`w-4 h-4 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
-                <label className={`text-sm font-extrabold tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center space-x-1.5">
+                <Calendar className={`w-3.5 h-3.5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
+                <label className={`text-xs sm:text-sm font-extrabold tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                   發票購買期別
                 </label>
               </div>
               <span
-                className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
+                className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
                   isDark ? 'text-indigo-400 bg-indigo-950/60' : 'text-indigo-700 bg-indigo-50 border border-indigo-200'
                 }`}
               >
@@ -381,8 +381,8 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <div className="flex items-center space-x-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center space-x-1">
                 <input
                   ref={yearRef}
                   type="text"
@@ -390,17 +390,17 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setYear(e.target.value)}
                   onKeyDown={(e) => handleInputKeyDown(e, 'year')}
-                  className={`w-20 sm:w-24 px-2.5 py-1.5 rounded-lg font-mono text-center font-black text-base border-2 transition-all outline-none ${
+                  className={`w-20 px-2 py-1 rounded-lg font-mono text-center font-black text-sm sm:text-base border-2 transition-all outline-none ${
                     isDark
                       ? 'bg-slate-900 border-slate-700 text-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30'
                       : 'bg-white border-slate-300 text-slate-950 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-2xs'
                   }`}
                   placeholder="115"
                 />
-                <span className={`text-sm font-black ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>年</span>
+                <span className={`text-xs sm:text-sm font-black ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>年</span>
               </div>
 
-              <div className="flex items-center space-x-1.5">
+              <div className="flex items-center space-x-1">
                 <input
                   ref={startMonthRef}
                   type="text"
@@ -408,14 +408,14 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setStartMonth(e.target.value)}
                   onKeyDown={(e) => handleInputKeyDown(e, 'startMonth')}
-                  className={`w-16 px-2.5 py-1.5 rounded-lg font-mono text-center font-black text-base border-2 transition-all outline-none ${
+                  className={`w-14 px-2 py-1 rounded-lg font-mono text-center font-black text-sm sm:text-base border-2 transition-all outline-none ${
                     isDark
                       ? 'bg-slate-900 border-slate-700 text-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30'
                       : 'bg-white border-slate-300 text-slate-950 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-2xs'
                   }`}
                   placeholder="05"
                 />
-                <span className={`text-sm font-black ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>-</span>
+                <span className={`text-xs sm:text-sm font-black ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>-</span>
                 <input
                   ref={endMonthRef}
                   type="text"
@@ -423,18 +423,18 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setEndMonth(e.target.value)}
                   onKeyDown={(e) => handleInputKeyDown(e, 'endMonth')}
-                  className={`w-16 px-2.5 py-1.5 rounded-lg font-mono text-center font-black text-base border-2 transition-all outline-none ${
+                  className={`w-14 px-2 py-1 rounded-lg font-mono text-center font-black text-sm sm:text-base border-2 transition-all outline-none ${
                     isDark
                       ? 'bg-slate-900 border-slate-700 text-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30'
                       : 'bg-white border-slate-300 text-slate-950 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-2xs'
                   }`}
                   placeholder="06"
                 />
-                <span className={`text-sm font-black ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>月</span>
+                <span className={`text-xs sm:text-sm font-black ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>月</span>
               </div>
 
               <div
-                className={`ml-auto px-3 py-1 rounded-lg font-mono text-xs font-black ${
+                className={`ml-auto px-2.5 py-0.5 rounded-lg font-mono text-xs font-black ${
                   isDark
                     ? 'bg-indigo-950/60 text-indigo-300 border border-indigo-800/50'
                     : 'bg-indigo-600 text-white shadow-xs border border-indigo-700'
@@ -448,21 +448,21 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
           {/* Section 2: 購買次數 */}
           <div
-            className={`p-2.5 sm:p-3 rounded-xl border-2 transition-colors ${
+            className={`p-2 sm:p-2.5 rounded-xl border-2 transition-colors ${
               isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/90 shadow-2xs'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center space-x-2">
-                <Sparkles className={`w-4 h-4 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
-                <label className={`text-sm font-extrabold tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center space-x-1.5">
+                <Sparkles className={`w-3.5 h-3.5 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
+                <label className={`text-xs sm:text-sm font-extrabold tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                   購買次數
                 </label>
               </div>
 
               <div className="flex items-center space-x-2">
                 <span
-                  className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
+                  className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
                     isDark ? 'text-purple-400 bg-purple-950/60' : 'text-purple-700 bg-purple-50 border border-purple-200'
                   }`}
                 >
@@ -475,7 +475,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setTimes(e.target.value)}
                   onKeyDown={(e) => handleInputKeyDown(e, 'times')}
-                  className={`w-14 px-2 py-1 text-center font-mono font-black text-base rounded-lg border-2 outline-none ${
+                  className={`w-12 px-1.5 py-0.5 text-center font-mono font-black text-sm sm:text-base rounded-lg border-2 outline-none ${
                     isDark
                       ? 'bg-slate-900 border-slate-700 text-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30'
                       : 'bg-white border-slate-300 text-slate-950 focus:border-purple-600 focus:ring-2 focus:ring-purple-500/20 shadow-2xs'
@@ -484,7 +484,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-2">
               {[
                 { id: '1', label: '1. 本期首次購買' },
                 { id: '2', label: '2. 本期追加購買' },
@@ -498,7 +498,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                       setTimes(opt.id);
                       focusAndSelect(sortOrderRef);
                     }}
-                    className={`py-2 px-3 rounded-xl text-sm font-extrabold border-2 transition-all flex items-center justify-between cursor-pointer ${
+                    className={`py-1.5 px-3 rounded-lg text-xs sm:text-sm font-extrabold border-2 transition-all flex items-center justify-between cursor-pointer ${
                       isSelected
                         ? isDark
                           ? 'bg-purple-950/60 border-purple-500 text-purple-200 shadow-md ring-1 ring-purple-500/50'
@@ -509,7 +509,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                     }`}
                   >
                     <span>{opt.label}</span>
-                    {isSelected && <Check className={`w-4 h-4 stroke-[3] ${isDark ? 'text-purple-400' : 'text-white'}`} />}
+                    {isSelected && <Check className={`w-3.5 h-3.5 stroke-[3] ${isDark ? 'text-purple-400' : 'text-white'}`} />}
                   </button>
                 );
               })}
@@ -518,21 +518,21 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
           {/* Section 3: 排序方式 (如 screen2.png: 排序：公司統編) */}
           <div
-            className={`p-2.5 sm:p-3 rounded-xl border-2 transition-colors ${
+            className={`p-2 sm:p-2.5 rounded-xl border-2 transition-colors ${
               isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-slate-50/80 border-slate-200/90 shadow-2xs'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center space-x-2">
-                <ArrowUpDown className={`w-4 h-4 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
-                <label className={`text-sm font-extrabold tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center space-x-1.5">
+                <ArrowUpDown className={`w-3.5 h-3.5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
+                <label className={`text-xs sm:text-sm font-extrabold tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                   顯示排序方式
                 </label>
               </div>
 
               <div className="flex items-center space-x-2">
                 <span
-                  className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
+                  className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
                     isDark ? 'text-indigo-400 bg-indigo-950/60' : 'text-indigo-700 bg-indigo-50 border border-indigo-200'
                   }`}
                 >
@@ -548,7 +548,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                     if (['1', '2', '3'].includes(val)) setSortOrder(val as '1' | '2' | '3');
                   }}
                   onKeyDown={(e) => handleInputKeyDown(e, 'sortOrder')}
-                  className={`w-14 px-2 py-1 text-center font-mono font-black text-base rounded-lg border-2 outline-none ${
+                  className={`w-12 px-1.5 py-0.5 text-center font-mono font-black text-sm sm:text-base rounded-lg border-2 outline-none ${
                     isDark
                       ? 'bg-slate-900 border-slate-700 text-indigo-300 focus:border-indigo-500'
                       : 'bg-white border-slate-300 text-slate-950 focus:border-indigo-600'
@@ -572,7 +572,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                       setSortOrder(opt.id as '1' | '2' | '3');
                       confirmBtnRef.current?.focus();
                     }}
-                    className={`py-1.5 px-2 rounded-xl text-xs font-extrabold border-2 transition-all flex items-center justify-between cursor-pointer ${
+                    className={`py-1 px-2 rounded-lg text-xs font-extrabold border-2 transition-all flex items-center justify-between cursor-pointer ${
                       isSelected
                         ? isDark
                           ? 'bg-indigo-950/70 border-indigo-500 text-indigo-200 shadow-md ring-1 ring-indigo-500/50'
@@ -592,23 +592,23 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
           {/* Section 4: 資料匯入區塊 (如 screen1.png 所示規格) */}
           <div
-            className={`p-3 sm:p-4 rounded-xl border-2 transition-colors ${
+            className={`p-2 sm:p-2.5 rounded-xl border-2 transition-colors ${
               isDark
                 ? 'bg-blue-950/20 border-blue-900/50 shadow-inner'
                 : 'bg-sky-50/70 border-blue-300 shadow-sm'
             }`}
           >
             {/* 標題：資料匯入 */}
-            <div className="flex items-center space-x-2 mb-2.5">
-              <Upload className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-700'}`} />
-              <h2 className={`text-base font-black tracking-wide ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
+            <div className="flex items-center space-x-1.5 mb-1.5">
+              <Upload className={`w-3.5 h-3.5 ${isDark ? 'text-blue-400' : 'text-blue-700'}`} />
+              <h2 className={`text-xs sm:text-sm font-black tracking-wide ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
                 資料匯入
               </h2>
             </div>
 
             {/* XLS檔：輸入框 + [...] + [轉入] */}
-            <div className="flex items-center space-x-2 mb-3">
-              <span className={`text-sm font-black shrink-0 ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+            <div className="flex items-center space-x-1.5 mb-2">
+              <span className={`text-xs sm:text-sm font-black shrink-0 ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
                 XLS檔：
               </span>
               <input
@@ -617,7 +617,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                 readOnly
                 placeholder="請選擇統購發票 Excel 檔案 (.xls 或 .xlsx)"
                 onClick={() => fileInputRef.current?.click()}
-                className={`flex-1 px-3 py-1.5 rounded-md font-mono text-xs font-bold border-2 transition-all outline-none cursor-pointer ${
+                className={`flex-1 px-2.5 py-1 rounded-md font-mono text-xs font-bold border-2 transition-all outline-none cursor-pointer ${
                   isDark
                     ? 'bg-slate-900 border-slate-700 text-slate-200 placeholder-slate-500 focus:border-blue-500'
                     : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-600 shadow-2xs'
@@ -628,7 +628,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className={`px-3 py-1.5 rounded-md border-2 font-black text-sm transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md border-2 font-black text-xs sm:text-sm transition-all cursor-pointer ${
                   isDark
                     ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
                     : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100 shadow-2xs'
@@ -638,12 +638,12 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                 ...
               </button>
 
-              {/* [轉入] 按鈕 (如圖中紅色粗體) */}
+              {/* [轉入] 按鈕 */}
               <button
                 type="button"
                 onClick={handleImportExcel}
                 disabled={isImporting || !excelFile}
-                className={`px-4 py-1.5 rounded-md border-2 font-black text-sm transition-all shadow-md cursor-pointer ${
+                className={`px-3 py-1 rounded-md border-2 font-black text-xs sm:text-sm transition-all shadow-md cursor-pointer ${
                   excelFile && !isImporting
                     ? 'bg-red-50 hover:bg-red-100 border-red-300 text-red-600 active:scale-95'
                     : 'bg-slate-200/60 border-slate-300 text-slate-400 cursor-not-allowed'
@@ -655,23 +655,23 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
             {/* 下方框線選項 (Radio Group: 網路購買 vs 代售點購買) */}
             <div
-              className={`p-3 rounded-lg border-2 transition-colors ${
+              className={`p-1.5 sm:p-2 rounded-lg border-2 transition-colors ${
                 isDark ? 'bg-slate-900/60 border-blue-900/40' : 'bg-white/80 border-blue-200 shadow-2xs'
               }`}
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 {/* 網路購買選項 */}
-                <div className="flex items-center space-x-2">
-                  <label className="flex items-center space-x-1.5 cursor-pointer">
+                <div className="flex items-center space-x-1.5">
+                  <label className="flex items-center space-x-1 cursor-pointer">
                     <input
                       type="radio"
                       name="importMode"
                       value="1"
                       checked={importMode === '1'}
                       onChange={() => setImportMode('1')}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      className="w-3.5 h-3.5 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className={`text-sm font-black ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                    <span className={`text-xs sm:text-sm font-black ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                       網路購買
                     </span>
                   </label>
@@ -679,7 +679,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                   <button
                     type="button"
                     onClick={() => setPreviewModalType('online')}
-                    className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors cursor-pointer ${
+                    className={`px-2 py-0.5 text-xs font-bold rounded border transition-colors cursor-pointer ${
                       isDark
                         ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                         : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-2xs'
@@ -690,17 +690,17 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                 </div>
 
                 {/* 代售點購買選項 */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="flex items-center space-x-1.5 cursor-pointer">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <label className="flex items-center space-x-1 cursor-pointer">
                     <input
                       type="radio"
                       name="importMode"
                       value="2"
                       checked={importMode === '2'}
                       onChange={() => setImportMode('2')}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      className="w-3.5 h-3.5 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className={`text-sm font-black ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                    <span className={`text-xs sm:text-sm font-black ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                       代售點購買
                     </span>
                   </label>
@@ -708,7 +708,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                   <button
                     type="button"
                     onClick={() => setPreviewModalType('agent')}
-                    className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors cursor-pointer ${
+                    className={`px-2 py-0.5 text-xs font-bold rounded border transition-colors cursor-pointer ${
                       isDark
                         ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                         : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-2xs'
@@ -720,7 +720,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                   <button
                     type="button"
                     onClick={() => setIsUrlModalOpen(true)}
-                    className={`px-2.5 py-1 text-xs font-bold rounded border transition-colors cursor-pointer ${
+                    className={`px-2 py-0.5 text-xs font-bold rounded border transition-colors cursor-pointer ${
                       isDark
                         ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                         : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-2xs'
@@ -730,7 +730,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                   </button>
 
                   {/* I 欄數量 vs F 欄數量 單選 */}
-                  <div className="flex items-center space-x-2 pl-2 border-l border-slate-300">
+                  <div className="flex items-center space-x-1.5 pl-1.5 border-l border-slate-300">
                     <label className="flex items-center space-x-1 cursor-pointer">
                       <input
                         type="radio"
@@ -738,9 +738,9 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                         value="I"
                         checked={qtyColOption === 'I'}
                         onChange={() => setQtyColOption('I')}
-                        className="w-3.5 h-3.5 text-blue-600"
+                        className="w-3 h-3 text-blue-600"
                       />
-                      <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
+                      <span className={`text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
                         I 欄數量
                       </span>
                     </label>
@@ -752,9 +752,9 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                         value="F"
                         checked={qtyColOption === 'F'}
                         onChange={() => setQtyColOption('F')}
-                        className="w-3.5 h-3.5 text-blue-600"
+                        className="w-3 h-3 text-blue-600"
                       />
-                      <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
+                      <span className={`text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
                         F 欄數量
                       </span>
                     </label>
@@ -766,7 +766,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
             {/* 轉入訊息提示 */}
             {importMsg && (
               <div
-                className={`mt-2.5 p-2 rounded-lg text-xs font-bold ${
+                className={`mt-1.5 p-1.5 rounded-lg text-xs font-bold ${
                   importMsg.type === 'success'
                     ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
                     : importMsg.type === 'error'
@@ -782,7 +782,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
         {/* 底部功能按鈕列 */}
         <div
-          className={`px-5 py-3 border-t-2 flex flex-wrap items-center justify-between gap-2 shrink-0 ${
+          className={`px-4 py-2 sm:px-5 sm:py-2.5 border-t-2 flex flex-wrap items-center justify-between gap-2 shrink-0 ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100 border-slate-200'
           }`}
         >
@@ -796,7 +796,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
               ref={confirmBtnRef}
               type="button"
               onClick={handleConfirm}
-              className="flex items-center space-x-1.5 px-5 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-black text-sm rounded-xl shadow-lg shadow-emerald-950/20 border-2 border-emerald-700 transition-all hover:scale-102 active:scale-98 cursor-pointer focus:ring-2 focus:ring-emerald-400"
+              className="flex items-center space-x-1.5 px-4 sm:px-5 py-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-950/20 border-2 border-emerald-700 transition-all hover:scale-102 active:scale-98 cursor-pointer focus:ring-2 focus:ring-emerald-400"
             >
               <Check className="w-4 h-4 stroke-[3]" />
               <span>F8. 確定</span>
@@ -805,7 +805,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
             <button
               type="button"
               onClick={onClose}
-              className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl font-extrabold text-sm border-2 transition-all cursor-pointer ${
+              className={`flex items-center space-x-1.5 px-3.5 sm:px-4 py-1.5 rounded-xl font-extrabold text-xs sm:text-sm border-2 transition-all cursor-pointer ${
                 isDark
                   ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white'
                   : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800 shadow-2xs'

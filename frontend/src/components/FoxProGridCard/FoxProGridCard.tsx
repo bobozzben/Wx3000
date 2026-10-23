@@ -48,6 +48,8 @@ export interface FoxProGridCardProps<T extends Record<string, any>> {
   renderRow?: (item: T, index: number, isSelected: boolean, isEven: boolean) => React.ReactNode;
   /** Whether to sync active row selection on grid scroll (default true) */
   enableScrollSync?: boolean;
+  /** Whether to merge title bar into column header (default true) */
+  mergeHeader?: boolean;
 }
 
 export function FoxProGridCard<T extends Record<string, any>>({
@@ -69,6 +71,7 @@ export function FoxProGridCard<T extends Record<string, any>>({
   getItemKey,
   renderRow,
   enableScrollSync = true,
+  mergeHeader = true,
 }: FoxProGridCardProps<T>) {
   const { isDark } = useTheme();
   const scrollTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -149,63 +152,119 @@ export function FoxProGridCard<T extends Record<string, any>>({
           : 'bg-white border-2 border-blue-900 shadow-md'
       }`}
     >
-      {/* Card Title Bar */}
-      <div
-        className={`h-10 px-4 flex items-center justify-between border-b shrink-0 transition-colors ${
-          isDark
-            ? 'bg-slate-800/90 border-slate-700 text-slate-200'
-            : 'bg-[#1e3a8a] border-blue-800 text-white'
-        }`}
-      >
-        <div className="flex items-center gap-2 text-[13px] font-semibold">
-          {icon || <Folder size={14} className={isDark ? 'text-slate-400' : 'text-yellow-400'} />}
-          <span>{title}</span>
-          <span
-            className={`ml-2 text-[11px] font-normal px-2 py-0.5 rounded-full ${
-              isDark
-                ? 'bg-slate-700 text-slate-300'
-                : 'bg-blue-900 text-yellow-300 border border-blue-700 font-bold'
-            }`}
-          >
-            {count} 筆
-          </span>
-        </div>
-        {shortcutHint && (
-          <div className={`text-[11px] hidden md:block ${isDark ? 'text-slate-500' : 'text-blue-200'}`}>
-            {shortcutHint}
+      {/* Optional Separate Card Title Bar (Only when mergeHeader is explicitly false) */}
+      {!mergeHeader && (
+        <div
+          className={`h-10 px-4 flex items-center justify-between border-b shrink-0 transition-colors ${
+            isDark
+              ? 'bg-slate-800/90 border-slate-700 text-slate-200'
+              : 'bg-[#1e3a8a] border-blue-800 text-white'
+          }`}
+        >
+          <div className="flex items-center gap-2 text-[13px] font-semibold">
+            {icon || <Folder size={14} className={isDark ? 'text-slate-400' : 'text-yellow-400'} />}
+            <span>{title}</span>
+            <span
+              className={`ml-2 text-[11px] font-normal px-2 py-0.5 rounded-full ${
+                isDark
+                  ? 'bg-slate-700 text-slate-300'
+                  : 'bg-blue-900 text-yellow-300 border border-blue-700 font-bold'
+              }`}
+            >
+              {count} 筆
+            </span>
           </div>
-        )}
-      </div>
+          {shortcutHint && (
+            <div className={`text-[11px] hidden md:block ${isDark ? 'text-slate-500' : 'text-blue-200'}`}>
+              {shortcutHint}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Horizontal Scroll Wrapper (Locks Header & Rows together) */}
-      <div className="overflow-x-auto flex-1 min-h-0 flex flex-col">
-        <div className="min-w-full w-max flex flex-col flex-1">
-          {/* Grid Header */}
+      <div className="overflow-x-auto overflow-y-hidden flex-1 min-h-0 flex flex-col">
+        <div className="min-w-full w-max flex-1 min-h-0 flex flex-col">
+          {/* Mobile Header Bar (Only visible on small screens < md when mergeHeader is true) */}
+          {mergeHeader && (
+            <div
+              className={`md:hidden flex items-center justify-between px-3 h-8 text-xs font-bold shrink-0 border-b ${
+                isDark
+                  ? 'bg-slate-950 border-slate-800 text-yellow-300'
+                  : 'bg-[#1e3a8a] border-blue-900 text-white'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                {icon || <Folder size={13} className={isDark ? 'text-yellow-400' : 'text-yellow-300'} />}
+                <span className="truncate">{title}</span>
+              </div>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full shrink-0 ${
+                  isDark
+                    ? 'bg-slate-800 text-yellow-300 border border-slate-700'
+                    : 'bg-blue-950 text-yellow-300 border border-blue-700 font-bold'
+                }`}
+              >
+                {count} 筆
+              </span>
+            </div>
+          )}
+
+          {/* Grid Header (Fixed / Sticky at top, NEVER scrolls with rows) */}
           <div
             style={gridStyle}
-            className={`text-[11px] font-bold uppercase tracking-wider hidden md:grid ${computedGridCols} h-8 items-center px-1 border-b shrink-0 transition-colors ${
+            className={`text-xs font-bold uppercase tracking-wider hidden md:grid ${computedGridCols} h-9 items-center px-1 border-b shrink-0 sticky top-0 z-20 transition-colors ${
               isDark
-                ? 'bg-slate-900/90 border-slate-700/80 text-slate-400'
-                : 'bg-[#1e3a8a] border-blue-900 text-white'
+                ? 'bg-slate-950 border-slate-700/80 text-yellow-300'
+                : 'bg-[#1e3a8a] border-blue-900 text-white shadow-xs'
             }`}
           >
-            {columns.map((col) => (
-              <div
-                key={col.key}
-                className={`px-3 ${
-                  col.align === 'center'
-                    ? 'text-center'
-                    : col.align === 'right'
-                    ? 'text-right'
-                    : 'text-left'
-                } ${col.className || ''}`}
-              >
-                {col.label}
-              </div>
-            ))}
+            {columns.map((col, cIdx) => {
+              const isFirst = cIdx === 0;
+              const isSecond = cIdx === 1;
+              return (
+                <div
+                  key={col.key}
+                  className={`px-3 h-full flex items-center ${
+                    col.align === 'center'
+                      ? 'justify-center'
+                      : col.align === 'right'
+                      ? 'justify-end'
+                      : 'justify-start'
+                  } ${col.className || ''}`}
+                >
+                  {mergeHeader && isFirst && (
+                    <span className="mr-1.5 shrink-0">
+                      {icon || <Folder size={13} className={isDark ? 'text-yellow-400' : 'text-yellow-300'} />}
+                    </span>
+                  )}
+                  <span className="truncate">{col.label}</span>
+                  {mergeHeader && isSecond && count !== undefined && (
+                    <span
+                      className={`ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0 ${
+                        isDark
+                          ? 'bg-slate-800 text-yellow-300 border border-slate-700'
+                          : 'bg-blue-950 text-yellow-300 border border-blue-700 font-bold'
+                      }`}
+                    >
+                      {count} 筆
+                    </span>
+                  )}
+                  {mergeHeader && isSecond && shortcutHint && (
+                    <span
+                      className={`ml-auto text-[11px] font-normal hidden xl:inline truncate opacity-75 ${
+                        isDark ? 'text-slate-400' : 'text-blue-200'
+                      }`}
+                    >
+                      {shortcutHint}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          {/* Grid Rows Body */}
+          {/* Grid Rows Body (Only this scrolls vertically) */}
           <div
             ref={gridContainerRef}
             tabIndex={0}

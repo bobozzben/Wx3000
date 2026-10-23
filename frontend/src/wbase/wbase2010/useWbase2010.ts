@@ -68,71 +68,33 @@ export function useWbase2010(onBackToMenu?: () => void) {
       f3_short: current.short || (current.name ? current.name.slice(0, 2) : ''),
       f3_uni: current.uni || '',
       f3_taxNo: current.taxNo || '',
-      f3_taxOffice: current.taxOffice || '',
+      f3_offno: current.offno || current.taxOffice || '',
+      f3_offno4: current.offno4 || '',
       f3_capital: current.capital ? String(current.capital) : '',
       f3_tel: current.tel || '',
       f3_fax: current.fax || '',
       f3_addr: current.addr || '',
-      f3_addr2: current.addr2 || '',
+      f3_invaddr: current.invaddr || current.addr2 || '',
+      f3_postno: current.postno || '',
       f3_email: current.email || '',
       f3_acctType: current.acctType || '一般',
       f3_owner: current.owner || '',
       f3_idNo: current.idNo || '',
-      f3_ownerTel: current.ownerTel || '',
-      f3_ownerMobile: current.ownerMobile || '',
+      f3_mobile: current.mobile || current.ownerMobile || '',
       f3_ownerAddr: current.ownerAddr || '',
       f3_contactName: current.contactName || '',
       f3_contactTel: current.contactTel || '',
+      f3_contactMobile: current.contactMobile || '',
       f3_memo: current.memo || '',
-
-      f4_contact: current.f4_contact || current.contactName || '',
-      f4_phone: current.f4_phone || current.contactTel || '',
-      f4_period: current.f4_period || '每月',
-      f4_kind: current.f4_kind || '薪資',
-      f4_mediaTxt: current.f4_mediaTxt || '',
-      f4_mediaTet: current.f4_mediaTet || '',
-      f4_mediaT02: current.f4_mediaT02 || '',
-      f4_mediaT08: current.f4_mediaT08 || '',
-      f4_note: current.f4_note || '',
-      f4_headOffice: current.f4_headOffice || '',
-      f4_taxOffice: current.f4_taxOffice || '',
-      f4_officeId: current.f4_officeId || '',
-      f4_method: current.f4_method || '網路',
-      f4_code: current.f4_code || '',
-      f4_idNo: current.f4_idNo || '',
-      f4_name: current.f4_name || '',
-      f4_phone2: current.f4_phone2 || '',
-      f4_cert: current.f4_cert || '',
-      f4_print: current.f4_print || 'A4',
-
-      f5_house: current.f5_house || '',
-      f5_listed: current.type || '上市',
-      f5_method: current.taxMethod || '電子申報',
-      f5_taxOffice: current.f5_taxOffice || '',
-      f5_officeId: current.officeId || '',
-      f5_contact: current.f5_contact || '',
-      f5_phone: current.f5_phone || '',
-      f5_withholder: current.f5_withholder || '',
-
-      f6_org: current.f6_org || '',
-      f6_bizCode: current.bizCode || '1234',
-      f6_89: current.f6_89 || '',
-      f6_91: current.f6_91 || '',
-      f6_94: current.f6_94 || '',
-      f6_officeId: current.officeId || '',
-      f6_accountant: current.accountantCode || '',
-      f6_open: current.f6_open || '2020/01/01',
-      f6_close: current.f6_close || '',
-
-      f7_content: current.f7_content || '營所稅申報',
-      f7_code: current.f7_code || '',
-      f7_name: current.f7_name || '',
-      f7_id: current.f7_id || '',
-      f7_phone: current.f7_phone || '',
-
-      f8_note: current.f8_note || '',
-      f8_memo: current.f8_memo || '',
     };
+
+    // Populate all fields across tabs 1..5 (F4~F8)
+    for (let t = 1; t <= 5; t++) {
+      for (const fid of TAB_FIELDS_MAP[t] || []) {
+        values[fid] = current[fid] !== undefined && current[fid] !== null ? String(current[fid]) : '';
+      }
+    }
+
     setFormData(values);
   }, [filteredCompanies, selectedIndex, mode]);
 
@@ -143,32 +105,40 @@ export function useWbase2010(onBackToMenu?: () => void) {
       const res = await axios.get('/api/wbase2010');
       const data = res.data;
       if (Array.isArray(data)) {
-        const mapped: CompanyItem[] = data.map((d: any) => ({
-          code: (d.companyCode || d.code || '').trim(),
-          name: (d.companyName || d.name || '').trim(),
-          eng: (d.englishName || d.eng || '').trim(),
-          short: (d.shortName || d.short || '').trim(),
-          uni: (d.unifiedNo || d.uni || '').trim(),
-          taxNo: (d.taxNo || '').trim(),
-          taxOffice: (d.taxOffice || '').trim(),
-          capital: d.capital || '',
-          tel: (d.tel || '').trim(),
-          fax: (d.fax || '').trim(),
-          addr: (d.address || d.addr || '').trim(),
-          addr2: (d.address2 || d.addr2 || '').trim(),
-          email: (d.email || '').trim(),
-          acctType: (d.acctType || '一般').trim(),
-          owner: (d.owner || '').trim(),
-          idNo: (d.ownerIdNo || d.idNo || '').trim(),
-          ownerTel: (d.ownerTel || '').trim(),
-          ownerMobile: (d.ownerMobile || '').trim(),
-          ownerAddr: (d.ownerAddr || '').trim(),
-          contactName: (d.contactName || '').trim(),
-          contactTel: (d.contactTel || '').trim(),
-          memo: (d.memo || '').trim(),
-          type: (d.listedType || d.type || '一般').trim(),
-          officeId: (d.officeId || '').trim(),
-        }));
+        const mapped: CompanyItem[] = data.map((d: any) => {
+          const item: CompanyItem = {
+            code: (d.companyCode || d.code || '').trim(),
+            name: (d.companyName || d.name || '').trim(),
+            eng: (d.englishName || d.eng || '').trim(),
+            short: (d.shortName || d.short || '').trim(),
+            uni: (d.unifiedNo || d.uni || '').trim(),
+            taxNo: (d.taxNo || '').trim(),
+            taxOffice: (d.taxOffice || '').trim(),
+            capital: d.capital || '',
+            tel: (d.tel || '').trim(),
+            fax: (d.fax || '').trim(),
+            addr: (d.address || d.addr || '').trim(),
+            addr2: (d.address2 || d.addr2 || '').trim(),
+            email: (d.email || '').trim(),
+            acctType: (d.acctType || '一般').trim(),
+            owner: (d.owner || '').trim(),
+            idNo: (d.ownerIdNo || d.idNo || '').trim(),
+            ownerMobile: (d.ownerMobile || '').trim(),
+            ownerAddr: (d.ownerAddr || '').trim(),
+            contactName: (d.contactName || '').trim(),
+            contactTel: (d.contactTel || '').trim(),
+            memo: (d.memo || '').trim(),
+          };
+
+          for (let t = 0; t <= 5; t++) {
+            for (const fid of TAB_FIELDS_MAP[t] || []) {
+              if (d[fid] !== undefined && d[fid] !== null) {
+                item[fid] = String(d[fid]).trim();
+              }
+            }
+          }
+          return item;
+        });
         setCompanies(mapped);
 
         if (targetCode) {
@@ -198,7 +168,12 @@ export function useWbase2010(onBackToMenu?: () => void) {
   const focusField = useCallback((fid: string, flash = true) => {
     const el = inputRefsMap.current.get(fid);
     if (el) {
-      el.focus();
+      el.focus({ preventScroll: true });
+      try {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } catch {
+        // Fallback
+      }
       if (flash) {
         el.classList.add('fox-flash');
         setTimeout(() => el.classList.remove('fox-flash'), 250);
@@ -240,24 +215,30 @@ export function useWbase2010(onBackToMenu?: () => void) {
       f3_short: '',
       f3_uni: '',
       f3_taxNo: '',
-      f3_taxOffice: '台北市',
+      f3_offno: '台北市',
+      f3_offno4: '',
       f3_capital: '',
       f3_tel: '',
       f3_fax: '',
       f3_addr: '',
-      f3_addr2: '',
+      f3_invaddr: '',
+      f3_postno: '',
       f3_email: '',
       f3_acctType: '一般',
       f3_owner: '',
       f3_idNo: '',
-      f3_ownerTel: '',
-      f3_ownerMobile: '',
+      f3_mobile: '',
       f3_ownerAddr: '',
       f3_contactName: '',
       f3_contactTel: '',
+      f3_contactMobile: '',
       f3_memo: '',
-      f5_listed: '上市',
     };
+    for (let t = 1; t <= 5; t++) {
+      for (const fid of TAB_FIELDS_MAP[t] || []) {
+        emptyValues[fid] = '';
+      }
+    }
     setFormData(emptyValues);
 
     setTimeout(() => {
@@ -289,26 +270,28 @@ export function useWbase2010(onBackToMenu?: () => void) {
       short: formData.f3_short || name.slice(0, 2),
       uni: formData.f3_uni || '',
       taxNo: formData.f3_taxNo || '',
-      taxOffice: formData.f3_taxOffice || '',
+      taxOffice: formData.f3_offno || formData.f3_taxOffice || '',
       capital: formData.f3_capital || '',
       tel: formData.f3_tel || '',
       fax: formData.f3_fax || '',
       addr: formData.f3_addr || '',
-      addr2: formData.f3_addr2 || '',
+      addr2: formData.f3_invaddr || formData.f3_addr2 || '',
       email: formData.f3_email || '',
       acctType: formData.f3_acctType || '一般',
       owner: formData.f3_owner || '',
       idNo: formData.f3_idNo || '',
-      ownerTel: formData.f3_ownerTel || '',
-      ownerMobile: formData.f3_ownerMobile || '',
+      ownerMobile: formData.f3_mobile || formData.f3_ownerMobile || '',
       ownerAddr: formData.f3_ownerAddr || '',
       contactName: formData.f3_contactName || '',
       contactTel: formData.f3_contactTel || '',
+      contactMobile: formData.f3_contactMobile || '',
       memo: formData.f3_memo || '',
-      type: formData.f5_listed || '上市',
-      officeId: formData.f6_officeId || '',
-      ...formData,
     };
+    for (let t = 1; t <= 5; t++) {
+      for (const fid of TAB_FIELDS_MAP[t] || []) {
+        payload[fid] = formData[fid] || '';
+      }
+    }
 
     // Pre-submit validation for field length limits against DB schema
     const FIELD_LENGTH_LIMITS: Record<string, { label: string; maxLen: number }> = {
@@ -318,22 +301,21 @@ export function useWbase2010(onBackToMenu?: () => void) {
       f3_short: { label: '簡稱 (f3_short)', maxLen: 255 },
       f3_uni: { label: '統一編號 (f3_uni)', maxLen: 20 },
       f3_taxNo: { label: '稅籍編號 (f3_taxNo)', maxLen: 30 },
-      f3_taxOffice: { label: '稅捐處 (f3_taxOffice)', maxLen: 100 },
+      f3_offno: { label: '國稅局代號 (f3_offno)', maxLen: 100 },
+      f3_offno4: { label: '國稅局代碼 (f3_offno4)', maxLen: 100 },
       f3_tel: { label: '電話 (f3_tel)', maxLen: 255 },
       f3_fax: { label: '傳真 (f3_fax)', maxLen: 255 },
       f3_addr: { label: '公司地址 (f3_addr)', maxLen: 255 },
-      f3_addr2: { label: '通訊地址 (f3_addr2)', maxLen: 255 },
+      f3_invaddr: { label: '聯絡地址 (f3_invaddr)', maxLen: 255 },
       f3_email: { label: '電子郵件 (f3_email)', maxLen: 255 },
       f3_acctType: { label: '帳務類別 (f3_acctType)', maxLen: 50 },
       f3_owner: { label: '負責人姓名 (f3_owner)', maxLen: 255 },
       f3_idNo: { label: '負責人身分證 (f3_idNo)', maxLen: 30 },
-      f3_ownerMobile: { label: '負責人手機 (f3_ownerMobile)', maxLen: 255 },
+      f3_mobile: { label: '負責人手機 (f3_mobile)', maxLen: 255 },
       f3_ownerAddr: { label: '負責人地址 (f3_ownerAddr)', maxLen: 255 },
       f3_contactName: { label: '聯絡人 (f3_contactName)', maxLen: 255 },
       f3_contactTel: { label: '聯絡電話 (f3_contactTel)', maxLen: 255 },
       f3_memo: { label: '備註 (f3_memo)', maxLen: 255 },
-      f5_listed: { label: '上市櫃 (f5_listed)', maxLen: 20 },
-      f6_officeId: { label: '事務所代號 (f6_officeId)', maxLen: 30 },
     };
 
     for (const [fid, meta] of Object.entries(FIELD_LENGTH_LIMITS)) {
@@ -347,7 +329,7 @@ export function useWbase2010(onBackToMenu?: () => void) {
 
     const str = (v: any) => (v === null || v === undefined ? '' : String(v).trim());
 
-    const bodyData = {
+    const bodyData: Record<string, any> = {
       companyCode: str(payload.code),
       companyName: str(payload.name),
       englishName: str(payload.eng),
@@ -364,15 +346,17 @@ export function useWbase2010(onBackToMenu?: () => void) {
       acctType: str(payload.acctType || '一般'),
       owner: str(payload.owner),
       ownerIdNo: str(payload.idNo),
-      ownerTel: str(payload.ownerTel),
       ownerMobile: str(payload.ownerMobile),
       ownerAddr: str(payload.ownerAddr),
       contactName: str(payload.contactName),
-      contactMobile: str(payload.contactTel || payload.contactMobile || payload.f4_phone),
+      contactMobile: str(payload.contactMobile || payload.contactTel),
       memo: str(payload.memo),
-      listedType: str(payload.type || payload.f5_listed || '上市'),
-      officeId: str(payload.officeId || payload.f6_officeId),
     };
+    for (let t = 1; t <= 5; t++) {
+      for (const fid of TAB_FIELDS_MAP[t] || []) {
+        bodyData[fid] = str(payload[fid]);
+      }
+    }
 
     try {
       if (mode === 'add') {

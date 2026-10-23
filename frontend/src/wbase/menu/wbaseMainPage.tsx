@@ -126,13 +126,14 @@ export const WbaseMainPage: React.FC = () => {
         }`}
       >
         {/* Navigation Breadcrumb Bar */}
-        <div
-          className={`shrink-0 px-2.5 sm:px-5 py-1.5 sm:py-2.5 flex items-center justify-between gap-2 transition-colors duration-300 ${
-            isDark
-              ? 'bg-slate-950 border-b border-slate-700/50 shadow-md'
-              : 'bg-white border-b-2 border-slate-200/90 shadow-xs'
-          }`}
-        >
+        {activeModule !== 'wbase2010' && activeModule !== 'wbase2010_split' && (
+          <div
+            className={`shrink-0 px-2.5 sm:px-5 py-1.5 sm:py-2.5 flex items-center justify-between gap-2 transition-colors duration-300 ${
+              isDark
+                ? 'bg-slate-950 border-b border-slate-700/50 shadow-md'
+                : 'bg-white border-b-2 border-slate-200/90 shadow-xs'
+            }`}
+          >
           <div className="flex items-center space-x-1.5 sm:space-x-3 min-w-0">
             <button
               onClick={() => setActiveModule(null)}
@@ -214,6 +215,7 @@ export const WbaseMainPage: React.FC = () => {
             </kbd>
           </div>
         </div>
+      )}
 
         {/* Submodule Page Content */}
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">

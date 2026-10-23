@@ -14,7 +14,10 @@ import {
   Edit3,
   LogOut,
   Printer,
-  Columns,
+  ArrowLeft,
+  Sun,
+  Moon,
+  LayoutGrid,
 } from 'lucide-react';
 
 interface Wbase2010SplitPageProps {
@@ -27,19 +30,19 @@ const SPLIT_COMPANY_COLUMNS: FoxProGridCardColumn<CompanyItem>[] = [
   { key: 'uni', label: '統編', width: '110px' },
   { key: 'owner', label: '負責人', width: '80px' },
   {
-    key: 'type',
+    key: 'acctType',
     label: '類別',
     width: '60px',
     render: (c) => (
       <span className="text-[11px] px-1.5 py-0.5 rounded-full border bg-slate-100 border-slate-200 text-slate-700">
-        {c.type || '上市'}
+        {c.acctType || '一般'}
       </span>
     ),
   },
 ];
 
 export const Wbase2010SplitPage: React.FC<Wbase2010SplitPageProps> = ({ onBackToMenu }) => {
-  const { isDark } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
 
   const {
     companies,
@@ -159,7 +162,7 @@ export const Wbase2010SplitPage: React.FC<Wbase2010SplitPageProps> = ({ onBackTo
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans selection:bg-blue-100 transition-colors duration-300 ${
+      className={`h-full min-h-0 flex-1 flex flex-col font-sans selection:bg-blue-100 transition-colors duration-300 overflow-hidden ${
         isDark ? 'bg-slate-900 text-slate-100' : 'bg-slate-100 text-slate-900 font-medium'
       }`}
     >
@@ -172,78 +175,107 @@ export const Wbase2010SplitPage: React.FC<Wbase2010SplitPageProps> = ({ onBackTo
         ::-webkit-scrollbar-track{background:${isDark ? '#1E293B' : '#F1F5F9'}}
       `}</style>
 
-      {/* Top Bar Header */}
+      {/* Unified Single Top Bar */}
       <div
-        className={`h-[52px] border-b flex items-center justify-between px-4 md:px-6 sticky top-0 z-30 transition-colors ${
-          isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-b-2 border-slate-200/90 shadow-xs'
+        className={`h-10 sm:h-11 shrink-0 border-b flex items-center justify-between px-3 md:px-4 z-30 transition-colors ${
+          isDark
+            ? 'bg-slate-900 border-slate-800 text-slate-100'
+            : 'bg-white border-b-2 border-slate-200 text-slate-900 shadow-xs'
         }`}
       >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-[13px] shadow-sm">
-            <Columns size={16} />
-          </div>
-          <div>
-            <div className="text-[13px] font-semibold tracking-tight leading-none flex items-center gap-2">
-              <span>客戶資料維護 (左右雙欄測試)</span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-mono font-bold">
-                SPLIT VIEW
-              </span>
-            </div>
-            <div
-              className={`text-[11px] leading-none mt-1 ${
-                isDark ? 'text-slate-400' : 'text-slate-500'
-              }`}
+        {/* Left: Back to Menu + Breadcrumb + Mode Badge */}
+        <div className="flex items-center space-x-2 sm:space-x-3 text-xs sm:text-sm min-w-0">
+          {onBackToMenu && (
+            <button
+              onClick={onBackToMenu}
+              className="flex items-center space-x-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold shadow-sm transition-all shrink-0 cursor-pointer text-xs"
+              title="返回主選單 (Esc)"
             >
-              Wbase2010 Split Layout · GRID 左 / CARD 右
-            </div>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>返回主選單</span>
+            </button>
+          )}
+
+          <div className="flex items-center space-x-1.5 min-w-0 font-medium">
+            <LayoutGrid className={`w-3.5 h-3.5 shrink-0 hidden sm:block ${isDark ? 'text-slate-500' : 'text-indigo-600'}`} />
+            <span className="hidden sm:inline text-xs text-slate-400">客戶資料 /</span>
+            <span className={`font-black text-xs sm:text-sm truncate ${isDark ? 'text-white' : 'text-slate-950'}`}>
+              客戶資料建檔 (左右雙欄測試)
+            </span>
+            <span className="text-[11px] text-slate-500 font-mono font-bold hidden md:inline">
+              (wbase2010_split)
+            </span>
           </div>
 
-          <div className="hidden md:flex ml-6 items-center gap-2">
+          <div className="flex items-center gap-1.5 ml-1 sm:ml-2 shrink-0">
             <span
-              className={`text-[11px] px-2 py-1 rounded-full border font-medium ${
-                isDark
-                  ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800'
-                  : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+              className={`text-[11px] px-2 py-0.5 rounded-full border font-bold ${
+                mode === 'grid'
+                  ? isDark
+                    ? 'bg-blue-950/80 text-blue-300 border-blue-800'
+                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                  : isDark
+                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-300'
               }`}
             >
-              SPLIT MODE
-            </span>
-            <span className={isDark ? 'text-slate-600' : 'text-slate-400'}>/</span>
-            <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-              {mode === 'grid' ? '瀏覽 (↑↓換筆)' : '編輯 (Enter下一格)'}
+              {mode === 'grid' ? 'SPLIT 瀏覽' : 'SPLIT 編修'}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div
-            className={`hidden md:flex text-[11px] rounded-full px-3 py-1 border ${
-              isDark
-                ? 'bg-slate-800 border-slate-700 text-slate-300'
-                : 'bg-slate-50 border-slate-200 text-slate-500'
-            }`}
-          >
-            {selectedCompany
-              ? `${selectedCompany.code} · ${selectedCompany.name}`
-              : '未選擇'}
-          </div>
+        {/* Right: Selected record + Search button + Theme toggle + Esc */}
+        <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+          {selectedCompany && (
+            <div
+              className={`hidden md:flex text-xs rounded-full px-2.5 py-0.5 border font-mono font-bold ${
+                isDark
+                  ? 'bg-slate-800 border-slate-700 text-yellow-300'
+                  : 'bg-slate-50 border-slate-200 text-blue-900'
+              }`}
+            >
+              {selectedCompany.code} · {selectedCompany.name}
+            </div>
+          )}
 
           <button
             onClick={openSearchModal}
-            className={`h-8 w-8 md:w-auto md:px-3 rounded-lg border flex items-center justify-center gap-1.5 text-[12px] font-medium transition ${
+            className={`h-7 px-2.5 rounded-lg border flex items-center justify-center gap-1 text-[11px] font-bold transition cursor-pointer ${
               isDark
                 ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200'
-                : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-800'
+                : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800 shadow-2xs'
             }`}
           >
-            <Search size={14} className={isDark ? 'text-slate-400' : 'text-slate-500'} />
-            <span className="hidden md:inline">查詢 F2</span>
+            <Search size={13} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
+            <span>查詢 F2</span>
           </button>
+
+          <button
+            onClick={toggleTheme}
+            className={`flex items-center justify-center w-7 h-7 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+              isDark
+                ? 'bg-slate-800/80 border-slate-700/50 text-slate-300 hover:bg-slate-700/80'
+                : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white shadow-2xs'
+            }`}
+            title={isDark ? '切換至淺色主題' : '切換至深色主題'}
+          >
+            {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </button>
+
+          <kbd
+            className={`hidden sm:inline-block text-[11px] px-2 py-0.5 rounded border font-mono font-black whitespace-nowrap ${
+              isDark
+                ? 'text-slate-500 bg-slate-800/80 border-slate-700/50'
+                : 'text-yellow-300 bg-slate-800 border-slate-700 shadow-2xs'
+            }`}
+          >
+            Esc 返回
+          </kbd>
         </div>
       </div>
 
       {/* Main Split Layout Container */}
-      <div className="flex-1 flex flex-col lg:flex-row p-2.5 sm:p-3 md:p-4 gap-3 sm:gap-4 w-full mx-auto overflow-y-auto lg:overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row p-2.5 sm:p-3 md:p-4 gap-3 sm:gap-4 w-full mx-auto overflow-y-auto lg:overflow-hidden">
         {/* Left Side: GRID List */}
         <div className="w-full lg:w-5/12 xl:w-4/12 flex flex-col shrink-0 min-w-0 sm:min-w-[320px]">
           <FoxProGridCard<CompanyItem>
@@ -269,16 +301,20 @@ export const Wbase2010SplitPage: React.FC<Wbase2010SplitPageProps> = ({ onBackTo
         </div>
 
         {/* Right Side: CARD Form */}
-        <div className="w-full lg:w-7/12 xl:w-8/12 flex flex-col gap-3 min-w-0 flex-1 lg:overflow-y-auto lg:max-h-[calc(100vh-210px)] pr-0.5 sm:pr-1">
-          {/* Tab Selector Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 shrink-0 sticky top-0 z-10 py-1 bg-inherit">
+        <div className="w-full lg:w-7/12 xl:w-8/12 flex flex-col gap-2 min-w-0 flex-1 h-full overflow-hidden">
+          {/* Tab Selector Pills: Fixed at top with solid backdrop, NEVER overlaps form content */}
+          <div
+            className={`flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 pt-0.5 px-1 shrink-0 z-10 border-b transition-colors ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+            }`}
+          >
             {TABS_CONFIG.map((tab) => {
               const isActive = activeTab === tab.idx;
               return (
                 <button
                   key={tab.idx}
                   onClick={() => handleTabButtonClick(tab.idx)}
-                  className={`group flex items-center gap-2 h-8 px-3 rounded-full text-[12px] font-medium border transition-all shrink-0 ${
+                  className={`group flex items-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-full text-[12px] font-medium border transition-all shrink-0 cursor-pointer ${
                     isActive
                       ? isDark
                         ? 'bg-blue-950/80 border-blue-700 text-blue-300 shadow-sm'
@@ -287,11 +323,12 @@ export const Wbase2010SplitPage: React.FC<Wbase2010SplitPageProps> = ({ onBackTo
                       ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
+                  title={`${tab.title} (${tab.kbd})`}
                 >
-                  <span className={`w-2 h-2 rounded-full ${tab.color}`} />
-                  <span>{tab.title}</span>
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${tab.color}`} />
+                  <span className="hidden xl:inline">{tab.title}</span>
                   <span
-                    className={`text-[10px] border rounded px-1 font-mono ${
+                    className={`text-[10px] border rounded px-1 font-mono font-bold ${
                       isActive
                         ? isDark
                           ? 'border-blue-700 bg-blue-900 text-blue-200'
@@ -308,8 +345,8 @@ export const Wbase2010SplitPage: React.FC<Wbase2010SplitPageProps> = ({ onBackTo
             })}
           </div>
 
-          {/* Form Content Cards */}
-          <div className="flex-1">
+          {/* Form Content Cards: Independently scrollable below tabs, completely separated */}
+          <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 sm:pr-1">
             <Wbase2010Form
               activeTab={activeTab}
               formData={formData}
@@ -322,142 +359,116 @@ export const Wbase2010SplitPage: React.FC<Wbase2010SplitPageProps> = ({ onBackTo
       </div>
 
       {/* Bottom Status Bar */}
-      <div className="mt-auto sticky bottom-0 z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
-        <div
-          className={`h-8 border-t flex items-center justify-between px-4 text-[11px] ${
-            isDark
-              ? 'bg-slate-950 border-slate-800 text-slate-400'
-              : 'bg-[#F3F4F6] border-slate-200 text-slate-600'
-          }`}
-        >
-          <div className="flex items-center gap-3 truncate">
-            <span className="hidden md:inline">
-              Grid: ↑↓換筆 Enter/F6編修 | 編輯: Enter下一格 F3~F8切頁 Esc存檔回清單 | 瀏覽: Esc離開
-            </span>
-            <span className="md:hidden">↑↓換筆 · Enter下一格 · Esc存檔/離開</span>
+      {/* Unified Single Bottom Bar */}
+      {mode === 'grid' ? (
+        <div className="shrink-0 z-30 h-11 border-t bg-[#1E293B] border-slate-700/80 flex items-center justify-between px-3 md:px-4 text-white shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
+          {/* Left: Action Buttons */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              onClick={startAdd}
+              className="h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold flex items-center gap-1 border bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-600 transition cursor-pointer"
+            >
+              <Plus size={13} />
+              <span>Ins 新增</span>
+            </button>
+
+            <button
+              onClick={deleteSelected}
+              className="h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold flex items-center gap-1 border bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-600 transition cursor-pointer"
+            >
+              <Trash2 size={13} />
+              <span>Del 刪除</span>
+            </button>
+
+            <button
+              onClick={startEdit}
+              className="h-8 px-3 sm:px-3.5 rounded-lg text-xs font-bold flex items-center gap-1 border bg-blue-600 hover:bg-blue-500 text-white border-blue-500 shadow-sm transition cursor-pointer"
+            >
+              <Edit3 size={13} />
+              <span>F6 編修</span>
+            </button>
+
+            <button
+              onClick={openSearchModal}
+              className="h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold flex items-center gap-1 border bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-600 transition cursor-pointer"
+            >
+              <Search size={13} />
+              <span>F2 查詢</span>
+            </button>
+
+            <button
+              onClick={() => setIsPrintOpen(true)}
+              className="h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold flex items-center gap-1 border bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-600 transition cursor-pointer"
+            >
+              <Printer size={13} />
+              <span>P 列印</span>
+            </button>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <span className="hidden md:inline">
-              筆數 {selectedIndex + 1}/{filteredCompanies.length}
-            </span>
-            <span
-              className={`w-2 h-2 rounded-full ${
-                mode === 'edit' || mode === 'add' ? 'bg-emerald-500' : 'bg-blue-500'
-              }`}
-            />
-            <span>{mode === 'edit' || mode === 'add' ? 'EDITING' : 'BROWSE'}</span>
+
+          {/* Center: Shortcut Hint */}
+          <div className="hidden xl:flex items-center gap-2 text-[11px] text-slate-400 font-mono truncate px-2">
+            <span>Grid: ↑↓換筆 · Enter/F6編修</span>
+            <span className="text-slate-600">|</span>
+            <span>編輯: Enter下一格 · Esc存檔回清單</span>
+          </div>
+
+          {/* Right: Record count + Mode badge + Exit Button */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+            <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-300">
+              <span className="hidden sm:inline">筆數</span>
+              <span className="text-yellow-400">{selectedIndex + 1}</span>
+              <span className="text-slate-500">/</span>
+              <span>{filteredCompanies.length}</span>
+            </div>
+
+            <div className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-blue-500/40 bg-blue-950/80 text-blue-300 font-mono font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+              <span>BROWSE</span>
+            </div>
+
+            <button
+              onClick={() => {
+                if (onBackToMenu) onBackToMenu();
+                else gridContainerRef.current?.focus();
+              }}
+              className="h-8 px-3 rounded-lg bg-slate-800 hover:bg-rose-900/60 hover:border-rose-700 text-slate-200 text-xs font-bold border border-slate-600 flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <LogOut size={13} />
+              <span>Esc 離開</span>
+            </button>
           </div>
         </div>
-
-        {/* Bottom Action Bar (Grid Mode) */}
-        {mode === 'grid' && (
-          <div className="h-[48px] bg-[#1E293B] flex items-center justify-between px-3 md:px-4">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={startAdd}
-                className="h-8 px-2.5 md:px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 border bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 transition"
-              >
-                <Plus size={14} />
-                <span className="hidden md:inline">Ins 新增</span>
-                <span className="md:hidden">Ins</span>
-                <span className="hidden lg:inline ml-1 text-[10px] opacity-60 border border-white/20 rounded px-1">
-                  Ins
-                </span>
-              </button>
-
-              <button
-                onClick={deleteSelected}
-                className="h-8 px-2.5 md:px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 border bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 transition"
-              >
-                <Trash2 size={14} />
-                <span className="hidden md:inline">Del 刪除</span>
-                <span className="md:hidden">Del</span>
-                <span className="hidden lg:inline ml-1 text-[10px] opacity-60 border border-white/20 rounded px-1">
-                  Del
-                </span>
-              </button>
-
-              <div className="w-px h-5 bg-slate-700 mx-1 hidden md:block" />
-
-              <button
-                onClick={startEdit}
-                className="h-8 px-2.5 md:px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 border bg-blue-600 hover:bg-blue-500 text-white border-blue-500 shadow-sm transition"
-              >
-                <Edit3 size={14} />
-                <span className="hidden md:inline">F6 編修</span>
-                <span className="md:hidden">F6</span>
-                <span className="hidden lg:inline ml-1 text-[10px] opacity-60 border border-white/20 rounded px-1">
-                  F6
-                </span>
-              </button>
-
-              <button
-                onClick={openSearchModal}
-                className="h-8 px-2.5 md:px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 border bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 transition"
-              >
-                <Search size={14} />
-                <span className="hidden md:inline">F2 查詢</span>
-                <span className="md:hidden">F2</span>
-                <span className="hidden lg:inline ml-1 text-[10px] opacity-60 border border-white/20 rounded px-1">
-                  F2
-                </span>
-              </button>
-
-              <button
-                onClick={() => setIsPrintOpen(true)}
-                className="h-8 px-2.5 md:px-3 rounded-lg text-[12px] font-medium flex items-center gap-1.5 border bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 transition"
-              >
-                <Printer size={14} />
-                <span className="hidden md:inline">P 列印</span>
-                <span className="md:hidden">P</span>
-                <span className="hidden lg:inline ml-1 text-[10px] opacity-60 border border-white/20 rounded px-1">
-                  P
-                </span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  if (onBackToMenu) onBackToMenu();
-                  else gridContainerRef.current?.focus();
-                }}
-                className="h-8 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[12px] font-medium border border-slate-700 flex items-center gap-1.5 transition"
-              >
-                <LogOut size={14} />
-                <span className="hidden md:inline">Esc 離開</span>
-                <span className="md:hidden">離開</span>
-              </button>
-            </div>
+      ) : (
+        <div className="shrink-0 z-30 h-11 border-t bg-[#0F172A] border-slate-700/80 flex items-center justify-between px-3 md:px-4 text-white shadow-[0_-4px_12px_rgba(0,0,0,0.15)]">
+          {/* Left: Mode description */}
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700 text-[11px] font-mono font-bold">
+              {mode === 'add' ? '新增模式 ADD' : '編輯模式 EDIT'}
+            </span>
+            <span className="hidden sm:inline text-slate-400 text-xs font-normal">
+              Enter 依序跳格 · F3~F8 切換分頁 · Esc / F9 儲存並回清單
+            </span>
           </div>
-        )}
 
-        {/* Bottom Action Bar (Edit / Add Mode) */}
-        {(mode === 'edit' || mode === 'add') && (
-          <div className="h-[48px] bg-[#0F172A] flex items-center justify-between gap-2 px-3 sm:px-4 overflow-x-auto whitespace-nowrap">
-            <div className="hidden sm:flex items-center gap-3 text-[12px] text-slate-300 truncate">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="truncate">編輯模式 · Enter 依序跳格 · Esc 儲存並回清單</span>
-            </div>
+          {/* Right: Save & Cancel Buttons */}
+          <div className="flex items-center gap-2 ml-auto shrink-0">
+            <button
+              onClick={saveForm}
+              className="h-8 px-3.5 sm:px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <span>F9 / Esc. 儲存並回清單</span>
+            </button>
 
-            <div className="flex items-center gap-2 ml-auto shrink-0">
-              <button
-                onClick={saveForm}
-                className="h-8 px-3 sm:px-4 rounded-lg bg-blue-600 text-white text-[12px] font-semibold hover:bg-blue-500 transition flex items-center gap-1.5 shadow-sm shrink-0"
-              >
-                <span>儲存並回清單</span>
-                <span className="text-[10px] opacity-80 border border-white/30 rounded px-1 font-mono">Esc</span>
-              </button>
-              <button
-                onClick={cancelEdit}
-                className="h-8 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[12px] font-medium border border-slate-700 transition shrink-0"
-              >
-                放棄修改
-              </button>
-            </div>
+            <button
+              onClick={cancelEdit}
+              className="h-8 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition cursor-pointer"
+            >
+              放棄修改
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Search Modal Dialog (F2) */}
       {isSearchOpen && (

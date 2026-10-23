@@ -97,24 +97,7 @@ export const checkServerConnection = async (targetUrl?: string): Promise<ServerC
     // 忽略 /health 錯誤，進入後續備用探測
   }
 
-  // 2. 探測 /swagger
-  try {
-    const res = await axios.get(`${url}/swagger/v1/swagger.json`, {
-      timeout: 2500,
-      headers: { Accept: 'application/json' },
-    });
-    const latency = Date.now() - startTime;
-    return {
-      success: res.status >= 200 && res.status < 400,
-      latencyMs: latency,
-      message: `連線成功 (${latency}ms)`,
-      statusCode: res.status,
-    };
-  } catch {
-    // 忽略 swagger 錯誤
-  }
-
-  // 3. 探測業務 API /api/wbase3010
+  // 2. 備用探測業務 API /api/wbase3010
   try {
     const fallbackRes = await axios.get(`${url}/api/wbase3010`, {
       timeout: 3000,
