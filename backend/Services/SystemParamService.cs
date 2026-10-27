@@ -1,5 +1,6 @@
 using System;
 using System.Data;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Wx3000.Backend.Data;
@@ -9,10 +10,12 @@ namespace Wx3000.Backend.Services
     public class SystemParamService : ISystemParamService
     {
         private readonly AppDbContext _context;
+        private readonly ISystemConfigService _configService;
 
-        public SystemParamService(AppDbContext context)
+        public SystemParamService(AppDbContext context, ISystemConfigService configService)
         {
             _context = context;
+            _configService = configService;
         }
 
         private static string QuoteIdentifier(string identifier)
@@ -39,17 +42,25 @@ namespace Wx3000.Backend.Services
             await ((System.Data.Common.DbCommand)cmd).ExecuteNonQueryAsync();
         }
 
-        private static void NormalizeSchemaAndTable(ref string schema, ref string table)
+        private void NormalizeSchemaAndTable(ref string schema, ref string table)
         {
             if (string.IsNullOrWhiteSpace(schema))
             {
-                schema = "public";
+                schema = _configService.CurrentPgSchema;
             }
-            else if (string.Equals(schema, "e3000__comm", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(schema, "c:/w3000/comm", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(schema, "c:\\w3000\\comm", StringComparison.OrdinalIgnoreCase))
+            else
             {
-                schema = "c:/w3000/comm";
+                var norm = schema.Replace('\\', '/').Trim();
+                var match = Regex.Match(norm, @"^([A-Za-z]):/w3000/comm", RegexOptions.IgnoreCase);
+                if (match.Success)
+                {
+                    schema = $"{match.Groups[1].Value.ToLowerInvariant()}:/w3000/comm";
+                }
+                else if (string.Equals(schema, "e3000__comm", StringComparison.OrdinalIgnoreCase) ||
+                         norm.EndsWith("/w3000/comm", StringComparison.OrdinalIgnoreCase))
+                {
+                    schema = _configService.CurrentPgSchema;
+                }
             }
 
             if (string.Equals(table, "總帳參數設定", StringComparison.OrdinalIgnoreCase))

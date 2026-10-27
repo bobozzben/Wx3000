@@ -1,11 +1,20 @@
 using Wx3000.Backend.Models;
+using Wx3000.Backend.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Wx3000.Backend.Data
 {
     public class AppDbContext : DbContext
     {
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+        private readonly ISystemConfigService? _configService;
+
+        public string CurrentPgSchema => _configService?.CurrentPgSchema ?? "c:/w3000/comm";
+
+        public AppDbContext(DbContextOptions<AppDbContext> options, ISystemConfigService? configService = null) 
+            : base(options)
+        {
+            _configService = configService;
+        }
 
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Vendor> Vendors => Set<Vendor>();
@@ -24,6 +33,18 @@ namespace Wx3000.Backend.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            var schema = CurrentPgSchema;
+
+            modelBuilder.Entity<CpaMaster>().ToTable("cpa", schema);
+            modelBuilder.Entity<EmpMaster>().ToTable("keyin", schema);
+            modelBuilder.Entity<TaxOfficerMaster>().ToTable("taxno", schema);
+            modelBuilder.Entity<CompanyMaster>().ToTable("customer", schema);
+            modelBuilder.Entity<FeeItemMaster>().ToTable("recitem", schema);
+            modelBuilder.Entity<FeeSummaryMaster>().ToTable("recnote", schema);
+            modelBuilder.Entity<NoteMaster>().ToTable("recmemo", schema);
+            modelBuilder.Entity<TicketPlaceMaster>().ToTable("place", schema);
+            modelBuilder.Entity<InvoicePurchaseMaster>().ToTable("buyinv", schema);
 
             modelBuilder.Entity<InvoicePurchaseMaster>()
                 .HasKey(i => new { i.Period, i.Times, i.CompanyCode });

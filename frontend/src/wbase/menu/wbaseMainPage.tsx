@@ -20,7 +20,11 @@ import { Wbase3060 } from '../wbase3060';
 import { ArrowLeft, LayoutGrid, Sun, Moon } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 
-export const WbaseMainPage: React.FC = () => {
+interface WbaseMainPageProps {
+  onBackToMainMenu?: () => void;
+}
+
+export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }) => {
   const [activeModule, setActiveModule] = useState<string | null>(null);
   const { isDark, toggleTheme } = useTheme();
 
@@ -55,8 +59,10 @@ export const WbaseMainPage: React.FC = () => {
     } else if (item.code === 'wbase3060' || item.code === 'wbase3060_01') {
       setActiveModule('wbase3060_01');
     } else if (item.code === 'A00') {
-      // 結束離開
-      if (window.confirm('確定要離開系統嗎？')) {
+      // 結束離開 / 回主選單
+      if (onBackToMainMenu) {
+        onBackToMainMenu();
+      } else if (window.confirm('確定要離開系統嗎？')) {
         window.close();
       }
     } else if (item.code === '900') {

@@ -17,17 +17,19 @@ namespace Wx3000.Backend.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IDbfSyncService _dbfSyncService;
+        private readonly ISystemConfigService _configService;
 
-        private const string DbfPath = @"C:\w3000\comm";
+        private string DbfPath => _configService.CurrentDbfPath;
         private const string DbfName = "keyin";
-        private const string PgSchema = "c:/w3000/comm";
+        private string PgSchema => _configService.CurrentPgSchema;
         private const string PgTable = "keyin";
         private const string KeyField = "no";
 
-        public Wbase1030Controller(AppDbContext context, IDbfSyncService dbfSyncService)
+        public Wbase1030Controller(AppDbContext context, IDbfSyncService dbfSyncService, ISystemConfigService configService)
         {
             _context = context;
             _dbfSyncService = dbfSyncService;
+            _configService = configService;
         }
 
         // GET: api/wbase1030/inspect
@@ -40,10 +42,10 @@ namespace Wx3000.Backend.Controllers
                 await conn.OpenAsync();
                 
                 using var cmd1 = conn.CreateCommand();
-                cmd1.CommandText = @"
+                cmd1.CommandText = $@"
                     SELECT column_name, data_type 
                     FROM information_schema.columns 
-                    WHERE table_schema = 'c:/w3000/comm' AND table_name = 'keyin';
+                    WHERE table_schema = '{PgSchema}' AND table_name = 'keyin';
                 ";
                 using var r1 = await cmd1.ExecuteReaderAsync();
                 var cols = new List<string>();
@@ -54,7 +56,7 @@ namespace Wx3000.Backend.Controllers
                 r1.Close();
 
                 using var cmd2 = conn.CreateCommand();
-                cmd2.CommandText = @"SELECT * FROM ""c:/w3000/comm"".keyin LIMIT 5;";
+                cmd2.CommandText = $@"SELECT * FROM ""{PgSchema}"".keyin LIMIT 5;";
                 using var r2 = await cmd2.ExecuteReaderAsync();
                 var rows = new List<Dictionary<string, object>>();
                 while (await r2.ReadAsync())

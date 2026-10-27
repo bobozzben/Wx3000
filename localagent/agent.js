@@ -316,6 +316,24 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify(DLL_CONFIG));
     return;
   }
+  if (url.pathname === '/api/check-drive' || url.pathname === '/api/dbf/check_drive') {
+    const rawDrive = (url.searchParams.get('drive') || 'C').trim();
+    const match = rawDrive.match(/^[A-Za-z]/);
+    const drive = match ? match[0].toUpperCase() : 'C';
+    const targetDir = `${drive}:\\W3000`;
+    const exists = fs.existsSync(targetDir);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: exists,
+      exists,
+      drive,
+      path: targetDir,
+      message: exists
+        ? `磁碟機 ${drive}: 檢查通過，已偵測到 W3000 目錄`
+        : `磁碟機 ${drive}: 下找不到 W3000 目錄 (路徑: ${targetDir} 不存在)`
+    }));
+    return;
+  }
 
   // ========== DBF Bridge API (/api/dbf/*) ==========
   if (url.pathname.startsWith('/api/dbf/')) {

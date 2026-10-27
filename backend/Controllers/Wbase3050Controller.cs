@@ -17,18 +17,20 @@ namespace Wx3000.Backend.Controllers
         private readonly AppDbContext _context;
         private readonly ISystemParamService _paramService;
         private readonly IDbfSyncService _dbfSyncService;
+        private readonly ISystemConfigService _configService;
 
-        private const string DbfPath = @"C:\w3000\comm";
+        private string DbfPath => _configService.CurrentDbfPath;
         private const string DbfName = "buyinv";
-        private const string PgSchema = "c:/w3000/comm";
+        private string PgSchema => _configService.CurrentPgSchema;
         private const string PgTable = "buyinv";
         private const string SyncKeyField = "yymm,times,no";
 
-        public Wbase3050Controller(AppDbContext context, ISystemParamService paramService, IDbfSyncService dbfSyncService)
+        public Wbase3050Controller(AppDbContext context, ISystemParamService paramService, IDbfSyncService dbfSyncService, ISystemConfigService configService)
         {
             _context = context;
             _paramService = paramService;
             _dbfSyncService = dbfSyncService;
+            _configService = configService;
         }
 
         private static string NormalizeToDbfPeriod(string raw)
@@ -276,7 +278,7 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
-                var schema = "c:/w3000/comm";
+                var schema = PgSchema;
                 var table = "參數設定";
 
                 var v1 = await _paramService.GetParamAsync(schema, table, "手開二聯單價", "15");
@@ -318,7 +320,7 @@ namespace Wx3000.Backend.Controllers
 
             try
             {
-                var schema = "c:/w3000/comm";
+                var schema = PgSchema;
                 var table = "參數設定";
 
                 await _paramService.SetParamAsync(schema, table, "手開二聯單價", config.ManualTwoDup.ToString());

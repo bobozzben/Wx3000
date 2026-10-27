@@ -17,17 +17,19 @@ namespace Wx3000.Backend.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IDbfSyncService _dbfSyncService;
+        private readonly ISystemConfigService _configService;
 
-        private const string DbfPath = @"C:\w3000\comm";
+        private string DbfPath => _configService.CurrentDbfPath;
         private const string DbfName = "cpa";
-        private const string PgSchema = "c:/w3000/comm";
+        private string PgSchema => _configService.CurrentPgSchema;
         private const string PgTable = "cpa";
         private const string KeyField = "no";
 
-        public Wbase1020Controller(AppDbContext context, IDbfSyncService dbfSyncService)
+        public Wbase1020Controller(AppDbContext context, IDbfSyncService dbfSyncService, ISystemConfigService configService)
         {
             _context = context;
             _dbfSyncService = dbfSyncService;
+            _configService = configService;
         }
 
         private static string Truncate(string? value, int maxLength)
@@ -46,10 +48,10 @@ namespace Wx3000.Backend.Controllers
                 var conn = _context.Database.GetDbConnection();
                 await conn.OpenAsync();
                 using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"
+                cmd.CommandText = $@"
                     SELECT column_name, data_type, character_maximum_length 
                     FROM information_schema.columns 
-                    WHERE table_schema = 'c:/w3000/comm' AND table_name = 'cpa';
+                    WHERE table_schema = '{PgSchema}' AND table_name = 'cpa';
                 ";
                 using var r = await cmd.ExecuteReaderAsync();
                 var cols = new List<object>();

@@ -17,17 +17,19 @@ namespace Wx3000.Backend.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IDbfSyncService _dbfSyncService;
+        private readonly ISystemConfigService _configService;
 
-        private const string DbfPath = @"C:\w3000\comm";
+        private string DbfPath => _configService.CurrentDbfPath;
         private const string DbfName = "recitem";
-        private const string PgSchema = "c:/w3000/comm";
+        private string PgSchema => _configService.CurrentPgSchema;
         private const string PgTable = "recitem";
         private const string KeyField = "itemno";
 
-        public Wbase1060Controller(AppDbContext context, IDbfSyncService dbfSyncService)
+        public Wbase1060Controller(AppDbContext context, IDbfSyncService dbfSyncService, ISystemConfigService configService)
         {
             _context = context;
             _dbfSyncService = dbfSyncService;
+            _configService = configService;
         }
 
         // GET: api/wbase1060?keyword=xxx

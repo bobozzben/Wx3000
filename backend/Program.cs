@@ -1,6 +1,7 @@
 using Wx3000.Backend.Data;
 using Wx3000.Backend.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.Extensions.FileProviders;
 
@@ -26,9 +27,18 @@ builder.WebHost.UseUrls(listenUrls);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Host=localhost;Port=54320;Database=w3000;Username=postgres;Password=Pg_W3000";
 
-// Register EF Core PostgreSQL DbContext
+// Register HttpContextAccessor
+builder.Services.AddHttpContextAccessor();
+
+// Register SystemConfigService
+builder.Services.AddSingleton<ISystemConfigService, SystemConfigService>();
+
+// Register EF Core PostgreSQL DbContext with dynamic model cache factory
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+{
+    options.UseNpgsql(connectionString);
+    options.ReplaceService<IModelCacheKeyFactory, DynamicModelCacheKeyFactory>();
+});
 
 // Register SystemParamService
 builder.Services.AddScoped<ISystemParamService, SystemParamService>();
@@ -64,8 +74,9 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     try
     {
+        var configService = services.GetRequiredService<ISystemConfigService>();
         var context = services.GetRequiredService<AppDbContext>();
-        DbInitializer.Initialize(context);
+        DbInitializer.Initialize(context, configService.CurrentPgSchema);
     }
     catch (Exception ex)
     {
@@ -99,19 +110,6 @@ if (Directory.Exists(wwwrootPath))
 
     // SPA Fallback: 任何非 API 請求皆由 index.html 接管
     app.MapFallbackToFile("index.html", new StaticFileOptions { FileProvider = fileProvider });
-}
-else
-{
-    // 未放置 wwwroot 時提供伺服器資訊
-    app.MapGet("/", () => Results.Ok(new
-    {
-        system = "Wx3000 ERP API Server",
-        status = "Online",
-        service = "Windows Service (Wx3000Api)",
-        database = "PostgreSQL (a3000)",
-        swagger = "/swagger",
-        timestamp = DateTime.UtcNow
-    }));
 }
 
 app.Run();

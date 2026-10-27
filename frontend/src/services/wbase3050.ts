@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getSystemParam, setSystemParam } from './systemParamService';
+import { getPgSchema } from './apiConfig';
 
 export interface InvoicePurchaseItem {
   period: string;
@@ -103,7 +104,7 @@ export const getBuyinvPrices = async (): Promise<BuyinvPriceConfig> => {
   }
 
   // Fallback 透過 systemParamService 直接向參數設定提取
-  const schema = 'c:/w3000/comm';
+  const schema = getPgSchema();
   const table = '參數設定';
   const [p1, p2, p3, p4, p5, p6, p7, p8] = await Promise.all([
     getSystemParam(schema, table, '手開二聯單價', '15'),
@@ -137,7 +138,7 @@ export const saveBuyinvPrices = async (config: BuyinvPriceConfig): Promise<boole
     return true;
   } catch (e) {
     console.warn('API save prices failed, fallback to systemParamService:', e);
-    const schema = 'c:/w3000/comm';
+    const schema = getPgSchema();
     const table = '參數設定';
     try {
       await Promise.all([
