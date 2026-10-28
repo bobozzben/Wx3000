@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useWbase3010 } from './useWbase3010';
 import { Wbase3010Form } from './Wbase3010Form';
 import { Wbase3010Print } from './wbase3010Print';
+import { WbasePageHeader } from '../../components/WbasePageHeader';
 import {
   MapPin,
   Search,
   AlertTriangle,
   CheckCircle,
   XCircle,
-  ArrowLeft,
 } from 'lucide-react';
 import { useTheme } from '../menu/ThemeContext';
 
@@ -96,64 +96,38 @@ export const Wbase3010Page: React.FC<Wbase3010PageProps> = ({ onBackToMenu }) =>
         isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900 font-medium'
       }`}
     >
-      {/* Banner */}
-      <div
-        className={`shrink-0 px-3 sm:px-6 py-2 sm:py-3.5 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 shadow-md transition-colors ${
-          isDark
-            ? 'bg-slate-900 border-slate-800 text-white'
-            : 'bg-white border-b-2 border-slate-200 text-slate-900 font-bold'
-        }`}
-      >
-        <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
-          {onBackToMenu && (
+      {/* Merged Single Header Bar */}
+      <WbasePageHeader
+        onBackToMenu={onBackToMenu}
+        category="發票統購"
+        icon={<MapPin className="w-4 h-4 text-black" />}
+        title="統一發票購買地點維護"
+        code="wbase3010"
+        actions={
+          <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="搜尋代號 / 地點 / 連絡人..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`w-36 sm:w-48 px-2.5 py-1 rounded text-xs focus:outline-none border ${
+                  isDark
+                    ? 'bg-slate-950 border-blue-500 text-white focus:border-yellow-400'
+                    : 'bg-white border-slate-300 text-slate-800 focus:border-blue-500'
+                }`}
+              />
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute right-2 top-1.5" />
+            </div>
             <button
-              onClick={onBackToMenu}
-              className="p-1.5 rounded-lg hover:bg-slate-800 text-gray-300 hover:text-white transition shrink-0"
-              title="返回主選單"
+              type="submit"
+              className="px-2.5 py-1 bg-blue-800 hover:bg-blue-700 text-white text-xs font-bold rounded border border-blue-600 transition whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <ArrowLeft className="w-5 h-5" />
+              搜尋
             </button>
-          )}
-          <div className="p-1.5 sm:p-2 bg-yellow-400 text-black rounded font-bold shrink-0">
-            <MapPin className="w-5 h-5 sm:w-6 sm:h-6" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-base sm:text-xl font-black tracking-wider flex items-center gap-2 flex-wrap">
-              <span className="truncate">統一發票購買地點維護</span>
-              <span className="text-xs px-2 py-0.5 rounded bg-blue-800 text-white font-normal whitespace-nowrap">
-                wbase3010
-              </span>
-            </h1>
-            <p className={`hidden md:block text-xs truncate ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
-              設定與管理統一發票購買地點 (PostgreSQL Table: 基本購票地點)
-            </p>
-          </div>
-        </div>
-
-        {/* Search Bar */}
-        <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:flex-initial">
-            <input
-              type="text"
-              placeholder="搜尋代號 / 購買地點 / 連絡人..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full sm:w-52 md:w-64 px-3 py-1 sm:py-1.5 rounded text-xs sm:text-sm focus:outline-none border ${
-                isDark
-                  ? 'bg-slate-950 border-blue-500 text-white focus:border-yellow-400'
-                  : 'bg-white border-slate-300 text-slate-800 focus:border-blue-500'
-              }`}
-            />
-            <Search className="w-4 h-4 text-gray-400 absolute right-2.5 top-2" />
-          </div>
-          <button
-            type="submit"
-            className="px-3 py-1 sm:py-1.5 bg-blue-800 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold rounded border border-blue-600 transition whitespace-nowrap shrink-0"
-          >
-            搜尋
-          </button>
-        </form>
-      </div>
+          </form>
+        }
+      />
 
       {/* Main Grid Content Area */}
       <div className="flex-1 min-h-0 p-2 sm:p-4 md:p-6 flex flex-col overflow-hidden">

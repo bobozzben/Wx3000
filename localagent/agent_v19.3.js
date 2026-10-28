@@ -218,8 +218,9 @@ wss.on('connection', (ws) => {
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  const reqHeaders = req.headers['access-control-request-headers'];
+  res.setHeader('Access-Control-Allow-Headers', reqHeaders || 'Content-Type, X-Data-Drive, Authorization, *');
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
   // HTTP endpoint for GET_MAC (32-bit)

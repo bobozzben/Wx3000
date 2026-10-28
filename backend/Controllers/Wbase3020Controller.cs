@@ -86,29 +86,31 @@ namespace Wx3000.Backend.Controllers
                     .ToListAsync();
 
                 var deduplicatedList = rawList
-                    .GroupBy(x => x.CompanyCode.Trim().ToUpper())
+                    .Where(x => !string.IsNullOrWhiteSpace(x.CompanyCode))
+                    .GroupBy(x => (x.CompanyCode ?? string.Empty).Trim().ToUpper())
                     .Select(g => g.First())
                     .ToList();
 
                 var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
                 var companyDict = companies
-                    .GroupBy(c => c.CompanyCode.Trim().ToUpper())
+                    .Where(c => !string.IsNullOrWhiteSpace(c.CompanyCode))
+                    .GroupBy(c => (c.CompanyCode ?? string.Empty).Trim().ToUpper())
                     .ToDictionary(g => g.Key, g => g.First());
 
                 foreach (var item in deduplicatedList)
                 {
-                    var code = item.CompanyCode.Trim().ToUpper();
+                    var code = (item.CompanyCode ?? string.Empty).Trim().ToUpper();
 
                     if (companyDict.TryGetValue(code, out var comp))
                     {
-                        item.CompanyName = comp.CompanyName.Trim();
-                        item.CompanyAddr = comp.Address.Trim();
+                        item.CompanyName = comp.CompanyName?.Trim() ?? string.Empty;
+                        item.CompanyAddr = comp.Address?.Trim() ?? string.Empty;
                         if (string.IsNullOrWhiteSpace(item.CompanyShortName))
-                            item.CompanyShortName = !string.IsNullOrWhiteSpace(comp.ShortName) ? comp.ShortName.Trim() : comp.CompanyName.Trim();
+                            item.CompanyShortName = !string.IsNullOrWhiteSpace(comp.ShortName) ? comp.ShortName.Trim() : (comp.CompanyName?.Trim() ?? string.Empty);
                         if (string.IsNullOrWhiteSpace(item.UnifiedNo))
-                            item.UnifiedNo = comp.UnifiedNo.Trim();
+                            item.UnifiedNo = comp.UnifiedNo?.Trim() ?? string.Empty;
                         if (string.IsNullOrWhiteSpace(item.TaxNo))
-                            item.TaxNo = comp.TaxNo.Trim();
+                            item.TaxNo = comp.TaxNo?.Trim() ?? string.Empty;
 
                         item.City = ExtractCity(comp.Address);
                         item.PlaceCode = comp.PlaceCode?.Trim() ?? string.Empty;
@@ -287,7 +289,7 @@ namespace Wx3000.Backend.Controllers
             if (existing != null)
             {
                 UpdateEntityValues(existing, model);
-                if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
+                if (dbfResult.Recno > 0 && existing.RecordNumber != dbfResult.Recno) existing.RecordNumber = dbfResult.Recno;
 
                 await _context.SaveChangesAsync();
                 var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
@@ -387,7 +389,7 @@ namespace Wx3000.Backend.Controllers
                 }
 
                 UpdateEntityValues(existing, model);
-                if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
+                if (dbfResult.Recno > 0 && existing.RecordNumber != dbfResult.Recno) existing.RecordNumber = dbfResult.Recno;
 
                 await _context.SaveChangesAsync();
                 var updatedChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);

@@ -101,8 +101,14 @@ app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", timestamp = DateTime.UtcNow }));
 
 // 靜態檔案託管與 SPA 支援 (讓 C# 後端可同時提供 Web 瀏覽器端與 Electron 客戶端)
-var wwwrootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-if (Directory.Exists(wwwrootPath))
+var wwwrootCandidates = new[]
+{
+    Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../frontend/dist")),
+    Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../backend/wwwroot")),
+    Path.Combine(AppContext.BaseDirectory, "wwwroot")
+};
+var wwwrootPath = wwwrootCandidates.FirstOrDefault(Directory.Exists);
+if (!string.IsNullOrEmpty(wwwrootPath))
 {
     var fileProvider = new PhysicalFileProvider(wwwrootPath);
     app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = fileProvider });

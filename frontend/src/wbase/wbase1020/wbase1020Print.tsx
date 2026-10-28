@@ -232,8 +232,8 @@ export const Wbase1020Print: React.FC = () => {
                       <td className="border border-black p-1">{item.tel || '-'}</td>
                       <td className="border border-black p-1">{item.unifiedNo || '-'}</td>
                       <td className="border border-black p-1">{item.address || '-'}</td>
-                      <td className="border border-black p-1">{item.guildNo1 || item.officeName || '-'}</td>
-                      <td className="border border-black p-1">{item.guildNo2 || item.memberNo || '-'}</td>
+                      <td className="border border-black p-1">{item.guildNo1 || '-'}</td>
+                      <td className="border border-black p-1">{item.guildNo2 || '-'}</td>
                     </tr>
                   ))}
                 </tbody>

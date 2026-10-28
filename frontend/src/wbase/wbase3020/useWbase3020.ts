@@ -82,9 +82,10 @@ export const useWbase3020 = create<Wbase3020State>((set, get) => ({
         }
       });
       set({ rows: Array.from(uniqueMap.values()), loading: false, errorToast: null });
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to load invoice purchase items:', e);
-      set({ errorToast: '載入發票購買資料失敗，請確認連線', loading: false });
+      const msg = e?.response?.data?.message || '載入發票購買資料失敗，請確認連線';
+      set({ errorToast: msg, loading: false });
     }
   },
 

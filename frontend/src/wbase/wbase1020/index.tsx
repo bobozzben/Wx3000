@@ -5,6 +5,7 @@ import { Wbase1020Print } from './wbase1020Print';
 import type { CpaItem } from '../../services/wbase1020';
 import { FoxProGridCard } from '../../components/FoxProGridCard';
 import type { FoxProGridCardColumn } from '../../components/FoxProGridCard';
+import { WbasePageHeader } from '../../components/WbasePageHeader';
 import { useTheme } from '../menu/ThemeContext';
 import { isValidEmail } from '../../services/validation';
 import {
@@ -18,7 +19,6 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  ArrowLeft,
   Save,
   Undo2,
 } from 'lucide-react';
@@ -126,7 +126,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
   // When switching to edit / add mode, focus appropriate first field
   useEffect(() => {
     if (mode === 'edit') {
-      setTimeout(() => focusField('cpaName'), 100);
+      setTimeout(() => focusField('certType'), 100);
     } else if (mode === 'add') {
       setTimeout(() => focusField('cpaCode'), 100);
     } else if (mode === 'grid') {
@@ -236,89 +236,22 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
         .fox-flash { background: #FEF08A !important; color: #0F172A !important; box-shadow: 0 0 0 2px #FACC15 !important; transition: background 0.15s; }
       `}</style>
 
-      {/* Top Banner Header */}
-      <div
-        className={`shrink-0 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 border-b flex items-center justify-between gap-2 shadow-xs transition-colors ${
-          isDark
-            ? 'bg-slate-900 border-slate-800 text-white'
-            : 'bg-white border-b-2 border-slate-200 text-slate-900 font-bold'
-        }`}
-      >
-        <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
-          {onBackToMenu && (
-            <button
-              onClick={onBackToMenu}
-              className={`p-1.5 rounded-lg transition shrink-0 ${
-                isDark ? 'hover:bg-slate-800 text-gray-300' : 'hover:bg-slate-200 text-slate-700'
-              }`}
-              title="返回主選單 (Esc)"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-          )}
-          <div className="p-1.5 sm:p-2 bg-yellow-400 text-black rounded font-bold shadow-xs shrink-0">
-            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-sm sm:text-lg font-black tracking-wider flex items-center gap-2 truncate">
-              <span className="truncate">1-2 會計師/記帳士資料維護</span>
-              <span className="hidden sm:inline-block text-xs px-2 py-0.5 rounded bg-blue-800 text-white font-normal font-mono shrink-0">
-                wbase1020
-              </span>
-            </h1>
-            <p className={`hidden sm:block text-xs truncate ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
-              FoxProGridCard 輸入模式 · 支援上下鍵瀏覽、Enter/F6編修、Ins新增、F2查詢
-            </p>
-          </div>
-
-          {/* Mode Pill Indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 ml-4 shrink-0">
-            <span
-              className={`text-[11px] px-2.5 py-0.5 rounded-full border font-bold ${
-                mode === 'grid'
-                  ? isDark
-                    ? 'bg-blue-950/80 text-blue-300 border-blue-800'
-                    : 'bg-blue-50 text-blue-700 border-blue-200'
-                  : isDark
-                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-300'
-              }`}
-            >
-              {mode === 'grid' ? 'GRID 瀏覽模式' : mode === 'edit' ? 'EDIT 編修中' : 'ADD 新增中'}
-            </span>
-          </div>
-        </div>
-
-        {/* Top Right Action & Search Trigger */}
-        <div className="flex items-center space-x-2 shrink-0">
-          {selectedRow && (
-            <div
-              className={`hidden md:flex text-xs rounded-full px-3 py-1 border font-mono ${
-                isDark
-                  ? 'bg-slate-800 border-slate-700 text-yellow-300'
-                  : 'bg-slate-50 border-slate-200 text-blue-900 font-bold'
-              }`}
-            >
-              選取：[{selectedRow.cpaCode}] {selectedRow.cpaName}
-            </div>
-          )}
-
-          <button
-            onClick={openSearchModal}
-            className={`px-2.5 sm:px-3 py-1.5 rounded text-xs font-bold border flex items-center space-x-1.5 transition shrink-0 whitespace-nowrap ${
-              isDark
-                ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white'
-                : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800 shadow-2xs'
-            }`}
-          >
-            <Search className="w-3.5 h-3.5 text-blue-500" />
-            <span>查詢 F2</span>
-          </button>
-        </div>
-      </div>
+      {/* Merged Single Top Header Bar */}
+      <WbasePageHeader
+        onBackToMenu={onBackToMenu}
+        category="事務所資料"
+        icon={<Users className="w-4 h-4 text-black" />}
+        title="1-2 會計師/記帳士資料維護"
+        code="wbase1020"
+        mode={mode}
+        selectedInfo={
+          selectedRow ? `選取：[${selectedRow.cpaCode}] ${selectedRow.cpaName}` : undefined
+        }
+        onSearch={openSearchModal}
+      />
 
       {/* Main Content Area */}
-      <div className="flex-1 min-h-0 p-2.5 sm:p-4 md:p-6 flex flex-col gap-3 sm:gap-5 overflow-y-auto max-w-[1600px] w-full mx-auto">
+      <div className="flex-1 min-h-0 p-2 sm:p-2.5 flex flex-col gap-2 overflow-y-auto max-w-[1600px] w-full mx-auto">
         {/* Upper Part: FoxProGridCard */}
         <div className="w-full shrink-0">
           <FoxProGridCard<CpaItem>
@@ -335,7 +268,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
             onDoubleClickRow={startEdit}
             onKeyDown={handleGridKeyDown}
             gridContainerRef={gridContainerRef as unknown as React.RefObject<HTMLDivElement>}
-            maxHeight="max-h-[220px]"
+            maxHeight="max-h-[380px] md:max-h-[440px] lg:max-h-[500px]"
             loading={loading}
             emptyText="查無會計師/記帳士資料"
             getItemKey={(r) => r.cpaCode}
@@ -343,35 +276,14 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
         </div>
 
         {/* Lower Part: Form Card Input Area */}
-        <div className="flex-1 flex flex-col gap-2">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-              明細卡片輸入區 (Card Details)
-              {mode !== 'grid' && (
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-normal">
-                  - 編輯中，按 Enter 跳至下一欄位，按 Esc/F9 儲存
-                </span>
-              )}
-            </h2>
-
-            {mode === 'grid' && (
-              <button
-                onClick={startEdit}
-                className="text-xs font-bold text-blue-700 hover:text-blue-800 dark:text-blue-400 flex items-center gap-1"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                點此進入編修模式 [F6]
-              </button>
-            )}
-          </div>
-
+        <div className="w-full shrink-0">
           <Wbase1020Form
             formData={formData}
             setFormData={setFormData}
             inputRefsMap={inputRefsMap}
             mode={mode}
             onFieldKeyDown={handleFormFieldKeyDown}
+            onStartEdit={startEdit}
           />
         </div>
       </div>

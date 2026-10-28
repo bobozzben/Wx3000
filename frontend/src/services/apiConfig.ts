@@ -284,13 +284,27 @@ export const initApiConfig = () => {
   // 1. Axios 攔截器：統一將 /api/... 請求導向當前配置之 ERP 後端伺服器，並附帶 X-Data-Drive
   axios.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     const currentServer = getApiServerUrl();
-    if (config.url && config.url.startsWith('/api')) {
+    const isRelativeApi = Boolean(config.url && config.url.startsWith('/api'));
+    const isBackendApi = isRelativeApi ||
+      Boolean(config.url && config.url.startsWith(currentServer)) ||
+      Boolean(!config.url?.startsWith('http://') && !config.url?.startsWith('https://'));
+
+    if (isRelativeApi) {
       config.baseURL = currentServer;
     }
-    if (!config.headers) {
-      config.headers = {} as any;
+
+    if (isBackendApi) {
+      if (!config.headers) {
+        config.headers = {} as any;
+      }
+      config.headers['X-Data-Drive'] = getDataDrive();
+    } else {
+      // 外部服務 (例如 LocalAgent http://localhost:18889)，移除 X-Data-Drive 防止觸發跨域 CORS Preflight 攔截
+      if (config.headers) {
+        delete (config.headers as any)['X-Data-Drive'];
+        delete (config.headers as any)['x-data-drive'];
+      }
     }
-    config.headers['X-Data-Drive'] = getDataDrive();
     return config;
   });
 
@@ -301,12 +315,19 @@ export const initApiConfig = () => {
       const currentServer = getApiServerUrl();
       const currentDrive = getDataDrive();
 
+      const inputUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      const isBackendApi = !inputUrl.startsWith('http://') && !inputUrl.startsWith('https://')
+        ? true
+        : inputUrl.startsWith(currentServer);
+
       const newInit: RequestInit = { ...init };
-      const headers = new Headers(newInit.headers || {});
-      if (!headers.has('X-Data-Drive')) {
-        headers.set('X-Data-Drive', currentDrive);
+      if (isBackendApi) {
+        const headers = new Headers(newInit.headers || {});
+        if (!headers.has('X-Data-Drive')) {
+          headers.set('X-Data-Drive', currentDrive);
+        }
+        newInit.headers = headers;
       }
-      newInit.headers = headers;
 
       if (typeof input === 'string') {
         if (input.startsWith('/api')) {
