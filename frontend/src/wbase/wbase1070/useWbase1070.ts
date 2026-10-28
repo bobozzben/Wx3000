@@ -63,25 +63,30 @@ export const useWbase1070 = create<Wbase1070State>((set, get) => ({
       const data = await getNoteItemList(keyword);
       const safeData = Array.isArray(data) ? data : [];
       set({ rows: safeData, loading: false });
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to load note items:', e);
-      set({ errorToast: '載入基本備註失敗，請重新連線', loading: false });
+      const msg = e?.response?.data?.message || e?.message || '載入收費備註失敗，請重新連線';
+      set({ errorToast: msg, loading: false });
     }
   },
 
   handleSaveRow: async (updatedRow) => {
-    if (!updatedRow.noteCode || !updatedRow.noteCode.trim()) return;
+    const code = (updatedRow.noteno || updatedRow.noteCode || '').trim();
+    if (!code) return;
     try {
-      const isNew = !get().rows.some((r) => r.noteCode === updatedRow.noteCode);
+      const isNew = !get().rows.some(
+        (r) => (r.noteno || r.noteCode || '').trim().toUpperCase() === code.toUpperCase()
+      );
       const success = await saveNoteItem(updatedRow, isNew);
       if (success) {
         set({ showAutoCloseToast: true });
         setTimeout(() => set({ showAutoCloseToast: false }), 2000);
         await get().refreshData();
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Save note item row error:', e);
-      set({ errorToast: '儲存基本備註失敗' });
+      const msg = e?.response?.data?.message || e?.message || '儲存收費備註失敗';
+      set({ errorToast: msg });
     }
   },
 
@@ -96,9 +101,10 @@ export const useWbase1070 = create<Wbase1070State>((set, get) => ({
       } else {
         set({ errorToast: '批次儲存失敗' });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Batch save error:', e);
-      set({ errorToast: '儲存過程中發生例外' });
+      const msg = e?.response?.data?.message || e?.message || '儲存過程中發生例外';
+      set({ errorToast: msg });
     } finally {
       set({ loading: false });
     }
@@ -112,7 +118,8 @@ export const useWbase1070 = create<Wbase1070State>((set, get) => ({
   confirmDelete: async () => {
     const { rows, selectedIndex, refreshData } = get();
     const target = rows[selectedIndex];
-    if (!target || !target.noteCode) {
+    const code = (target?.noteno || target?.noteCode || '').trim();
+    if (!target || !code) {
       const newRows = [...rows];
       newRows.splice(selectedIndex, 1);
       set({ rows: newRows, isDeleteConfirmOpen: false });
@@ -120,7 +127,7 @@ export const useWbase1070 = create<Wbase1070State>((set, get) => ({
     }
 
     try {
-      const res = await deleteNoteItem(target.noteCode);
+      const res = await deleteNoteItem(code);
       if (res) {
         set({
           selectedIndex: Math.max(0, selectedIndex - 1),
@@ -129,9 +136,10 @@ export const useWbase1070 = create<Wbase1070State>((set, get) => ({
         await refreshData();
         return true;
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Delete note item error:', e);
-      set({ errorToast: '刪除基本備註失敗' });
+      const msg = e?.response?.data?.message || e?.message || '刪除收費備註失敗';
+      set({ errorToast: msg });
     } finally {
       set({ isDeleteConfirmOpen: false });
     }
@@ -147,9 +155,10 @@ export const useWbase1070 = create<Wbase1070State>((set, get) => ({
       const data = await printNoteItemList(filter);
       set({ printData: data, printFilter: filter, loading: false });
       return data;
-    } catch (e) {
+    } catch (e: any) {
       console.error('Fetch print data error:', e);
-      set({ errorToast: '無法取得列印預覽資料', loading: false });
+      const msg = e?.response?.data?.message || e?.message || '無法取得列印預覽資料';
+      set({ errorToast: msg, loading: false });
       return [];
     }
   },
@@ -158,12 +167,12 @@ export const useWbase1070 = create<Wbase1070State>((set, get) => ({
     set({ loading: true });
     try {
       await callWaccrep3106b(params);
-      set({ showAutoCloseToast: true, loading: false });
-      setTimeout(() => set({ showAutoCloseToast: false }), 2000);
+      set({ loading: false });
       return true;
-    } catch (e) {
-      console.error('Trigger DLL report error:', e);
-      set({ errorToast: '呼叫 DLL 報表失敗', loading: false });
+    } catch (e: any) {
+      console.error('Trigger report error:', e);
+      const msg = e?.response?.data?.message || e?.message || '列印報表失敗';
+      set({ errorToast: msg, loading: false });
       return false;
     }
   },

@@ -20,16 +20,24 @@ namespace Wx3000.Backend.Controllers
         private readonly ISystemConfigService _configService;
 
         private string DbfPath => _configService.CurrentDbfPath;
-        private const string DbfName = "recmemo";
+        private const string DbfName = "recnote";
         private string PgSchema => _configService.CurrentPgSchema;
-        private const string PgTable = "recmemo";
-        private const string KeyField = "mno";
+        private const string PgTable = "recnote";
+        private const string KeyField = "noteno";
 
         public Wbase1070Controller(AppDbContext context, IDbfSyncService dbfSyncService, ISystemConfigService configService)
         {
             _context = context;
             _dbfSyncService = dbfSyncService;
             _configService = configService;
+        }
+
+        // GET: api/wbase1070/inspect
+        [HttpGet("inspect")]
+        public async Task<IActionResult> Inspect()
+        {
+            var list = await _context.NoteMasters.AsNoTracking().ToListAsync();
+            return Ok(list);
         }
 
         // GET: api/wbase1070?keyword=xxx
@@ -46,19 +54,17 @@ namespace Wx3000.Backend.Controllers
                 {
                     var kw = keyword.Trim().ToLower();
                     queryable = queryable.Where(f =>
-                        f.NoteCode.ToLower().Contains(kw) ||
-                        f.NoteName.ToLower().Contains(kw) ||
-                        f.Content.ToLower().Contains(kw)
+                        f.Noteno.ToLower().Contains(kw) ||
+                        f.Note.ToLower().Contains(kw)
                     );
                 }
 
-                var rawList = await queryable.OrderBy(f => f.NoteCode).ToListAsync();
+                var rawList = await queryable.OrderBy(f => f.Noteno).ToListAsync();
                 var list = rawList.Select(f => new NoteMaster
                 {
                     Seq = f.Seq,
-                    NoteCode = f.NoteCode?.Trim() ?? string.Empty,
-                    NoteName = f.NoteName?.Trim() ?? string.Empty,
-                    Content = f.Content?.Trim() ?? string.Empty,
+                    Noteno = f.Noteno?.Trim() ?? string.Empty,
+                    Note = f.Note?.Trim() ?? string.Empty,
                     Guid = f.Guid?.Trim() ?? string.Empty,
                     RecordNumber = f.RecordNumber
                 }).ToList();
@@ -76,20 +82,19 @@ namespace Wx3000.Backend.Controllers
         [HttpGet("{noteCode}")]
         public async Task<ActionResult<NoteMaster>> GetByCode(string noteCode)
         {
-            if (string.IsNullOrWhiteSpace(noteCode)) return BadRequest("備註代號不可為空");
+            if (string.IsNullOrWhiteSpace(noteCode)) return BadRequest("編號不可為空");
 
             await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
 
             var trimmedCode = noteCode.Trim().ToUpper();
-            var item = await _context.NoteMasters.FirstOrDefaultAsync(f => f.NoteCode.Trim() == trimmedCode);
+            var item = await _context.NoteMasters.FirstOrDefaultAsync(f => f.Noteno.Trim() == trimmedCode);
             if (item == null)
             {
-                return NotFound(new { message = $"找不到代號為 '{noteCode}' 的基本備註資料" });
+                return NotFound(new { message = $"找不到編號為 '{noteCode}' 的收費備註資料" });
             }
 
-            item.NoteCode = item.NoteCode?.Trim() ?? string.Empty;
-            item.NoteName = item.NoteName?.Trim() ?? string.Empty;
-            item.Content = item.Content?.Trim() ?? string.Empty;
+            item.Noteno = item.Noteno?.Trim() ?? string.Empty;
+            item.Note = item.Note?.Trim() ?? string.Empty;
             item.Guid = item.Guid?.Trim() ?? string.Empty;
 
             return Ok(item);
@@ -99,35 +104,28 @@ namespace Wx3000.Backend.Controllers
         [HttpPost]
         public async Task<ActionResult<NoteMaster>> Create([FromBody] NoteMaster model)
         {
-            if (model == null || string.IsNullOrWhiteSpace(model.NoteCode))
+            var rawCode = !string.IsNullOrWhiteSpace(model?.Noteno) ? model.Noteno : model?.NoteCode;
+            if (model == null || string.IsNullOrWhiteSpace(rawCode))
             {
-                return BadRequest(new { message = "備註代號不得為空" });
+                return BadRequest(new { message = "編號不得為空" });
             }
 
-            var code = model.NoteCode.Trim().ToUpper();
-            model.NoteCode = code;
-            model.NoteName = model.NoteName?.Trim() ?? string.Empty;
-            model.Content = model.Content?.Trim() ?? string.Empty;
+            var code = rawCode.Trim().ToUpper();
+            model.Noteno = code;
+            model.Note = (model.Note ?? model.Content ?? model.NoteName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(model.Guid))
             {
                 model.Guid = Guid.NewGuid().ToString("N").ToUpper();
             }
 
-            if (!model.Seq.HasValue || model.Seq.Value == 0)
-            {
-                var maxSeq = await _context.NoteMasters.MaxAsync(f => (int?)f.Seq) ?? 0;
-                model.Seq = maxSeq + 1;
-            }
-
-            var existing = await _context.NoteMasters.FirstOrDefaultAsync(f => f.NoteCode.Trim() == code);
+            var existing = await _context.NoteMasters.FirstOrDefaultAsync(f => f.Noteno.Trim() == code);
             var operation = existing != null ? "UPDATE" : "INSERT";
 
-            // 1. 組裝 DBF 欄位清單
+            // 1. 組裝 DBF 欄位清單 (recnote: noteno, note)
             var fields = new Dictionary<string, object?>
             {
-                ["mno"] = code,
-                ["tx"] = model.NoteName,
-                ["memo"] = model.Content
+                ["noteno"] = code,
+                ["note"] = model.Note
             };
 
             // 2. 核心原則：DBF 絕對權威！先寫 DBF
@@ -152,8 +150,7 @@ namespace Wx3000.Backend.Controllers
             // 3. DBF 成功後才寫入 PostgreSQL
             if (existing != null)
             {
-                existing.NoteName = model.NoteName;
-                existing.Content = model.Content;
+                existing.Note = model.Note;
                 if (!string.IsNullOrWhiteSpace(model.Guid)) existing.Guid = model.Guid.Trim();
                 if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
 
@@ -172,33 +169,33 @@ namespace Wx3000.Backend.Controllers
             if (!string.IsNullOrEmpty(newCsum))
                 await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newCsum);
 
-            return CreatedAtAction(nameof(GetByCode), new { noteCode = model.NoteCode }, model);
+            return CreatedAtAction(nameof(GetByCode), new { noteCode = model.Noteno }, model);
         }
 
         // PUT: api/wbase1070/{noteCode}
         [HttpPut("{noteCode}")]
         public async Task<IActionResult> Update(string noteCode, [FromBody] NoteMaster model)
         {
-            if (string.IsNullOrWhiteSpace(noteCode)) return BadRequest("代號不可為空");
+            if (string.IsNullOrWhiteSpace(noteCode)) return BadRequest("編號不可為空");
+
+            await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
 
             var targetCode = noteCode.Trim().ToUpper();
-            model.NoteCode = targetCode;
-            model.NoteName = model.NoteName?.Trim() ?? string.Empty;
-            model.Content = model.Content?.Trim() ?? string.Empty;
+            model.Noteno = targetCode;
+            model.Note = (model.Note ?? model.Content ?? model.NoteName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(model.Guid))
             {
                 model.Guid = Guid.NewGuid().ToString("N").ToUpper();
             }
 
-            var existing = await _context.NoteMasters.FirstOrDefaultAsync(f => f.NoteCode.Trim() == targetCode);
+            var existing = await _context.NoteMasters.FirstOrDefaultAsync(f => f.Noteno.Trim() == targetCode);
             var operation = existing != null ? "UPDATE" : "INSERT";
 
-            // 1. 組裝 DBF 欄位清單
+            // 1. 組裝 DBF 欄位清單 (recnote: noteno, note)
             var fields = new Dictionary<string, object?>
             {
-                ["mno"] = targetCode,
-                ["tx"] = model.NoteName,
-                ["memo"] = model.Content
+                ["noteno"] = targetCode,
+                ["note"] = model.Note
             };
 
             // 2. 核心原則：DBF 絕對權威！先寫 DBF
@@ -221,13 +218,13 @@ namespace Wx3000.Backend.Controllers
             }
 
             // 3. DBF 成功後才寫入 PostgreSQL
+            if (existing == null && dbfResult.Recno > 0)
+            {
+                existing = await _context.NoteMasters.FirstOrDefaultAsync(f => f.RecordNumber == dbfResult.Recno);
+            }
+
             if (existing == null)
             {
-                if (!model.Seq.HasValue || model.Seq.Value == 0)
-                {
-                    var maxSeq = await _context.NoteMasters.MaxAsync(f => (int?)f.Seq) ?? 0;
-                    model.Seq = maxSeq + 1;
-                }
                 if (dbfResult.Recno > 0) model.RecordNumber = dbfResult.Recno;
                 _context.NoteMasters.Add(model);
                 await _context.SaveChangesAsync();
@@ -238,13 +235,16 @@ namespace Wx3000.Backend.Controllers
                 return Ok(model);
             }
 
-            existing.NoteName = model.NoteName;
-            existing.Content = model.Content;
+            existing.Noteno = targetCode;
+            existing.Note = model.Note;
             if (!string.IsNullOrWhiteSpace(model.Guid))
             {
                 existing.Guid = model.Guid.Trim();
             }
-            if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
+            if (existing.RecordNumber <= 0 && dbfResult.Recno > 0)
+            {
+                existing.RecordNumber = dbfResult.Recno;
+            }
 
             await _context.SaveChangesAsync();
             var updatedChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
@@ -258,13 +258,13 @@ namespace Wx3000.Backend.Controllers
         [HttpDelete("{noteCode}")]
         public async Task<IActionResult> Delete(string noteCode)
         {
-            if (string.IsNullOrWhiteSpace(noteCode)) return BadRequest("代號不可為空");
+            if (string.IsNullOrWhiteSpace(noteCode)) return BadRequest("編號不可為空");
 
             var targetCode = noteCode.Trim().ToUpper();
-            var existing = await _context.NoteMasters.FirstOrDefaultAsync(f => f.NoteCode.Trim() == targetCode);
+            var existing = await _context.NoteMasters.FirstOrDefaultAsync(f => f.Noteno.Trim() == targetCode);
             if (existing == null)
             {
-                return NotFound(new { message = $"欲刪除的基本備註 [{targetCode}] 不存在" });
+                return NotFound(new { message = $"欲刪除的收費備註 [{targetCode}] 不存在" });
             }
 
             // 1. 核心原則：DBF 絕對權威！先刪除 DBF
@@ -303,13 +303,12 @@ namespace Wx3000.Backend.Controllers
             if (list == null) return BadRequest(new { message = "無效的提交資料" });
 
             var validItems = list
-                .Where(x => !string.IsNullOrWhiteSpace(x.NoteCode))
+                .Where(x => !string.IsNullOrWhiteSpace(x.Noteno) || !string.IsNullOrWhiteSpace(x.NoteCode))
                 .Select(x => new NoteMaster
                 {
                     Seq = x.Seq,
-                    NoteCode = x.NoteCode.Trim().ToUpper(),
-                    NoteName = x.NoteName?.Trim() ?? string.Empty,
-                    Content = x.Content?.Trim() ?? string.Empty,
+                    Noteno = (!string.IsNullOrWhiteSpace(x.Noteno) ? x.Noteno : x.NoteCode).Trim().ToUpper(),
+                    Note = (x.Note ?? x.Content ?? x.NoteName ?? string.Empty).Trim(),
                     Guid = string.IsNullOrWhiteSpace(x.Guid) ? Guid.NewGuid().ToString("N").ToUpper() : x.Guid.Trim(),
                 })
                 .ToList();
@@ -317,16 +316,15 @@ namespace Wx3000.Backend.Controllers
             // 依序寫入 DBF (DBF 絕對權威)
             foreach (var item in validItems)
             {
-                var existing = await _context.NoteMasters.FirstOrDefaultAsync(f => f.NoteCode.Trim() == item.NoteCode);
+                var existing = await _context.NoteMasters.FirstOrDefaultAsync(f => f.Noteno.Trim() == item.Noteno);
                 var op = existing != null ? "UPDATE" : "INSERT";
                 var fields = new Dictionary<string, object?>
                 {
-                    ["mno"] = item.NoteCode,
-                    ["tx"] = item.NoteName,
-                    ["memo"] = item.Content
+                    ["noteno"] = item.Noteno,
+                    ["note"] = item.Note
                 };
 
-                var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, item.NoteCode, fields);
+                var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, item.Noteno, fields);
                 if (!dbfRes.Success)
                 {
                     if (dbfRes.ErrorType == "LOCK_TIMEOUT")
@@ -334,21 +332,20 @@ namespace Wx3000.Backend.Controllers
                         return StatusCode(StatusCodes.Status409Conflict, new
                         {
                             error = dbfRes.Error,
-                            message = $"備註 [{item.NoteCode}] 正被地端其他工作站編輯中，批次存檔取消"
+                            message = $"收費備註 [{item.Noteno}] 正被地端其他工作站編輯中，批次存檔取消"
                         });
                     }
                     return BadRequest(new
                     {
                         error = dbfRes.Error,
-                        message = $"地端 DBF 寫入失敗 [{item.NoteCode}]: " + (dbfRes.Message ?? dbfRes.Error)
+                        message = $"地端 DBF 寫入失敗 [{item.Noteno}]: " + (dbfRes.Message ?? dbfRes.Error)
                     });
                 }
                 if (dbfRes.Recno > 0) item.RecordNumber = dbfRes.Recno;
 
                 if (existing != null)
                 {
-                    existing.NoteName = item.NoteName;
-                    existing.Content = item.Content;
+                    existing.Note = item.Note;
                     existing.RecordNumber = item.RecordNumber;
                 }
                 else
@@ -381,34 +378,24 @@ namespace Wx3000.Backend.Controllers
 
                 var queryable = _context.NoteMasters.AsNoTracking();
 
-                if (!string.IsNullOrWhiteSpace(query.CodeStart))
+                if (!string.IsNullOrWhiteSpace(query?.CodeStart))
                 {
                     var start = query.CodeStart.Trim().ToUpper();
-                    queryable = queryable.Where(f => f.NoteCode.Trim().CompareTo(start) >= 0);
+                    queryable = queryable.Where(f => string.Compare(f.Noteno.Trim(), start) >= 0);
                 }
 
-                if (!string.IsNullOrWhiteSpace(query.CodeEnd))
+                if (!string.IsNullOrWhiteSpace(query?.CodeEnd))
                 {
                     var end = query.CodeEnd.Trim().ToUpper();
-                    queryable = queryable.Where(f => f.NoteCode.Trim().CompareTo(end) <= 0);
+                    queryable = queryable.Where(f => string.Compare(f.Noteno.Trim(), end) <= 0);
                 }
 
-                var rawList = await queryable.OrderBy(f => f.NoteCode).ToListAsync();
-                var list = rawList.Select(f => new NoteMaster
-                {
-                    Seq = f.Seq,
-                    NoteCode = f.NoteCode?.Trim() ?? string.Empty,
-                    NoteName = f.NoteName?.Trim() ?? string.Empty,
-                    Content = f.Content?.Trim() ?? string.Empty,
-                    Guid = f.Guid?.Trim() ?? string.Empty,
-                    RecordNumber = f.RecordNumber
-                }).ToList();
-
+                var list = await queryable.OrderBy(f => f.Noteno).ToListAsync();
                 return Ok(list);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Wbase1070 Print error: {ex.Message}");
+                Console.WriteLine($"Wbase1070 PrintRange error: {ex.Message}");
                 return Ok(new List<NoteMaster>());
             }
         }

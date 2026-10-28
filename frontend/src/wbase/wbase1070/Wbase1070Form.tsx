@@ -18,10 +18,23 @@ interface Wbase1070FormProps {
   onExit?: () => void;
 }
 
+// 依據 recnote.dbf 規格：只有 "編號 (noteno)"、"備註內容 (note)" 2 個欄位
 const NOTE_COLUMNS: ColumnDefV2<NoteItem>[] = [
-  { key: 'noteCode', label: '備註代號', isPrimaryKey: true, width: '160px', className: 'font-bold' },
-  { key: 'noteName', label: '備註說明', width: '240px', className: 'font-bold' },
-  { key: 'content', label: '備註內容', width: '1fr' },
+  {
+    key: 'noteno',
+    label: '編號',
+    isPrimaryKey: true,
+    width: '130px',
+    align: 'left',
+    className: 'text-blue-900 dark:text-sky-300 font-bold',
+  },
+  {
+    key: 'note',
+    label: '備註內容',
+    width: '1fr',
+    align: 'left',
+    className: 'font-semibold',
+  },
 ];
 
 export const Wbase1070Form: React.FC<Wbase1070FormProps> = ({
@@ -38,6 +51,9 @@ export const Wbase1070Form: React.FC<Wbase1070FormProps> = ({
   onExit,
 }) => {
   const createEmptyRow = useCallback((): NoteItem => ({
+    noteno: '',
+    note: '',
+    _record_number: 0,
     noteCode: '',
     noteName: '',
     content: '',
@@ -47,19 +63,19 @@ export const Wbase1070Form: React.FC<Wbase1070FormProps> = ({
     return rows
       .filter(
         (x) =>
-          x.noteCode.toLowerCase().includes(query.toLowerCase()) ||
-          x.noteName.toLowerCase().includes(query.toLowerCase()) ||
-          x.content.toLowerCase().includes(query.toLowerCase())
+          (x.noteno || x.noteCode || '').toLowerCase().includes(query.toLowerCase()) ||
+          (x.note || x.content || '').toLowerCase().includes(query.toLowerCase())
       )
       .map((x) => ({
-        code: x.noteCode,
-        name: x.noteName,
-        spec: x.content,
+        code: x.noteno || x.noteCode || '',
+        name: x.note || x.content || '',
+        spec: '',
       }));
   };
 
   return (
     <FoxProGridV2<NoteItem>
+      gridId="wbase1070_grid"
       rows={rows}
       columns={NOTE_COLUMNS}
       createEmptyRow={createEmptyRow}
@@ -70,8 +86,8 @@ export const Wbase1070Form: React.FC<Wbase1070FormProps> = ({
       statusBarInfo={statusBarInfo}
       onSelectRow={onSelectRow}
       onF3Search={handleF3Search}
-      f3SearchTitle="收費項目備註開窗搜尋 [F3]"
-      getRowKey={(row, idx) => row.noteCode || idx}
+      f3SearchTitle="收費備註資料開窗搜尋 [F3]"
+      getRowKey={(row, idx) => row.noteno || row.noteCode || idx}
       onInsertRow={onInsertRow}
       onDeleteRow={onDeleteRow}
       onRefreshData={onRefreshData}

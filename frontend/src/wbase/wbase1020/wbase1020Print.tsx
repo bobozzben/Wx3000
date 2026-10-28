@@ -1,266 +1,148 @@
 import React, { useState, useEffect } from 'react';
 import { useWbase1020 } from './useWbase1020';
-import { Printer, X, Download, Eye } from 'lucide-react';
-import type { CpaItem } from '../../services/wbase1020';
-import { useTheme } from '../menu/ThemeContext';
+import type { CpaItem, CpaPrintFilter } from '../../services/wbase1020';
+import {
+  FoxProPrintModal,
+  type FoxProPrintColumn,
+  type XlsxFieldItem,
+} from '../../components/FoxProGrid/FoxProPrintModal';
 
+/**
+ * 基本會計師/記帳士名冊清冊列印欄位定義
+ */
+const CPA_PRINT_COLUMNS: FoxProPrintColumn<CpaItem>[] = [
+  {
+    key: 'cpaCode',
+    label: '代號',
+    width: '8%',
+    className: 'font-bold font-mono',
+    render: (val) => <span className="font-bold">{val}</span>,
+  },
+  {
+    key: 'certType',
+    label: '證書別',
+    width: '8%',
+    align: 'center',
+    render: (val) => val || '-',
+  },
+  {
+    key: 'cpaName',
+    label: '姓名',
+    width: '12%',
+    render: (val) => <span className="font-semibold">{val}</span>,
+  },
+  {
+    key: 'taxId',
+    label: '申報ID',
+    width: '10%',
+    render: (val) => val || '-',
+  },
+  {
+    key: 'tel',
+    label: '電話',
+    width: '12%',
+    render: (val) => val || '-',
+  },
+  {
+    key: 'mobile',
+    label: '手機',
+    width: '12%',
+    render: (val) => val || '-',
+  },
+  {
+    key: 'unifiedNo',
+    label: '統一編號',
+    width: '10%',
+    render: (val) => val || '-',
+  },
+  {
+    key: 'address',
+    label: '地址',
+    width: '18%',
+    render: (val) => val || '-',
+  },
+  {
+    key: 'guildNo1',
+    label: '公會名稱',
+    width: '10%',
+    render: (val) => val || '-',
+  },
+];
+
+/**
+ * 會計師/記帳士名冊 XLSX 候選匯出欄位清單 (供 FormUtilSelectXlsxFieldsList 選擇)
+ */
+const CPA_XLSX_FIELDS: XlsxFieldItem[] = [
+  { key: 'cpaCode', label: '代號', customTitle: '代號', selected: true },
+  { key: 'certType', label: '證書別', customTitle: '證書別', selected: true },
+  { key: 'cpaName', label: '姓名', customTitle: '姓名', selected: true },
+  { key: 'taxId', label: '申報ID', customTitle: '申報ID', selected: true },
+  { key: 'licenseNo', label: '證書年度或國稅別', customTitle: '證書年度或國稅別', selected: true },
+  { key: 'docTrack', label: '發文字軌', customTitle: '發文字軌', selected: true },
+  { key: 'certNo', label: '證書編號', customTitle: '證書編號', selected: true },
+  { key: 'tel', label: '電話', customTitle: '電話', selected: true },
+  { key: 'mobile', label: '手機', customTitle: '手機', selected: true },
+  { key: 'fax', label: '傳真', customTitle: '傳真', selected: true },
+  { key: 'unifiedNo', label: '統一編號', customTitle: '統一編號', selected: true },
+  { key: 'address', label: '地址', customTitle: '地址', selected: true },
+  { key: 'guildNo1', label: '公會名稱', customTitle: '公會名稱', selected: true },
+  { key: 'memberNo', label: '會員證號', customTitle: '會員證號', selected: true },
+  { key: 'email', label: 'E-MAIL', customTitle: 'E-MAIL', selected: true },
+  { key: 'officeName', label: '事務所名稱', customTitle: '事務所名稱', selected: false },
+  { key: 'memo', label: '備註', customTitle: '備註', selected: false },
+];
+
+/**
+ * Wbase1020Print (會計師/記帳士清冊列印)
+ * 繼承共用母版 FoxProPrintModal，具備與 wbase1030Print 一致的高對比現代化 UI、
+ * 條件篩選、網頁直接列印（不印出輸入框與按鈕）與「匯出 xlsx 設定」欄位自訂匯出功能。
+ */
 export const Wbase1020Print: React.FC = () => {
-  const { isDark } = useTheme();
-  const { isPrintOpen, closePrint, fetchPrintData } = useWbase1020();
-  const [cpaCodeStart, setCpaCodeStart] = useState('');
-  const [cpaCodeEnd, setCpaCodeEnd] = useState('');
-  const [reportList, setReportList] = useState<CpaItem[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { isPrintOpen, closePrint, fetchPrintData, printData, loading } = useWbase1020();
+  const [filter, setFilter] = useState<CpaPrintFilter>({
+    cpaCodeStart: '',
+    cpaCodeEnd: '',
+  });
+  const [hasSearched, setHasSearched] = useState(false);
 
+  // 當開啟列印預覽開窗時，預設自動載入所有會計師名冊
   useEffect(() => {
-    if (isPrintOpen) {
-      setCpaCodeStart('');
-      setCpaCodeEnd('');
-      setReportList(null);
+    if (isPrintOpen && !hasSearched) {
+      handleSearch();
     }
   }, [isPrintOpen]);
 
-  if (!isPrintOpen) return null;
-
-  const handleFetchReport = async () => {
-    setLoading(true);
-    const data = await fetchPrintData({
-      cpaCodeStart: cpaCodeStart.trim().toUpperCase(),
-      cpaCodeEnd: cpaCodeEnd.trim().toUpperCase(),
-    });
-    setReportList(data);
-    setLoading(false);
-  };
-
-  const handleTriggerBrowserPrint = () => {
-    window.print();
-  };
-
-  const handleExportCSV = () => {
-    if (!reportList || reportList.length === 0) return;
-    const headers = [
-      '代號',
-      '證書別',
-      '姓名',
-      '申報ID',
-      '證書年度或國稅別',
-      '發文字軌',
-      '證書編號',
-      '電話',
-      '手機',
-      '傳真',
-      '統一編號',
-      '地址',
-      '公會名稱',
-      '會員證號',
-      'E-MAIL',
-    ];
-    const rows = reportList.map((item) => [
-      `"${item.cpaCode}"`,
-      `"${item.certType || ''}"`,
-      `"${item.cpaName}"`,
-      `"${item.taxId || ''}"`,
-      `"${item.licenseNo || ''}"`,
-      `"${item.docTrack || ''}"`,
-      `"${item.certNo || ''}"`,
-      `"${item.tel || ''}"`,
-      `"${item.mobile || ''}"`,
-      `"${item.fax || ''}"`,
-      `"${item.unifiedNo || ''}"`,
-      `"${item.address || ''}"`,
-      `"${item.guildNo1 || ''}"`,
-      `"${item.guildNo2 || ''}"`,
-      `"${item.email || ''}"`,
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `會計師記帳士清冊_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleSearch = async () => {
+    await fetchPrintData(filter);
+    setHasSearched(true);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 font-mono">
-      <div
-        className={`border-4 rounded-lg shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] transition-colors ${
-          isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-blue-900 text-slate-800'
-        }`}
-      >
-        {/* Header */}
-        <div
-          className={`px-6 py-3 border-b-2 border-yellow-400 flex items-center justify-between print:hidden transition-colors ${
-            isDark ? 'bg-slate-950 text-white' : 'bg-blue-900 text-white'
-          }`}
-        >
-          <div className="flex items-center space-x-2">
-            <Printer className="w-6 h-6 text-yellow-400" />
-            <h3 className="text-xl font-bold tracking-wide text-yellow-300">
-              會計師清冊列印與設定 [F8]
-            </h3>
-          </div>
-          <button
-            onClick={closePrint}
-            className="text-gray-400 hover:text-white transition p-1 rounded hover:bg-slate-800"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* Filter Controls Bar */}
-        <div
-          className={`p-4 border-b flex flex-wrap items-center justify-between gap-4 print:hidden transition-colors ${
-            isDark ? 'bg-slate-800 border-gray-700' : 'bg-slate-100 border-slate-300'
-          }`}
-        >
-          <div className="flex items-center space-x-3 text-sm">
-            <span className={`font-bold ${isDark ? 'text-yellow-300' : 'text-blue-900'}`}>會計師代號區間：</span>
-            <input
-              type="text"
-              placeholder="起始代號 (如: C001)"
-              value={cpaCodeStart}
-              onChange={(e) => setCpaCodeStart(e.target.value.toUpperCase())}
-              className={`px-3 py-1.5 rounded font-mono w-40 focus:outline-none border ${
-                isDark
-                  ? 'bg-slate-900 border-gray-600 text-white focus:border-yellow-400'
-                  : 'bg-white border-slate-300 text-slate-800 focus:border-blue-500'
-              }`}
-            />
-            <span className={isDark ? 'text-gray-400' : 'text-slate-500'}>至</span>
-            <input
-              type="text"
-              placeholder="結束代號 (如: C999)"
-              value={cpaCodeEnd}
-              onChange={(e) => setCpaCodeEnd(e.target.value.toUpperCase())}
-              className={`px-3 py-1.5 rounded font-mono w-40 focus:outline-none border ${
-                isDark
-                  ? 'bg-slate-900 border-gray-600 text-white focus:border-yellow-400'
-                  : 'bg-white border-slate-300 text-slate-800 focus:border-blue-500'
-              }`}
-            />
-            <button
-              type="button"
-              onClick={handleFetchReport}
-              disabled={loading}
-              className="bg-blue-800 hover:bg-blue-700 border border-blue-500 text-yellow-300 px-4 py-1.5 rounded font-bold transition flex items-center space-x-1"
-            >
-              <Eye className="w-4 h-4" />
-              <span>{loading ? '載入中...' : '產生預覽'}</span>
-            </button>
-          </div>
-
-          {reportList && (
-            <div className="flex space-x-2">
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                className="bg-emerald-800 hover:bg-emerald-700 border border-emerald-500 text-white px-3 py-1.5 rounded font-bold text-xs flex items-center space-x-1"
-              >
-                <Download className="w-4 h-4" />
-                <span>匯出 CSV</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleTriggerBrowserPrint}
-                className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-1.5 rounded font-bold text-xs flex items-center space-x-1 shadow"
-              >
-                <Printer className="w-4 h-4" />
-                <span>列印 / 存為 PDF</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Printable Report Document Body */}
-        <div className="flex-1 p-6 overflow-y-auto bg-white text-black font-serif print:p-0 print:overflow-visible">
-          {!reportList ? (
-            <div className="text-center py-16 text-gray-500 font-mono">
-              <Printer className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-              <p className="text-lg">請點擊上方「產生預覽」以載入報表清冊資料。</p>
-            </div>
-          ) : reportList.length === 0 ? (
-            <div className="text-center py-16 text-red-500 font-mono">
-              <p className="text-lg font-bold">⚠️ 指定區間內查無會計師資料。</p>
-            </div>
-          ) : (
-            <div className="w-full">
-              {/* Report Header */}
-              <div className="text-center border-b-2 border-black pb-4 mb-4">
-                <h1 className="text-2xl font-bold tracking-widest font-mono">Wx3000 會計進銷存管理系統</h1>
-                <h2 className="text-xl font-bold tracking-wider mt-1 font-mono">基本會計師名冊清冊</h2>
-                <div className="flex justify-between text-xs text-gray-600 mt-3 font-mono">
-                  <span>列印日期：{new Date().toLocaleString('zh-TW')}</span>
-                  <span>
-                    代號篩選：{cpaCodeStart || '全部'} ~ {cpaCodeEnd || '全部'}
-                  </span>
-                  <span>總筆數：{reportList.length} 筆</span>
-                </div>
-              </div>
-
-              {/* Report Table */}
-              <table className="w-full text-xs border-collapse border border-black font-mono">
-                <thead>
-                  <tr className="bg-gray-200 border-b border-black">
-                    <th className="border border-black p-1 text-left w-12">代號</th>
-                    <th className="border border-black p-1 text-center w-12">證書別</th>
-                    <th className="border border-black p-1 text-left w-24">姓名</th>
-                    <th className="border border-black p-1 text-left w-20">申報ID</th>
-                    <th className="border border-black p-1 text-left w-16">證書年度</th>
-                    <th className="border border-black p-1 text-center w-14">字軌</th>
-                    <th className="border border-black p-1 text-left w-18">證書編號</th>
-                    <th className="border border-black p-1 text-left w-24">電話</th>
-                    <th className="border border-black p-1 text-left w-20">統一編號</th>
-                    <th className="border border-black p-1 text-left">地址</th>
-                    <th className="border border-black p-1 text-left w-28">公會名稱</th>
-                    <th className="border border-black p-1 text-left w-20">會員證號</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportList.map((item, idx) => (
-                    <tr key={item.cpaCode} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
-                      <td className="border border-black p-1 font-bold">{item.cpaCode}</td>
-                      <td className="border border-black p-1 text-center">{item.certType || '-'}</td>
-                      <td className="border border-black p-1">{item.cpaName}</td>
-                      <td className="border border-black p-1">{item.taxId || '-'}</td>
-                      <td className="border border-black p-1">{item.licenseNo || '-'}</td>
-                      <td className="border border-black p-1 text-center">{item.docTrack || '-'}</td>
-                      <td className="border border-black p-1">{item.certNo || '-'}</td>
-                      <td className="border border-black p-1">{item.tel || '-'}</td>
-                      <td className="border border-black p-1">{item.unifiedNo || '-'}</td>
-                      <td className="border border-black p-1">{item.address || '-'}</td>
-                      <td className="border border-black p-1">{item.guildNo1 || '-'}</td>
-                      <td className="border border-black p-1">{item.guildNo2 || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Report Footer */}
-              <div className="mt-6 flex justify-between text-xs text-gray-600 border-t border-gray-400 pt-2 font-mono">
-                <span>製表人員：系統管理者</span>
-                <span>頁碼：1 / 1</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Modal Action Bar */}
-        <div className={`px-6 py-3 border-t flex justify-end print:hidden ${isDark ? 'bg-slate-950 border-gray-800' : 'bg-slate-100 border-slate-300'}`}>
-          <button
-            type="button"
-            onClick={closePrint}
-            className={`px-6 py-2 rounded font-bold transition text-sm ${
-              isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-slate-800'
-            }`}
-          >
-            關閉 (Esc)
-          </button>
-        </div>
-      </div>
-    </div>
+    <FoxProPrintModal<CpaItem>
+      isOpen={isPrintOpen}
+      onClose={closePrint}
+      title="會計師/記帳士清冊列印 [F7/F8]"
+      subtitle="選擇列印範圍區間並進行預覽"
+      reportTitle="基本會計師名冊清冊"
+      maxWidth="max-w-5xl"
+      startCodeLabel="起始會計師代號："
+      startCodePlaceholder="例如: C001 (留空代表從頭)"
+      startCodeValue={filter.cpaCodeStart || ''}
+      onStartCodeChange={(val) => setFilter((prev) => ({ ...prev, cpaCodeStart: val }))}
+      endCodeLabel="結束會計師代號："
+      endCodePlaceholder="例如: C999 (留空代表至尾)"
+      endCodeValue={filter.cpaCodeEnd || ''}
+      onEndCodeChange={(val) => setFilter((prev) => ({ ...prev, cpaCodeEnd: val }))}
+      onSearch={handleSearch}
+      data={printData}
+      columns={CPA_PRINT_COLUMNS}
+      getRowKey={(row) => row.cpaCode}
+      loading={loading}
+      hasSearched={hasSearched}
+      emptyText="⚠️ 該區間內查無會計師資料"
+      xlsxStorageKey="wbase1020_xlsx_export_config"
+      xlsxFields={CPA_XLSX_FIELDS}
+      xlsxFileName="會計師記帳士清冊"
+    />
   );
 };

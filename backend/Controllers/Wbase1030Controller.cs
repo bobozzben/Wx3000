@@ -92,22 +92,31 @@ namespace Wx3000.Backend.Controllers
                 {
                     var kw = keyword.Trim().ToLower();
                     queryable = queryable.Where(e =>
-                        e.EmpCode.ToLower().Contains(kw) ||
-                        e.EmpName.ToLower().Contains(kw) ||
-                        (e.DepName != null && e.DepName.ToLower().Contains(kw))
+                        e.No.ToLower().Contains(kw) ||
+                        e.Name.ToLower().Contains(kw) ||
+                        (e.Tel != null && e.Tel.ToLower().Contains(kw)) ||
+                        (e.Id != null && e.Id.ToLower().Contains(kw)) ||
+                        (e.Memo != null && e.Memo.ToLower().Contains(kw)) ||
+                        (e.Phone != null && e.Phone.ToLower().Contains(kw))
                     );
                 }
 
-                var rawList = await queryable.OrderBy(e => e.EmpCode).ToListAsync();
+                var rawList = await queryable.OrderBy(e => e.No).ToListAsync();
                 var list = rawList.Select(e => new EmpMaster
                 {
-                    EmpCode = e.EmpCode?.Trim() ?? string.Empty,
-                    EmpName = e.EmpName?.Trim() ?? string.Empty,
-                    DepName = e.DepName?.Trim() ?? string.Empty,
-                    Mobile = e.Mobile?.Trim() ?? string.Empty,
-                    Email = e.Email?.Trim() ?? string.Empty,
+                    No = e.No?.Trim() ?? string.Empty,
+                    Name = e.Name?.Trim() ?? string.Empty,
+                    Psw = e.Psw?.Trim() ?? string.Empty,
+                    Birthday = e.Birthday?.Trim() ?? string.Empty,
+                    Tel = e.Tel?.Trim() ?? string.Empty,
+                    Id = e.Id?.Trim() ?? string.Empty,
+                    Addr = e.Addr?.Trim() ?? string.Empty,
+                    Memo = e.Memo?.Trim() ?? string.Empty,
                     OneUserId = e.OneUserId?.Trim() ?? string.Empty,
                     OnePassNo = e.OnePassNo?.Trim() ?? string.Empty,
+                    Phone = e.Phone?.Trim() ?? string.Empty,
+                    Email = e.Email?.Trim() ?? string.Empty,
+                    RecordNumber = e.RecordNumber
                 }).ToList();
 
                 return Ok(list);
@@ -128,19 +137,24 @@ namespace Wx3000.Backend.Controllers
             await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
 
             var targetCode = code.Trim().ToUpper();
-            var item = await _context.EmpMasters.FirstOrDefaultAsync(e => e.EmpCode.Trim() == targetCode);
+            var item = await _context.EmpMasters.FirstOrDefaultAsync(e => e.No.Trim() == targetCode);
             if (item == null)
             {
                 return NotFound(new { message = $"找不到編號為 '{code}' 的人員資料" });
             }
 
-            item.EmpCode = item.EmpCode?.Trim() ?? string.Empty;
-            item.EmpName = item.EmpName?.Trim() ?? string.Empty;
-            item.DepName = item.DepName?.Trim() ?? string.Empty;
-            item.Mobile = item.Mobile?.Trim() ?? string.Empty;
-            item.Email = item.Email?.Trim() ?? string.Empty;
+            item.No = item.No?.Trim() ?? string.Empty;
+            item.Name = item.Name?.Trim() ?? string.Empty;
+            item.Psw = item.Psw?.Trim() ?? string.Empty;
+            item.Birthday = item.Birthday?.Trim() ?? string.Empty;
+            item.Tel = item.Tel?.Trim() ?? string.Empty;
+            item.Id = item.Id?.Trim() ?? string.Empty;
+            item.Addr = item.Addr?.Trim() ?? string.Empty;
+            item.Memo = item.Memo?.Trim() ?? string.Empty;
             item.OneUserId = item.OneUserId?.Trim() ?? string.Empty;
             item.OnePassNo = item.OnePassNo?.Trim() ?? string.Empty;
+            item.Phone = item.Phone?.Trim() ?? string.Empty;
+            item.Email = item.Email?.Trim() ?? string.Empty;
 
             return Ok(item);
         }
@@ -149,35 +163,44 @@ namespace Wx3000.Backend.Controllers
         [HttpPost]
         public async Task<ActionResult<EmpMaster>> Create([FromBody] EmpMaster input)
         {
-            if (input == null || string.IsNullOrWhiteSpace(input.EmpCode))
+            var rawCode = !string.IsNullOrWhiteSpace(input?.No) ? input.No : input?.EmpCode;
+            if (input == null || string.IsNullOrWhiteSpace(rawCode))
             {
-                return BadRequest(new { message = "人員編號為必填欄位" });
+                return BadRequest(new { message = "編號為必填欄位" });
             }
 
-            var code = input.EmpCode.Trim().ToUpper();
-            input.EmpCode = code;
-            input.EmpName = input.EmpName?.Trim() ?? string.Empty;
-            input.DepName = input.DepName?.Trim() ?? string.Empty;
-            input.Mobile = input.Mobile?.Trim() ?? string.Empty;
-            input.Email = input.Email?.Trim() ?? string.Empty;
-            input.OneUserId = input.OneUserId?.Trim() ?? string.Empty;
-            input.OnePassNo = input.OnePassNo?.Trim() ?? string.Empty;
-            input.Psw = input.Psw?.Trim() ?? string.Empty;
-            input.Birthday = input.Birthday?.Trim() ?? string.Empty;
+            var code = rawCode.Trim().ToUpper();
+            input.No = code;
+            input.Name = (input.Name ?? input.EmpName ?? string.Empty).Trim();
+            input.Psw = (input.Psw ?? string.Empty).Trim();
+            input.Birthday = (input.Birthday ?? string.Empty).Trim();
+            input.Tel = (input.Tel ?? string.Empty).Trim();
+            input.Id = (input.Id ?? string.Empty).Trim();
+            input.Addr = (input.Addr ?? string.Empty).Trim();
+            input.Memo = (input.Memo ?? input.DepName ?? string.Empty).Trim();
+            input.OneUserId = (input.OneUserId ?? string.Empty).Trim();
+            input.OnePassNo = (input.OnePassNo ?? string.Empty).Trim();
+            input.Phone = (input.Phone ?? input.Mobile ?? string.Empty).Trim();
+            input.Email = (input.Email ?? string.Empty).Trim();
 
-            var existing = await _context.EmpMasters.FirstOrDefaultAsync(e => e.EmpCode.Trim() == code);
+            var existing = await _context.EmpMasters.FirstOrDefaultAsync(e => e.No.Trim() == code);
             var operation = existing != null ? "UPDATE" : "INSERT";
 
-            // 1. 組裝 DBF 欄位清單
+            // 1. 組裝 DBF 12 個欄位清單
             var fields = new Dictionary<string, object?>
             {
                 ["no"] = code,
-                ["name"] = input.EmpName,
-                ["memo"] = input.DepName,
-                ["phone"] = input.Mobile,
-                ["email"] = input.Email,
+                ["name"] = input.Name,
+                ["psw"] = input.Psw,
+                ["birthday"] = input.Birthday,
+                ["tel"] = input.Tel,
+                ["id"] = input.Id,
+                ["addr"] = input.Addr,
+                ["memo"] = input.Memo,
                 ["oneuserid"] = input.OneUserId,
-                ["onepassno"] = input.OnePassNo
+                ["onepassno"] = input.OnePassNo,
+                ["phone"] = input.Phone,
+                ["email"] = input.Email
             };
 
             // 2. 核心原則：DBF 絕對權威！先寫 DBF
@@ -202,15 +225,19 @@ namespace Wx3000.Backend.Controllers
             // 3. DBF 寫入成功後才 Commit 至 PostgreSQL
             if (existing != null)
             {
-                existing.EmpName = input.EmpName;
-                existing.DepName = input.DepName;
-                existing.Mobile = input.Mobile;
-                existing.Email = input.Email;
-                existing.OneUserId = input.OneUserId;
-                existing.OnePassNo = input.OnePassNo;
+                existing.Name = input.Name;
                 existing.Psw = input.Psw;
                 existing.Birthday = input.Birthday;
-                if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
+                existing.Tel = input.Tel;
+                existing.Id = input.Id;
+                existing.Addr = input.Addr;
+                existing.Memo = input.Memo;
+                existing.OneUserId = input.OneUserId;
+                existing.OnePassNo = input.OnePassNo;
+                existing.Phone = input.Phone;
+                existing.Email = input.Email;
+                if (dbfResult.Recno > 0 && existing.RecordNumber != dbfResult.Recno)
+                    existing.RecordNumber = dbfResult.Recno;
 
                 await _context.SaveChangesAsync();
                 var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
@@ -227,7 +254,7 @@ namespace Wx3000.Backend.Controllers
             if (!string.IsNullOrEmpty(newCsum))
                 await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newCsum);
 
-            return CreatedAtAction(nameof(GetByCode), new { code = input.EmpCode }, input);
+            return CreatedAtAction(nameof(GetByCode), new { code = input.No }, input);
         }
 
         // PUT: api/wbase1030/{code} (Upsert: Create if not exists, Update if exists)
@@ -237,29 +264,37 @@ namespace Wx3000.Backend.Controllers
             if (string.IsNullOrWhiteSpace(code)) return BadRequest("編號不可為空");
 
             var targetCode = code.Trim().ToUpper();
-            input.EmpCode = targetCode;
-            input.EmpName = input.EmpName?.Trim() ?? string.Empty;
-            input.DepName = input.DepName?.Trim() ?? string.Empty;
-            input.Mobile = input.Mobile?.Trim() ?? string.Empty;
-            input.Email = input.Email?.Trim() ?? string.Empty;
-            input.OneUserId = input.OneUserId?.Trim() ?? string.Empty;
-            input.OnePassNo = input.OnePassNo?.Trim() ?? string.Empty;
-            input.Psw = input.Psw?.Trim() ?? string.Empty;
-            input.Birthday = input.Birthday?.Trim() ?? string.Empty;
+            input.No = targetCode;
+            input.Name = (input.Name ?? input.EmpName ?? string.Empty).Trim();
+            input.Psw = (input.Psw ?? string.Empty).Trim();
+            input.Birthday = (input.Birthday ?? string.Empty).Trim();
+            input.Tel = (input.Tel ?? string.Empty).Trim();
+            input.Id = (input.Id ?? string.Empty).Trim();
+            input.Addr = (input.Addr ?? string.Empty).Trim();
+            input.Memo = (input.Memo ?? input.DepName ?? string.Empty).Trim();
+            input.OneUserId = (input.OneUserId ?? string.Empty).Trim();
+            input.OnePassNo = (input.OnePassNo ?? string.Empty).Trim();
+            input.Phone = (input.Phone ?? input.Mobile ?? string.Empty).Trim();
+            input.Email = (input.Email ?? string.Empty).Trim();
 
-            var existing = await _context.EmpMasters.FirstOrDefaultAsync(e => e.EmpCode.Trim() == targetCode);
+            var existing = await _context.EmpMasters.FirstOrDefaultAsync(e => e.No.Trim() == targetCode);
             var operation = existing != null ? "UPDATE" : "INSERT";
 
-            // 1. 組裝 DBF 欄位清單
+            // 1. 組裝 DBF 12 個欄位清單
             var fields = new Dictionary<string, object?>
             {
                 ["no"] = targetCode,
-                ["name"] = input.EmpName,
-                ["memo"] = input.DepName,
-                ["phone"] = input.Mobile,
-                ["email"] = input.Email,
+                ["name"] = input.Name,
+                ["psw"] = input.Psw,
+                ["birthday"] = input.Birthday,
+                ["tel"] = input.Tel,
+                ["id"] = input.Id,
+                ["addr"] = input.Addr,
+                ["memo"] = input.Memo,
                 ["oneuserid"] = input.OneUserId,
-                ["onepassno"] = input.OnePassNo
+                ["onepassno"] = input.OnePassNo,
+                ["phone"] = input.Phone,
+                ["email"] = input.Email
             };
 
             // 2. 核心原則：DBF 絕對權威！先寫 DBF
@@ -294,15 +329,19 @@ namespace Wx3000.Backend.Controllers
                 return Ok(input);
             }
 
-            existing.EmpName = input.EmpName;
-            existing.DepName = input.DepName;
-            existing.Mobile = input.Mobile;
-            existing.Email = input.Email;
-            existing.OneUserId = input.OneUserId;
-            existing.OnePassNo = input.OnePassNo;
+            existing.Name = input.Name;
             existing.Psw = input.Psw;
             existing.Birthday = input.Birthday;
-            if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
+            existing.Tel = input.Tel;
+            existing.Id = input.Id;
+            existing.Addr = input.Addr;
+            existing.Memo = input.Memo;
+            existing.OneUserId = input.OneUserId;
+            existing.OnePassNo = input.OnePassNo;
+            existing.Phone = input.Phone;
+            existing.Email = input.Email;
+            if (dbfResult.Recno > 0 && existing.RecordNumber != dbfResult.Recno)
+                existing.RecordNumber = dbfResult.Recno;
 
             await _context.SaveChangesAsync();
             var updatedChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
@@ -319,7 +358,7 @@ namespace Wx3000.Backend.Controllers
             if (string.IsNullOrWhiteSpace(code)) return BadRequest("編號不可為空");
 
             var targetCode = code.Trim().ToUpper();
-            var existing = await _context.EmpMasters.FirstOrDefaultAsync(e => e.EmpCode.Trim() == targetCode);
+            var existing = await _context.EmpMasters.FirstOrDefaultAsync(e => e.No.Trim() == targetCode);
             if (existing == null)
             {
                 return NotFound(new { message = $"找不到編號為 '{targetCode}' 的人員資料" });
@@ -371,25 +410,31 @@ namespace Wx3000.Backend.Controllers
             if (!string.IsNullOrWhiteSpace(req.CodeStart))
             {
                 var start = req.CodeStart.Trim().ToUpper();
-                queryable = queryable.Where(e => string.Compare(e.EmpCode.Trim(), start) >= 0);
+                queryable = queryable.Where(e => string.Compare(e.No.Trim(), start) >= 0);
             }
 
             if (!string.IsNullOrWhiteSpace(req.CodeEnd))
             {
                 var end = req.CodeEnd.Trim().ToUpper();
-                queryable = queryable.Where(e => string.Compare(e.EmpCode.Trim(), end) <= 0);
+                queryable = queryable.Where(e => string.Compare(e.No.Trim(), end) <= 0);
             }
 
-            var rawList = await queryable.OrderBy(e => e.EmpCode).ToListAsync();
+            var rawList = await queryable.OrderBy(e => e.No).ToListAsync();
             var list = rawList.Select(e => new EmpMaster
             {
-                EmpCode = e.EmpCode?.Trim() ?? string.Empty,
-                EmpName = e.EmpName?.Trim() ?? string.Empty,
-                DepName = e.DepName?.Trim() ?? string.Empty,
-                Mobile = e.Mobile?.Trim() ?? string.Empty,
-                Email = e.Email?.Trim() ?? string.Empty,
+                No = e.No?.Trim() ?? string.Empty,
+                Name = e.Name?.Trim() ?? string.Empty,
+                Psw = e.Psw?.Trim() ?? string.Empty,
+                Birthday = e.Birthday?.Trim() ?? string.Empty,
+                Tel = e.Tel?.Trim() ?? string.Empty,
+                Id = e.Id?.Trim() ?? string.Empty,
+                Addr = e.Addr?.Trim() ?? string.Empty,
+                Memo = e.Memo?.Trim() ?? string.Empty,
                 OneUserId = e.OneUserId?.Trim() ?? string.Empty,
                 OnePassNo = e.OnePassNo?.Trim() ?? string.Empty,
+                Phone = e.Phone?.Trim() ?? string.Empty,
+                Email = e.Email?.Trim() ?? string.Empty,
+                RecordNumber = e.RecordNumber
             }).ToList();
 
             return Ok(list);

@@ -63,9 +63,6 @@ export const setDataDrive = (drive: string, isConfigured: boolean = true): strin
       localStorage.setItem(STORAGE_KEY_DATA_DRIVE_CONFIGURED, 'true');
     }
   }
-  if (axios.defaults.headers.common) {
-    axios.defaults.headers.common['X-Data-Drive'] = normalized;
-  }
   return normalized;
 };
 
@@ -129,10 +126,6 @@ export const setApiServerUrl = (url: string): string => {
  */
 export const applyApiServerUrl = (serverUrl: string) => {
   axios.defaults.baseURL = serverUrl;
-  if (!axios.defaults.headers.common) {
-    axios.defaults.headers.common = {};
-  }
-  axios.defaults.headers.common['X-Data-Drive'] = getDataDrive();
 };
 
 /**
@@ -297,10 +290,18 @@ export const initApiConfig = () => {
       if (!config.headers) {
         config.headers = {} as any;
       }
-      config.headers['X-Data-Drive'] = getDataDrive();
+      if (typeof (config.headers as any).set === 'function') {
+        (config.headers as any).set('X-Data-Drive', getDataDrive());
+      } else {
+        config.headers['X-Data-Drive'] = getDataDrive();
+      }
     } else {
-      // 外部服務 (例如 LocalAgent http://localhost:18889)，移除 X-Data-Drive 防止觸發跨域 CORS Preflight 攔截
+      // 外部服務 (例如 LocalAgent http://localhost:18889)，徹底清除 X-Data-Drive 防止觸發跨域 CORS Preflight 攔截
       if (config.headers) {
+        if (typeof (config.headers as any).delete === 'function') {
+          (config.headers as any).delete('X-Data-Drive');
+          (config.headers as any).delete('x-data-drive');
+        }
         delete (config.headers as any)['X-Data-Drive'];
         delete (config.headers as any)['x-data-drive'];
       }

@@ -224,7 +224,19 @@ namespace Wx3000.Backend.Data
                         CONSTRAINT PK_buyinv PRIMARY KEY (_record_number)
                     );
 
-                    -- 補齊既有 buyinv 與 customer 可能缺漏之欄位 (自動修復歷史 Schema)
+                    -- 補齊既有 keyin, buyinv 與 customer 可能缺漏之欄位 (自動修復歷史 Schema)
+                    ALTER TABLE ""{safeSchema}"".keyin
+                        ADD COLUMN IF NOT EXISTS psw character varying(255) NOT NULL DEFAULT '',
+                        ADD COLUMN IF NOT EXISTS birthday character varying(255) NOT NULL DEFAULT '',
+                        ADD COLUMN IF NOT EXISTS tel character varying(255) NOT NULL DEFAULT '',
+                        ADD COLUMN IF NOT EXISTS addr character varying(255) NOT NULL DEFAULT '',
+                        ADD COLUMN IF NOT EXISTS id character varying(255) NOT NULL DEFAULT '',
+                        ADD COLUMN IF NOT EXISTS memo character varying(255) NOT NULL DEFAULT '',
+                        ADD COLUMN IF NOT EXISTS oneuserid character varying(255) NOT NULL DEFAULT '',
+                        ADD COLUMN IF NOT EXISTS onepassno character varying(255) NOT NULL DEFAULT '',
+                        ADD COLUMN IF NOT EXISTS phone character varying(255) NOT NULL DEFAULT '',
+                        ADD COLUMN IF NOT EXISTS email character varying(255) NOT NULL DEFAULT '';
+
                     ALTER TABLE ""{safeSchema}"".customer
                         ADD COLUMN IF NOT EXISTS placeno character varying(255) NOT NULL DEFAULT '',
                         ADD COLUMN IF NOT EXISTS keyin character varying(255) NOT NULL DEFAULT '',

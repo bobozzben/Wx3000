@@ -39,6 +39,42 @@ namespace Wx3000.Backend.Models
         [Column("_record_number")]
         public int RecordNumber { get; set; } = 0;
 
+        // DBF exact field aliases
+        [NotMapped]
+        public string No
+        {
+            get => TaxCode;
+            set { if (!string.IsNullOrEmpty(value)) TaxCode = value; }
+        }
+
+        [NotMapped]
+        public string Name
+        {
+            get => TaxName;
+            set { if (!string.IsNullOrEmpty(value)) TaxName = value; }
+        }
+
+        [NotMapped]
+        public string Department
+        {
+            get => Unit;
+            set { if (!string.IsNullOrEmpty(value)) Unit = value; }
+        }
+
+        [NotMapped]
+        public string Helpman
+        {
+            get => TaxBureau;
+            set { if (!string.IsNullOrEmpty(value)) TaxBureau = value; }
+        }
+
+        [NotMapped]
+        public string Addr
+        {
+            get => Address;
+            set { if (!string.IsNullOrEmpty(value)) Address = value; }
+        }
+
         [NotMapped]
         public string Ext { get; set; } = string.Empty;
 

@@ -4,23 +4,45 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Wx3000.Backend.Models
 {
-    [Table("recnote", Schema = "c:/w3000/comm")]
+    [Table("recmemo", Schema = "c:/w3000/comm")]
     public class FeeSummaryMaster
     {
         [Key]
-        [Column("noteno")]
+        [Column("mno")]
         [StringLength(255)]
-        public string SummaryCode { get; set; } = string.Empty;
+        public string Mno { get; set; } = string.Empty;
 
-        [Column("note")]
+        [Column("tx")]
         [StringLength(255)]
-        public string SummaryName { get; set; } = string.Empty;
+        public string Tx { get; set; } = string.Empty;
+
+        [Column("memo")]
+        public string Memo { get; set; } = string.Empty;
 
         [Column("_record_number")]
         public int RecordNumber { get; set; } = 0;
 
+        // 相容舊有別名 (Legacy Aliases)
         [NotMapped]
-        public string Content { get; set; } = string.Empty;
+        public string SummaryCode
+        {
+            get => Mno;
+            set => Mno = value;
+        }
+
+        [NotMapped]
+        public string SummaryName
+        {
+            get => Tx;
+            set => Tx = value;
+        }
+
+        [NotMapped]
+        public string Content
+        {
+            get => Memo;
+            set => Memo = value;
+        }
 
         [NotMapped]
         public int? Seq { get; set; }

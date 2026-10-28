@@ -107,7 +107,7 @@ export const Wbase1070Page: React.FC<Wbase1070PageProps> = ({ onBackToMenu }) =>
             <div className="relative">
               <input
                 type="text"
-                placeholder="搜尋備註代號 / 說明..."
+                placeholder="搜尋編號 / 備註內容..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={`w-36 sm:w-48 px-2.5 py-1 rounded text-xs focus:outline-none border ${
@@ -139,9 +139,9 @@ export const Wbase1070Page: React.FC<Wbase1070PageProps> = ({ onBackToMenu }) =>
             if (onBackToMenu) onBackToMenu();
           }}
           statusBarInfo={(row) =>
-            row && row.noteCode ? (
+            row && (row.noteno || row.noteCode) ? (
               <span className="text-xs">
-                目前選取：[{row.noteCode}] {row.noteName} | 備註內容：{row.content || '-'}
+                目前選取：[{row.noteno || row.noteCode}] {row.note || row.content || '-'}
               </span>
             ) : null
           }
@@ -150,7 +150,7 @@ export const Wbase1070Page: React.FC<Wbase1070PageProps> = ({ onBackToMenu }) =>
             setSelectedIndex(idx);
           }}
           onInsertRow={() => {
-            const newRow = { noteCode: '', noteName: '', content: '' };
+            const newRow = { noteno: '', note: '', _record_number: 0 };
             setRows([...rows, newRow]);
           }}
           onDeleteRow={() => openDeleteConfirm()}
@@ -169,15 +169,15 @@ export const Wbase1070Page: React.FC<Wbase1070PageProps> = ({ onBackToMenu }) =>
           >
             <div className="flex items-center space-x-3 text-red-500 mb-4">
               <AlertTriangle className="w-8 h-8 shrink-0" />
-              <h3 className="text-lg font-bold">確認刪除該筆基本備註？</h3>
+              <h3 className="text-lg font-bold">確認刪除該筆收費備註？</h3>
             </div>
             <p className="text-sm mb-6 leading-relaxed">
-              您即將刪除基本備註：
+              您即將刪除收費備註：
               <span className="font-bold text-yellow-400 ml-1">
-                [{selectedRow.noteCode}] {selectedRow.noteName}
+                [{selectedRow.noteno || selectedRow.noteCode}] {selectedRow.note || selectedRow.content}
               </span>
               <br />
-              此操作將從 PostgreSQL 資料庫中移除資料，無法復原。
+              此操作將從地端 DBF 與 PostgreSQL 資料庫中移除資料，無法復原。
             </p>
             <div className="flex justify-end space-x-3">
               <button

@@ -24,5 +24,27 @@ namespace Wx3000.Backend.Models
 
         [NotMapped]
         public string Guid { get; set; } = string.Empty;
+
+        // DBF exact field aliases
+        [NotMapped]
+        public string ItemNo
+        {
+            get => FeeCode;
+            set { if (!string.IsNullOrEmpty(value)) FeeCode = value; }
+        }
+
+        [NotMapped]
+        public string Item
+        {
+            get => FeeName;
+            set { if (!string.IsNullOrEmpty(value)) FeeName = value; }
+        }
+
+        [NotMapped]
+        public decimal Amt
+        {
+            get => Price;
+            set => Price = value;
+        }
     }
 }

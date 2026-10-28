@@ -146,7 +146,7 @@ export function FoxProGridCard<T extends Record<string, any>>({
 
   return (
     <div
-      className={`rounded-[12px] border overflow-hidden transition-colors flex flex-col w-full h-full min-h-0 flex-1 ${
+      className={`rounded-[12px] border overflow-hidden transition-colors flex flex-col w-full h-full min-h-0 flex-1 print:border-none print:shadow-none print:h-auto print:overflow-visible ${
         isDark
           ? 'bg-slate-800 border-slate-700/80 shadow-md'
           : 'bg-white border-2 border-blue-900 shadow-md'
@@ -183,8 +183,8 @@ export function FoxProGridCard<T extends Record<string, any>>({
       )}
 
       {/* Horizontal Scroll Wrapper (Locks Header & Rows together) */}
-      <div className="overflow-x-auto overflow-y-hidden flex-1 min-h-0 flex flex-col">
-        <div className="min-w-full w-max flex-1 min-h-0 flex flex-col">
+      <div className="overflow-x-auto overflow-y-hidden flex-1 min-h-0 flex flex-col print:overflow-visible print:w-full">
+        <div className="min-w-full w-max flex-1 min-h-0 flex flex-col print:w-full">
           {/* Mobile Header Bar (Only visible on small screens < md when mergeHeader is true) */}
           {mergeHeader && (
             <div
@@ -270,7 +270,7 @@ export function FoxProGridCard<T extends Record<string, any>>({
             tabIndex={0}
             onKeyDown={onKeyDown}
             onScroll={handleScroll}
-            className={`relative outline-none flex-1 min-h-0 ${maxHeight} overflow-y-auto divide-y focus:ring-2 focus:ring-blue-500/20 focus:ring-inset ${
+            className={`relative outline-none flex-1 min-h-0 ${maxHeight} overflow-y-auto divide-y focus:ring-2 focus:ring-blue-500/20 focus:ring-inset print:overflow-visible print:h-auto ${
               isDark ? 'divide-slate-700/50 bg-slate-900' : 'divide-gray-200 bg-[#f8fafc]'
             }`}
             aria-label={`${title} Grid`}

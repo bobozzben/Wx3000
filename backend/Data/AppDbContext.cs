@@ -41,8 +41,8 @@ namespace Wx3000.Backend.Data
             modelBuilder.Entity<TaxOfficerMaster>().ToTable("taxno", schema);
             modelBuilder.Entity<CompanyMaster>().ToTable("customer", schema);
             modelBuilder.Entity<FeeItemMaster>().ToTable("recitem", schema);
-            modelBuilder.Entity<FeeSummaryMaster>().ToTable("recnote", schema);
-            modelBuilder.Entity<NoteMaster>().ToTable("recmemo", schema);
+            modelBuilder.Entity<FeeSummaryMaster>().ToTable("recmemo", schema);
+            modelBuilder.Entity<NoteMaster>().ToTable("recnote", schema);
             modelBuilder.Entity<TicketPlaceMaster>().ToTable("place", schema);
             modelBuilder.Entity<InvoicePurchaseMaster>().ToTable("buyinv", schema);
 

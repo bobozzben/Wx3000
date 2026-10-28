@@ -12,7 +12,6 @@ import {
   printTaxOfficerList,
   callWaccrep3106b,
 } from '../../services/wbase1050';
-import { isValidEmail, EMAIL_SAVE_WARNING_TOAST } from '../../services/validation';
 
 interface Wbase1050State {
   rows: TaxOfficerItem[];
@@ -76,19 +75,16 @@ export const useWbase1050 = create<Wbase1050State>((set, get) => ({
   },
 
   handleSaveRow: async (updatedRow) => {
-    if (!updatedRow.taxCode || !updatedRow.taxCode.trim()) return;
+    const code = (updatedRow.no || updatedRow.taxCode || '').trim();
+    if (!code) return;
     try {
-      const isNew = !get().rows.some((r) => r.taxCode === updatedRow.taxCode);
+      const isNew = !get().rows.some((r) => (r.no || r.taxCode) === code);
       if (isNew) {
         await createTaxOfficer(updatedRow);
       } else {
-        await updateTaxOfficer(updatedRow.taxCode.trim(), updatedRow);
+        await updateTaxOfficer(code, updatedRow);
       }
-      const isEmailInvalid = !isValidEmail(updatedRow.email);
-      const toastMsg = isEmailInvalid
-        ? EMAIL_SAVE_WARNING_TOAST
-        : '已成功儲存至 PostgreSQL 資料庫！';
-      set({ showAutoCloseToast: true, toastMessage: toastMsg });
+      set({ showAutoCloseToast: true, toastMessage: '已成功儲存至地端 DBF 與雲端資料庫！' });
       setTimeout(() => set({ showAutoCloseToast: false }), 3000);
       await get().refreshData();
     } catch (e) {
@@ -101,15 +97,12 @@ export const useWbase1050 = create<Wbase1050State>((set, get) => ({
     set({ loading: true });
     try {
       for (const row of get().rows) {
-        if (row.taxCode && row.taxCode.trim()) {
-          await updateTaxOfficer(row.taxCode.trim(), row);
+        const code = (row.no || row.taxCode || '').trim();
+        if (code) {
+          await updateTaxOfficer(code, row);
         }
       }
-      const hasInvalidEmail = get().rows.some((r) => !isValidEmail(r.email));
-      const toastMsg = hasInvalidEmail
-        ? EMAIL_SAVE_WARNING_TOAST
-        : '已成功儲存至 PostgreSQL 資料庫！';
-      set({ showAutoCloseToast: true, toastMessage: toastMsg });
+      set({ showAutoCloseToast: true, toastMessage: '已成功儲存至地端 DBF 與雲端資料庫！' });
       setTimeout(() => set({ showAutoCloseToast: false }), 3000);
       await get().refreshData();
     } catch (e) {
@@ -128,7 +121,8 @@ export const useWbase1050 = create<Wbase1050State>((set, get) => ({
   confirmDelete: async () => {
     const { rows, selectedIndex, refreshData } = get();
     const target = rows[selectedIndex];
-    if (!target || !target.taxCode) {
+    const code = (target?.no || target?.taxCode || '').trim();
+    if (!target || !code) {
       const newRows = [...rows];
       newRows.splice(selectedIndex, 1);
       set({ rows: newRows, isDeleteConfirmOpen: false });
@@ -136,7 +130,7 @@ export const useWbase1050 = create<Wbase1050State>((set, get) => ({
     }
 
     try {
-      const res = await deleteTaxOfficer(target.taxCode);
+      const res = await deleteTaxOfficer(code);
       if (res) {
         set({
           selectedIndex: Math.max(0, selectedIndex - 1),

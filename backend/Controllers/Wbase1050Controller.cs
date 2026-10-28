@@ -49,7 +49,10 @@ namespace Wx3000.Backend.Controllers
                         t.TaxCode.ToLower().Contains(kw) ||
                         t.TaxName.ToLower().Contains(kw) ||
                         t.TaxBureau.ToLower().Contains(kw) ||
-                        t.Unit.ToLower().Contains(kw)
+                        t.Unit.ToLower().Contains(kw) ||
+                        t.Tel.ToLower().Contains(kw) ||
+                        t.Address.ToLower().Contains(kw) ||
+                        t.Memo.ToLower().Contains(kw)
                     );
                 }
 
@@ -113,23 +116,24 @@ namespace Wx3000.Backend.Controllers
         [HttpPost]
         public async Task<ActionResult<TaxOfficerMaster>> Create([FromBody] TaxOfficerMaster input)
         {
-            if (input == null || string.IsNullOrWhiteSpace(input.TaxCode))
+            if (input == null || (string.IsNullOrWhiteSpace(input.TaxCode) && string.IsNullOrWhiteSpace(input.No)))
             {
-                return BadRequest(new { message = "稅務人員編號為必填欄位" });
+                return BadRequest(new { message = "稅務人員代號為必填欄位" });
             }
 
-            var code = input.TaxCode.Trim().ToUpper();
+            var rawCode = !string.IsNullOrWhiteSpace(input.TaxCode) ? input.TaxCode : input.No;
+            var code = rawCode.Trim().ToUpper();
             input.TaxCode = code;
-            input.TaxName = input.TaxName?.Trim() ?? string.Empty;
-            input.TaxBureau = input.TaxBureau?.Trim() ?? string.Empty;
-            input.Unit = input.Unit?.Trim() ?? string.Empty;
+            input.TaxName = (!string.IsNullOrWhiteSpace(input.TaxName) ? input.TaxName : input.Name)?.Trim() ?? string.Empty;
+            input.TaxBureau = (!string.IsNullOrWhiteSpace(input.TaxBureau) ? input.TaxBureau : input.Helpman)?.Trim() ?? string.Empty;
+            input.Unit = (!string.IsNullOrWhiteSpace(input.Unit) ? input.Unit : input.Department)?.Trim() ?? string.Empty;
             input.Tel = input.Tel?.Trim() ?? string.Empty;
             input.Ext = input.Ext?.Trim() ?? string.Empty;
             input.Fax = input.Fax?.Trim() ?? string.Empty;
             input.Mobile = input.Mobile?.Trim() ?? string.Empty;
             input.Email = input.Email?.Trim() ?? string.Empty;
             input.Memo = input.Memo?.Trim() ?? string.Empty;
-            input.Address = input.Address?.Trim() ?? string.Empty;
+            input.Address = (!string.IsNullOrWhiteSpace(input.Address) ? input.Address : input.Addr)?.Trim() ?? string.Empty;
 
             var existing = await _context.TaxOfficerMasters.FirstOrDefaultAsync(t => t.TaxCode.Trim() == code);
             var operation = existing != null ? "UPDATE" : "INSERT";
@@ -206,16 +210,16 @@ namespace Wx3000.Backend.Controllers
 
             var targetCode = code.Trim().ToUpper();
             input.TaxCode = targetCode;
-            input.TaxName = input.TaxName?.Trim() ?? string.Empty;
-            input.TaxBureau = input.TaxBureau?.Trim() ?? string.Empty;
-            input.Unit = input.Unit?.Trim() ?? string.Empty;
+            input.TaxName = (!string.IsNullOrWhiteSpace(input.TaxName) ? input.TaxName : input.Name)?.Trim() ?? string.Empty;
+            input.TaxBureau = (!string.IsNullOrWhiteSpace(input.TaxBureau) ? input.TaxBureau : input.Helpman)?.Trim() ?? string.Empty;
+            input.Unit = (!string.IsNullOrWhiteSpace(input.Unit) ? input.Unit : input.Department)?.Trim() ?? string.Empty;
             input.Tel = input.Tel?.Trim() ?? string.Empty;
             input.Ext = input.Ext?.Trim() ?? string.Empty;
             input.Fax = input.Fax?.Trim() ?? string.Empty;
             input.Mobile = input.Mobile?.Trim() ?? string.Empty;
             input.Email = input.Email?.Trim() ?? string.Empty;
             input.Memo = input.Memo?.Trim() ?? string.Empty;
-            input.Address = input.Address?.Trim() ?? string.Empty;
+            input.Address = (!string.IsNullOrWhiteSpace(input.Address) ? input.Address : input.Addr)?.Trim() ?? string.Empty;
 
             var existing = await _context.TaxOfficerMasters.FirstOrDefaultAsync(t => t.TaxCode.Trim() == targetCode);
             var operation = existing != null ? "UPDATE" : "INSERT";

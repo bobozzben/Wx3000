@@ -76,13 +76,16 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
   },
 
   handleSaveRow: async (updatedRow) => {
-    if (!updatedRow.empCode || !updatedRow.empCode.trim()) return;
+    const code = (updatedRow.no || updatedRow.empCode || '').trim();
+    if (!code) return;
     try {
-      const isNew = !get().rows.some((r) => r.empCode === updatedRow.empCode);
+      const isNew = !get().rows.some(
+        (r) => (r.no || r.empCode || '').trim().toUpperCase() === code.toUpperCase()
+      );
       if (isNew) {
         await createEmp(updatedRow);
       } else {
-        await updateEmp(updatedRow.empCode.trim(), updatedRow);
+        await updateEmp(code, updatedRow);
       }
       const isEmailInvalid = !isValidEmail(updatedRow.email);
       const toastMsg = isEmailInvalid
@@ -102,8 +105,9 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
     set({ loading: true });
     try {
       for (const row of get().rows) {
-        if (row.empCode && row.empCode.trim()) {
-          await updateEmp(row.empCode.trim(), row);
+        const code = (row.no || row.empCode || '').trim();
+        if (code) {
+          await updateEmp(code, row);
         }
       }
       const hasInvalidEmail = get().rows.some((r) => !isValidEmail(r.email));
@@ -130,7 +134,8 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
   confirmDelete: async () => {
     const { rows, selectedIndex, refreshData } = get();
     const target = rows[selectedIndex];
-    if (!target || !target.empCode) {
+    const code = (target?.no || target?.empCode || '').trim();
+    if (!target || !code) {
       const newRows = [...rows];
       newRows.splice(selectedIndex, 1);
       set({ rows: newRows, isDeleteConfirmOpen: false });
@@ -138,7 +143,7 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
     }
 
     try {
-      const res = await deleteEmp(target.empCode);
+      const res = await deleteEmp(code);
       if (res) {
         set({
           selectedIndex: Math.max(0, selectedIndex - 1),

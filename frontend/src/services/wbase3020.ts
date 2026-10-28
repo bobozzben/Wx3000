@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { localagentApi } from './localagent';
 
 export interface InvoicePurchaseItem {
   period: string;
@@ -183,7 +184,7 @@ export const callLocalagentBuyinvReport = async (
   isPrint: number = 0
 ): Promise<{ success: boolean; message?: string; retCode?: number; error?: string }> => {
   try {
-    const response = await axios.post('http://localhost:18889/api/call', {
+    const response = await localagentApi.post('/api/call', {
       dll: 'wbaseRP',
       func: 'wbase320_buyinv',
       args: [hs_chk, top_mag, left_mag, prtIndex, isPrint, 'C:\\temp\\buyinv_data.json'],
@@ -211,7 +212,7 @@ export const callLocalagentReport = async (
   savePath: string = 'C:\\temp\\buyinv_print.pdf'
 ): Promise<{ success: boolean; message?: string; retCode?: number; error?: string }> => {
   try {
-    const response = await axios.post('http://localhost:18889/api/call', {
+    const response = await localagentApi.post('/api/call', {
       dll: 'wbaseRP',
       func: 'waccrep3101_b',
       args: [hs_chk, top_mag, left_mag, prtIndex, isPrint, savePath],

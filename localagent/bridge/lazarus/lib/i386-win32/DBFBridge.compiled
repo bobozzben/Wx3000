@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CONFIG>
-  <Compiler Value="C:\fpcupdeluxe4\fpc\bin\x86_64-win64\fpc.exe" Date="1556840750"/>
-  <Params Value="-Twin32 -Pi386 -MObjFPC -Scghi -WR -O1 -gw3 -gl -l -vewnhibq -FuF:\ADSProject\Wx3000\localagent\bridge\lazarus\ -FUF:\ADSProject\Wx3000\localagent\bridge\lazarus\lib\i386-win32\ -FEF:\ADSProject\Wx3000\localagent\bridge\lazarus\ -oF:\ADSProject\Wx3000\localagent\bridge\lazarus\DBFBridge.exe DBFBridge.lpr"/>
+  <Compiler Value="C:\fpcupdeluxe\fpc\bin\x86_64-win64\fpc.exe" Date="1483704777"/>
+  <Params Value=" -Twin32 -Pi386 -MObjFPC -Scghi -WR -O1 -gw3 -gl -l -vewnhibq -FuF:\ADSProject\Wx3000\localagent\bridge\lazarus\ -FUF:\ADSProject\Wx3000\localagent\bridge\lazarus\lib\i386-win32\ -FEF:\ADSProject\Wx3000\localagent\bridge\lazarus\ -oF:\ADSProject\Wx3000\localagent\bridge\lazarus\DBFBridge.exe DBFBridge.lpr"/>
+  <Complete Value="False"/>
 </CONFIG>

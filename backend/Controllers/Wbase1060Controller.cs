@@ -96,14 +96,16 @@ namespace Wx3000.Backend.Controllers
         [HttpPost]
         public async Task<ActionResult<FeeItemMaster>> Create([FromBody] FeeItemMaster model)
         {
-            if (model == null || string.IsNullOrWhiteSpace(model.FeeCode))
+            if (model == null || (string.IsNullOrWhiteSpace(model.FeeCode) && string.IsNullOrWhiteSpace(model.ItemNo)))
             {
                 return BadRequest(new { message = "收費項目代號不得為空" });
             }
 
-            var code = model.FeeCode.Trim().ToUpper();
+            var rawCode = !string.IsNullOrWhiteSpace(model.FeeCode) ? model.FeeCode : model.ItemNo;
+            var code = rawCode.Trim().ToUpper();
             model.FeeCode = code;
-            model.FeeName = model.FeeName?.Trim() ?? string.Empty;
+            model.FeeName = (!string.IsNullOrWhiteSpace(model.FeeName) ? model.FeeName : model.Item)?.Trim() ?? string.Empty;
+            if (model.Price == 0 && model.Amt != 0) model.Price = model.Amt;
             if (string.IsNullOrWhiteSpace(model.Guid))
             {
                 model.Guid = Guid.NewGuid().ToString("N").ToUpper();
@@ -173,7 +175,8 @@ namespace Wx3000.Backend.Controllers
 
             var targetCode = feeCode.Trim().ToUpper();
             model.FeeCode = targetCode;
-            model.FeeName = model.FeeName?.Trim() ?? string.Empty;
+            model.FeeName = (!string.IsNullOrWhiteSpace(model.FeeName) ? model.FeeName : model.Item)?.Trim() ?? string.Empty;
+            if (model.Price == 0 && model.Amt != 0) model.Price = model.Amt;
             if (string.IsNullOrWhiteSpace(model.Guid))
             {
                 model.Guid = Guid.NewGuid().ToString("N").ToUpper();

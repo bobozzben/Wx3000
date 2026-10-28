@@ -9,8 +9,9 @@ import {
   updateCpa,
   deleteCpa,
   printCpaList,
+  validateCpaForm,
+  getNextAutoNo,
 } from '../../services/wbase1020';
-import { isValidEmail, EMAIL_SAVE_WARNING_TOAST } from '../../services/validation';
 
 const EMPTY_ROW: CpaItem = {
   cpaCode: '',
@@ -153,8 +154,7 @@ export const useWbase1020 = create<Wbase1020State>((set, get) => ({
 
   startAdd: () => {
     const { rows } = get();
-    const nextNum = rows.length + 1;
-    const newCode = String(nextNum).padStart(2, '0');
+    const newCode = getNextAutoNo(rows.map((r) => r.cpaCode));
     set({
       mode: 'add',
       formData: {
@@ -175,35 +175,49 @@ export const useWbase1020 = create<Wbase1020State>((set, get) => ({
   },
 
   saveForm: async () => {
-    const { mode, formData, refreshData } = get();
-    if (!formData.cpaCode || !formData.cpaCode.trim()) {
-      set({ errorToast: '代號不可為空！' });
-      return false;
-    }
-    if (!formData.cpaName || !formData.cpaName.trim()) {
-      set({ errorToast: '姓名不可為空！' });
+    const { mode, formData, rows, selectedIndex, refreshData } = get();
+    const originalRow = mode === 'edit' ? rows[selectedIndex] : undefined;
+    const originalCode = originalRow?.cpaCode;
+
+    // 前置欄位驗證 (必填、唯一性、Big5 哨兵、提示性檢查)
+    const valResult = validateCpaForm(formData, rows, mode, originalCode);
+    if (!valResult.isValid) {
+      set({ errorToast: valResult.blockingErrors[0] || '欄位驗證未通過' });
       return false;
     }
 
-    // 檢查 Email 格式（若非空且格式不符，僅提示，不阻擋儲存）
-    const isEmailInvalid = !isValidEmail(formData.email);
+    // 正規化欄位 (代號、申報ID、統編自動大寫截白)
+    const payload: CpaItem = {
+      ...formData,
+      cpaCode: (formData.cpaCode || '').trim().toUpperCase(),
+      cpaName: (formData.cpaName || '').trim(),
+      taxId: (formData.taxId || '').trim().toUpperCase(),
+      unifiedNo: (formData.unifiedNo || '').trim().toUpperCase(),
+      certType: (formData.certType || '').trim(),
+      docTrack: (formData.docTrack || '').trim(),
+      email: (formData.email || '').trim(),
+    };
 
     try {
       if (mode === 'add') {
-        await createCpa(formData);
+        await createCpa(payload);
       } else {
-        await updateCpa(formData.cpaCode.trim(), formData);
+        await updateCpa(originalCode ? originalCode.trim() : payload.cpaCode, payload);
+      }
+
+      // 產生存檔提示訊息 (若有非阻斷提示性警告，呈現友善提示)
+      let saveMsg = '資料已成功儲存至 DBF 與 PostgreSQL！';
+      if (valResult.warnings.length > 0) {
+        saveMsg = `已成功儲存！(⚠️ 提示：${valResult.warnings.join('、')}，已照常存檔)`;
       }
 
       set({
         showAutoCloseToast: true,
-        toastMessage: isEmailInvalid
-          ? EMAIL_SAVE_WARNING_TOAST
-          : '資料已成功儲存至 DBF 與 PostgreSQL！',
+        toastMessage: saveMsg,
         mode: 'grid',
       });
-      setTimeout(() => set({ showAutoCloseToast: false }), 3000);
-      await refreshData(formData.cpaCode.trim());
+      setTimeout(() => set({ showAutoCloseToast: false }), 4000);
+      await refreshData(payload.cpaCode);
       return true;
     } catch (e: any) {
       console.error('Save CPA error:', e);

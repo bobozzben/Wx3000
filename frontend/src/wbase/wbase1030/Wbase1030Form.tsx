@@ -19,17 +19,30 @@ interface Wbase1030FormProps {
   onExit?: () => void;
 }
 
-const EMP_COLUMNS: ColumnDefV2<EmpItem>[] = [
-  { key: 'empCode', label: '人員編號', isPrimaryKey: true, width: '130px', className: 'text-blue-900 font-bold' },
-  { key: 'empName', label: '人員姓名', width: '180px' },
-  { key: 'depName', label: '密碼/部門', width: '140px' },
-  { key: 'mobile', label: '行動電話', width: '150px' },
+/**
+ * keyin.dbf 12 個欄位名稱與抬頭定義 (嚴格對齊，未對應欄位不顯示)
+ * "no,name,psw,birthday,tel,id,addr,memo,oneuserid,onepassno,phone,email"
+ * "編號,姓名,密碼,生日,電話,身份證字號,住址,備註,工商一站式帳號,一站式會計軟體驗證碼,電子送達手機,電子送達收件人EMAIL"
+ */
+const KEYIN_COLUMNS: ColumnDefV2<EmpItem>[] = [
+  { key: 'no', label: '編號', isPrimaryKey: true, width: '130px', className: 'text-blue-900 dark:text-sky-300 font-bold' },
+  { key: 'name', label: '姓名', width: '120px', className: 'font-semibold' },
+  { key: 'psw', label: '密碼', width: '110px' },
+  { key: 'birthday', label: '生日', width: '110px' },
+  { key: 'tel', label: '電話', width: '130px' },
+  { key: 'id', label: '身份證字號', width: '130px' },
+  { key: 'addr', label: '住址', width: '220px' },
+  { key: 'memo', label: '備註', width: '160px' },
+  { key: 'oneuserid', label: '工商一站式帳號', width: '150px' },
+  { key: 'onepassno', label: '一站式會計軟體驗證碼', width: '180px' },
+  { key: 'phone', label: '電子送達手機', width: '130px' },
   {
     key: 'email',
-    label: '電子信箱',
+    label: '電子送達收件人EMAIL',
     width: '220px',
     renderCell: (val: any) => {
       const emailStr = String(val || '');
+      if (!emailStr) return <span className="text-gray-400 dark:text-slate-500">-</span>;
       const isInvalid = !isValidEmail(emailStr);
       return (
         <span className="flex items-center gap-1.5 truncate">
@@ -48,8 +61,6 @@ const EMP_COLUMNS: ColumnDefV2<EmpItem>[] = [
       );
     },
   },
-  { key: 'oneUserId', label: '使用者ID', width: '140px' },
-  { key: 'onePassNo', label: '通行碼', width: '1fr' },
 ];
 
 export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
@@ -66,11 +77,23 @@ export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
   onExit,
 }) => {
   const createEmptyRow = useCallback((): EmpItem => ({
+    no: '',
+    name: '',
+    psw: '',
+    birthday: '',
+    tel: '',
+    id: '',
+    addr: '',
+    memo: '',
+    oneuserid: '',
+    onepassno: '',
+    phone: '',
+    email: '',
+    // 兼容舊別名
     empCode: '',
     empName: '',
     depName: '',
     mobile: '',
-    email: '',
     oneUserId: '',
     onePassNo: '',
   }), []);
@@ -79,20 +102,23 @@ export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
     return rows
       .filter(
         (x) =>
-          x.empCode.toLowerCase().includes(query.toLowerCase()) ||
-          x.empName.toLowerCase().includes(query.toLowerCase())
+          (x.no || x.empCode || '').toLowerCase().includes(query.toLowerCase()) ||
+          (x.name || x.empName || '').toLowerCase().includes(query.toLowerCase()) ||
+          (x.tel || '').toLowerCase().includes(query.toLowerCase()) ||
+          (x.id || '').toLowerCase().includes(query.toLowerCase())
       )
       .map((x) => ({
-        code: x.empCode,
-        name: x.empName,
-        spec: x.depName,
+        code: x.no || x.empCode || '',
+        name: x.name || x.empName || '',
+        spec: x.tel || x.memo || '',
       }));
   };
 
   return (
     <FoxProGridV2<EmpItem>
+      gridId="wbase1030_grid"
       rows={rows}
-      columns={EMP_COLUMNS}
+      columns={KEYIN_COLUMNS}
       createEmptyRow={createEmptyRow}
       onRowsChange={onRowsChange}
       onSaveRow={onSaveRow}
@@ -101,8 +127,8 @@ export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
       statusBarInfo={statusBarInfo}
       onSelectRow={onSelectRow}
       onF3Search={handleF3Search}
-      f3SearchTitle="人員開窗搜尋 [F3]"
-      getRowKey={(row, idx) => row.empCode || idx}
+      f3SearchTitle="建檔人員開窗搜尋 [F3]"
+      getRowKey={(row, idx) => row.no || row.empCode || idx}
       onInsertRow={onInsertRow}
       onDeleteRow={onDeleteRow}
       onRefreshData={onRefreshData}

@@ -7,7 +7,7 @@ import { FoxProGridCard } from '../../components/FoxProGridCard';
 import type { FoxProGridCardColumn } from '../../components/FoxProGridCard';
 import { WbasePageHeader } from '../../components/WbasePageHeader';
 import { useTheme } from '../menu/ThemeContext';
-import { isValidEmail } from '../../services/validation';
+import { isValidEmail, checkTaxId, checkUnifiedNo } from '../../services/validation';
 import {
   Users,
   Search,
@@ -31,14 +31,64 @@ const CPA_GRID_COLUMNS: FoxProGridCardColumn<CpaItem>[] = [
   { key: 'cpaCode', label: '代號', width: '70px', className: 'font-bold font-mono' },
   { key: 'certType', label: '證書別', width: '75px', align: 'center', className: 'font-mono' },
   { key: 'cpaName', label: '姓名', width: '180px', className: 'font-bold' },
-  { key: 'taxId', label: '申報ID', width: '120px', className: 'font-mono' },
+  {
+    key: 'taxId',
+    label: '申報ID',
+    width: '120px',
+    className: 'font-mono',
+    render: (item) => {
+      const taxIdStr = String(item.taxId || '');
+      const check = checkTaxId(taxIdStr);
+      const isInvalid = !check.valid;
+      return (
+        <span className="flex items-center gap-1.5 truncate">
+          {isInvalid && (
+            <span
+              className="px-1.5 py-0.5 bg-amber-500 text-black text-[10px] font-bold rounded shrink-0 shadow-sm"
+              title={`${check.message.trim()} (提示性警示)`}
+            >
+              ⚠️ ID
+            </span>
+          )}
+          <span className={isInvalid ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''}>
+            {taxIdStr}
+          </span>
+        </span>
+      );
+    },
+  },
   { key: 'licenseNo', label: '證書年度或國稅別', width: '150px', className: 'font-mono' },
   { key: 'docTrack', label: '發文字軌', width: '80px', align: 'center' },
   { key: 'certNo', label: '證書編號', width: '100px', className: 'font-mono' },
   { key: 'tel', label: '電話', width: '140px', className: 'font-mono' },
   { key: 'mobile', label: '手機', width: '120px', className: 'font-mono' },
   { key: 'fax', label: '傳真', width: '130px', className: 'font-mono' },
-  { key: 'unifiedNo', label: '統一編號', width: '100px', className: 'font-mono' },
+  {
+    key: 'unifiedNo',
+    label: '統一編號',
+    width: '100px',
+    className: 'font-mono',
+    render: (item) => {
+      const uninoStr = String(item.unifiedNo || '');
+      const check = checkUnifiedNo(uninoStr);
+      const isInvalid = !check.valid;
+      return (
+        <span className="flex items-center gap-1.5 truncate">
+          {isInvalid && (
+            <span
+              className="px-1.5 py-0.5 bg-amber-500 text-black text-[10px] font-bold rounded shrink-0 shadow-sm"
+              title={`${check.message.trim()} (提示性警示)`}
+            >
+              ⚠️ 統編
+            </span>
+          )}
+          <span className={isInvalid ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''}>
+            {uninoStr}
+          </span>
+        </span>
+      );
+    },
+  },
   { key: 'address', label: '地址', width: '240px' },
   { key: 'guildNo1', label: '公會名稱', width: '220px' },
   { key: 'guildNo2', label: '會員證號', width: '110px', className: 'font-mono' },
@@ -282,6 +332,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
             setFormData={setFormData}
             inputRefsMap={inputRefsMap}
             mode={mode}
+            existingRows={rows}
             onFieldKeyDown={handleFormFieldKeyDown}
             onStartEdit={startEdit}
           />

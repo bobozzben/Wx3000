@@ -69,9 +69,10 @@ export const useWbase1060 = create<Wbase1060State>((set, get) => ({
   },
 
   handleSaveRow: async (updatedRow) => {
-    if (!updatedRow.feeCode.trim()) return;
+    const code = (updatedRow.itemno || updatedRow.feeCode || '').trim();
+    if (!code) return;
     try {
-      const isNew = !get().rows.some((r) => r.feeCode === updatedRow.feeCode);
+      const isNew = !get().rows.some((r) => (r.itemno || r.feeCode) === code);
       const success = await saveFeeItem(updatedRow, isNew);
       if (success) {
         set({ showAutoCloseToast: true });
@@ -111,7 +112,8 @@ export const useWbase1060 = create<Wbase1060State>((set, get) => ({
   confirmDelete: async () => {
     const { rows, selectedIndex, refreshData } = get();
     const target = rows[selectedIndex];
-    if (!target || !target.feeCode) {
+    const code = (target?.itemno || target?.feeCode || '').trim();
+    if (!target || !code) {
       const newRows = [...rows];
       newRows.splice(selectedIndex, 1);
       set({ rows: newRows, isDeleteConfirmOpen: false });
@@ -119,7 +121,7 @@ export const useWbase1060 = create<Wbase1060State>((set, get) => ({
     }
 
     try {
-      const res = await deleteFeeItem(target.feeCode);
+      const res = await deleteFeeItem(code);
       if (res) {
         set({
           selectedIndex: Math.max(0, selectedIndex - 1),

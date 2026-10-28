@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { localagentApi } from './localagent';
 import { getSystemParam, setSystemParam } from './systemParamService';
 import { getPgSchema } from './apiConfig';
 
@@ -175,8 +176,8 @@ export const callLocalagentWbase350BuyinvList = async (
   isPrint: number = 0
 ): Promise<{ success: boolean; message?: string; retCode?: number; error?: string }> => {
   try {
-    const response = await axios.post(
-      'http://localhost:18889/api/call',
+    const response = await localagentApi.post(
+      '/api/call',
       {
         dll: 'wbaseRP',
         func: 'wbase350_buyinv_list',

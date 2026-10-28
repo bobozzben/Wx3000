@@ -5,6 +5,13 @@ const path = require('path');
 const os = require('os');
 const { execFile, spawn } = require('child_process');
 
+let iconv;
+try {
+  iconv = require('iconv-lite');
+} catch (e) {
+  // iconv-lite optional fallback
+}
+
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
 });
@@ -292,12 +299,126 @@ function getMacs() {
   return [...new Set(macs)];
 }
 
+function toVfpLiteral(val) {
+  if (val === null || val === undefined) return "''";
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'boolean') return val ? '.T.' : '.F.';
+  const str = String(val);
+  // 若包含換行或引號，以 Base64 + CP950 編碼，透過 VFP 原生 STRCONV(..., 14) 解碼，保證 100% 免疫語法錯誤與亂碼
+  if (str.includes('\r') || str.includes('\n') || str.includes("'") || str.includes('"')) {
+    const buf = iconv ? iconv.encode(str, 'cp950') : Buffer.from(str, 'utf8');
+    const b64 = buf.toString('base64');
+    return `STRCONV("${b64}", 14)`;
+  }
+  return `'${str}'`;
+}
+
+function buildWhereClause(keyField, keyValue) {
+  if (keyField.includes(',')) {
+    const keys = keyField.split(',').map(s => s.trim());
+    const vals = (keyValue || '').split(',').map(s => s.trim());
+    const conds = [];
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      if (!k) continue;
+      const v = vals[i] || '';
+      conds.push(`ALLTRIM(${k}) = ${toVfpLiteral(v)}`);
+    }
+    return conds.join(' AND ');
+  }
+  return `ALLTRIM(${keyField}) = ${toVfpLiteral(keyValue || '')}`;
+}
+
+async function executeDbfWrite(payload) {
+  const operation = (payload.operation || 'UPDATE').toUpperCase();
+  const dbfPath = payload.dbfPath || 'C:\\w3000\\comm';
+  const dbfName = payload.dbfName || 'keyin';
+  const keyField = payload.keyField || 'no';
+  const keyValue = payload.keyValue || '';
+  const fields = payload.fields || {};
+
+  const cAlias = path.basename(dbfName, path.extname(dbfName));
+  const fullPath = path.join(dbfPath, cAlias + (cAlias.toLowerCase().endsWith('.dbf') ? '' : '.dbf'));
+  if (!fs.existsSync(fullPath)) {
+    return { success: false, error: `找不到 DBF 檔案: ${fullPath}` };
+  }
+
+  const vfpFullPath = fullPath.replace(/\\/g, '\\\\');
+  const whereClause = buildWhereClause(keyField, keyValue);
+
+  let script = '';
+  if (operation === 'INSERT') {
+    const cols = Object.keys(fields).join(', ');
+    const vals = Object.values(fields).map(toVfpLiteral).join(', ');
+    script = [
+      `USE "${vfpFullPath}" IN 0 ALIAS ${cAlias} SHARED AGAIN`,
+      `SELECT ${cAlias}`,
+      `INSERT INTO ${cAlias} (${cols}) VALUES (${vals})`,
+      `lnRec = RECNO("${cAlias}")`,
+      `USE IN ${cAlias}`,
+      `RETURN TRANSFORM(lnRec)`
+    ].join('\r\n');
+  } else if (operation === 'UPDATE') {
+    const sets = Object.entries(fields).map(([k, v]) => `${k} = ${toVfpLiteral(v)}`);
+    const cSet = sets.join(', ');
+    script = [
+      `USE "${vfpFullPath}" IN 0 ALIAS ${cAlias} SHARED AGAIN`,
+      `SELECT ${cAlias}`,
+      `LOCATE FOR ${whereClause}`,
+      `IF EOF()`,
+      `  USE IN ${cAlias}`,
+      `  RETURN "RECORD_NOT_FOUND"`,
+      `ENDIF`,
+      `lnRec = RECNO("${cAlias}")`,
+      cSet ? `UPDATE ${cAlias} SET ${cSet} WHERE ${whereClause}` : `* no fields to update`,
+      `USE IN ${cAlias}`,
+      `RETURN TRANSFORM(lnRec)`
+    ].join('\r\n');
+  } else if (operation === 'DELETE') {
+    script = [
+      `USE "${vfpFullPath}" IN 0 ALIAS ${cAlias} SHARED AGAIN`,
+      `SELECT ${cAlias}`,
+      `LOCATE FOR ${whereClause}`,
+      `IF EOF()`,
+      `  USE IN ${cAlias}`,
+      `  RETURN "RECORD_NOT_FOUND"`,
+      `ENDIF`,
+      `lnRec = RECNO("${cAlias}")`,
+      `DELETE FROM ${cAlias} WHERE ${whereClause}`,
+      `USE IN ${cAlias}`,
+      `RETURN TRANSFORM(lnRec)`
+    ].join('\r\n');
+  } else {
+    return { success: false, error: `未知的操作類型: ${operation}` };
+  }
+
+  const execRes = await callDbfBridge({ action: 'EXEC_VFP', script });
+  if (!execRes.success) {
+    return execRes;
+  }
+  if (execRes.result === 'RECORD_NOT_FOUND') {
+    return {
+      success: false,
+      errorType: 'RECORD_NOT_FOUND',
+      error: `找不到欲${operation === 'DELETE' ? '刪除' : '更新'}的記錄: ${whereClause}`
+    };
+  }
+  const recno = parseInt(execRes.result, 10) || 0;
+  return {
+    success: true,
+    operation,
+    recno,
+    elapsedMs: execRes.elapsedMs
+  };
+}
+
 // ========== HTTP + WS ==========
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   const reqHeaders = req.headers['access-control-request-headers'];
-  res.setHeader('Access-Control-Allow-Headers', reqHeaders || 'Content-Type, X-Data-Drive, Authorization, *');
+  res.setHeader('Access-Control-Allow-Headers', reqHeaders ? `${reqHeaders}, *` : '*');
+  res.setHeader('Access-Control-Max-Age', '86400');
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
   const url = new URL(req.url, `http://localhost:${CONFIG.PORT}`);
@@ -366,6 +487,13 @@ const server = http.createServer(async (req, res) => {
           const payload = JSON.parse(body || '{}');
           if (dbfAction === 'CALL') {
             const result = await callDbfBridge(payload);
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify(result));
+            return;
+          }
+
+          if (dbfAction === 'WRITE') {
+            const result = await executeDbfWrite(payload);
             res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify(result));
             return;

@@ -3,6 +3,7 @@ import { useWbase1030 } from './useWbase1030';
 import { Wbase1030Form } from './Wbase1030Form';
 import { Wbase1030Print } from './wbase1030Print';
 import { WbasePageHeader } from '../../components/WbasePageHeader';
+import type { EmpItem } from '../../services/wbase1030';
 import {
   UserCheck,
   Search,
@@ -140,9 +141,9 @@ export const Wbase1030Page: React.FC<Wbase1030PageProps> = ({ onBackToMenu }) =>
             if (onBackToMenu) onBackToMenu();
           }}
           statusBarInfo={(row) =>
-            row && row.empCode ? (
+            row && (row.no || row.empCode) ? (
               <span className="text-xs">
-                目前選取：[{row.empCode}] {row.empName} | 部門：{row.depName || '-'}
+                目前選取：[{row.no || row.empCode}] {row.name || row.empName} | 電話：{row.tel || '-'} | 備註：{row.memo || '-'}
               </span>
             ) : null
           }
@@ -151,7 +152,22 @@ export const Wbase1030Page: React.FC<Wbase1030PageProps> = ({ onBackToMenu }) =>
             setSelectedIndex(idx);
           }}
           onInsertRow={() => {
-            const newRow = { empCode: '', empName: '', depName: '', mobile: '', email: '', oneUserId: '', onePassNo: '' };
+            const newRow: EmpItem = {
+              no: '',
+              name: '',
+              psw: '',
+              birthday: '',
+              tel: '',
+              id: '',
+              addr: '',
+              memo: '',
+              oneuserid: '',
+              onepassno: '',
+              phone: '',
+              email: '',
+              empCode: '',
+              empName: '',
+            };
             setRows([...rows, newRow]);
           }}
           onDeleteRow={() => openDeleteConfirm()}
@@ -175,7 +191,7 @@ export const Wbase1030Page: React.FC<Wbase1030PageProps> = ({ onBackToMenu }) =>
             <p className="text-sm mb-6 leading-relaxed">
               您即將刪除人員資料：
               <span className="font-bold text-yellow-400 ml-1">
-                [{selectedRow.empCode}] {selectedRow.empName}
+                [{selectedRow.no || selectedRow.empCode}] {selectedRow.name || selectedRow.empName}
               </span>
               <br />
               此操作將從 PostgreSQL 資料庫中移除資料，無法復原。

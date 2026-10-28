@@ -1,54 +1,105 @@
 import axios from 'axios';
 
+/**
+ * recitem.dbf 3 個欄位名稱與抬頭定義:
+ * "項目,項目名稱,收費金額"
+ * "itemno,item,amt"
+ */
 export interface FeeItem {
-  feeCode: string;   // 項目 (項目代號)
-  feeName: string;   // 項目名稱
-  price: number;     // 收費金額
-  guid?: string;     // guid
+  itemno: string;   // 項目
+  item: string;     // 項目名稱
+  amt: number;      // 收費金額
+  _record_number?: number;
+  guid?: string;
+
+  // 相容舊有別名 (Legacy Aliases)
+  feeCode?: string; // 項目代號
+  feeName?: string; // 項目名稱
+  price?: number;   // 收費金額
 }
+
+export const normalizeFeeItem = (raw: any): FeeItem => {
+  if (!raw) {
+    return {
+      itemno: '',
+      item: '',
+      amt: 0,
+      feeCode: '',
+      feeName: '',
+      price: 0,
+    };
+  }
+
+  const itemno = (raw.itemno || raw.feeCode || '').trim().toUpperCase();
+  const item = (raw.item || raw.feeName || '').trim();
+  const amtVal = raw.amt !== undefined ? raw.amt : raw.price;
+  const amt = typeof amtVal === 'number' ? (isNaN(amtVal) ? 0 : amtVal) : Number(amtVal) || 0;
+
+  return {
+    itemno,
+    item,
+    amt,
+    _record_number: raw._record_number || raw.recordNumber || 0,
+    guid: raw.guid || '',
+
+    feeCode: itemno,
+    feeName: item,
+    price: amt,
+  };
+};
+
+export const sanitizeFeeItemForSave = (item: FeeItem): any => {
+  const norm = normalizeFeeItem(item);
+  return {
+    itemno: norm.itemno,
+    item: norm.item,
+    amt: norm.amt,
+
+    feeCode: norm.itemno,
+    feeName: norm.item,
+    price: norm.amt,
+    guid: norm.guid,
+  };
+};
+
+export const sanitizeFeeItem = sanitizeFeeItemForSave;
 
 export type FeeItemPrintFilter = PrintRangeQuery;
 
 const API_BASE = '/api/wbase1060';
 
 export const fetchFeeItems = async (keyword?: string): Promise<FeeItem[]> => {
-  const response = await axios.get<FeeItem[]>(API_BASE, {
+  const response = await axios.get<any[]>(API_BASE, {
     params: { keyword: keyword || '' },
   });
-  return Array.isArray(response.data) ? response.data : [];
+  return Array.isArray(response.data) ? response.data.map(normalizeFeeItem) : [];
 };
 
 export const getFeeItemList = fetchFeeItems;
 export const getFeeItems = fetchFeeItems;
 
 export const fetchFeeItemByCode = async (code: string): Promise<FeeItem> => {
-  const response = await axios.get<FeeItem>(`${API_BASE}/${encodeURIComponent(code)}`);
-  return response.data;
+  const response = await axios.get<any>(`${API_BASE}/${encodeURIComponent(code)}`);
+  return normalizeFeeItem(response.data);
 };
 
-export const sanitizeFeeItem = (item: FeeItem): FeeItem => ({
-  ...item,
-  feeCode: (item.feeCode || '').trim().toUpperCase(),
-  feeName: (item.feeName || '').trim(),
-  price: typeof item.price === 'number' ? (isNaN(item.price) ? 0 : item.price) : Number(item.price) || 0,
-});
-
 export const createFeeItem = async (item: FeeItem): Promise<FeeItem> => {
-  const payload = sanitizeFeeItem(item);
-  const response = await axios.post<FeeItem>(API_BASE, payload);
-  return response.data;
+  const payload = sanitizeFeeItemForSave(item);
+  const response = await axios.post<any>(API_BASE, payload);
+  return normalizeFeeItem(response.data);
 };
 
 export const updateFeeItem = async (
   code: string,
   item: FeeItem
 ): Promise<FeeItem> => {
-  const payload = sanitizeFeeItem(item);
-  const response = await axios.put<FeeItem>(
-    `${API_BASE}/${encodeURIComponent(code)}`,
+  const cleanCode = (code || item.itemno || item.feeCode || '').trim();
+  const payload = sanitizeFeeItemForSave(item);
+  const response = await axios.put<any>(
+    `${API_BASE}/${encodeURIComponent(cleanCode)}`,
     payload
   );
-  return response.data;
+  return normalizeFeeItem(response.data);
 };
 
 export const deleteFeeItem = async (code: string): Promise<{ message: string }> => {
@@ -60,11 +111,11 @@ export const deleteFeeItem = async (code: string): Promise<{ message: string }> 
 
 export const saveFeeItem = async (item: FeeItem, isNew: boolean): Promise<boolean> => {
   try {
-    const payload = sanitizeFeeItem(item);
+    const payload = sanitizeFeeItemForSave(item);
     if (isNew) {
       await createFeeItem(payload);
     } else {
-      await updateFeeItem(payload.feeCode, payload);
+      await updateFeeItem(payload.itemno, payload);
     }
     return true;
   } catch (e) {
@@ -75,7 +126,8 @@ export const saveFeeItem = async (item: FeeItem, isNew: boolean): Promise<boolea
 
 export const batchSaveFeeItems = async (items: FeeItem[]): Promise<boolean> => {
   try {
-    await axios.post(`${API_BASE}/batch-save`, items);
+    const payloads = items.map(sanitizeFeeItemForSave);
+    await axios.post(`${API_BASE}/batch-save`, payloads);
     return true;
   } catch (e) {
     console.error('batchSaveFeeItems error:', e);
@@ -86,13 +138,15 @@ export const batchSaveFeeItems = async (items: FeeItem[]): Promise<boolean> => {
 export interface PrintRangeQuery {
   codeStart?: string;
   codeEnd?: string;
+  itemnoStart?: string;
+  itemnoEnd?: string;
 }
 
 export const fetchPrintFeeItems = async (
   query: PrintRangeQuery
 ): Promise<FeeItem[]> => {
-  const response = await axios.post<FeeItem[]>(`${API_BASE}/print`, query);
-  return response.data;
+  const response = await axios.post<any[]>(`${API_BASE}/print`, query);
+  return Array.isArray(response.data) ? response.data.map(normalizeFeeItem) : [];
 };
 
 export const printFeeItemList = fetchPrintFeeItems;

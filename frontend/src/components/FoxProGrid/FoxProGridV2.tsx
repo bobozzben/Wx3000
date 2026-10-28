@@ -68,7 +68,18 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
   hideKeyboardHints?: boolean;
   /** Label for Esc hint/button (default '存檔並結算' or '儲存/離開') */
   escLabel?: string;
+  /** Unique Grid ID or Storage Key for persisting resized column widths in LocalStorage */
+  gridId?: string;
+  storageKey?: string;
+  /** Whether to show row index / 項次 column (default false) */
+  showRowIndex?: boolean;
 }
+
+const parseColWidth = (w?: string): number | undefined => {
+  if (!w || w.includes('fr') || w.includes('%')) return undefined;
+  const val = parseFloat(w);
+  return isNaN(val) ? undefined : val;
+};
 
 export function FoxProGridV2<T extends Record<string, any>>({
   rows,
@@ -94,8 +105,155 @@ export function FoxProGridV2<T extends Record<string, any>>({
   hideF2Hint = true,
   hideKeyboardHints = true,
   escLabel = '儲存/離開',
+  gridId,
+  storageKey,
+  showRowIndex = false,
 }: FoxProGridV2Props<T>) {
   const { isDark } = useTheme();
+
+  // 欄寬自訂與持久化儲存 Key (LocalStorage)
+  const effectiveStorageKey = useMemo(() => {
+    const key = gridId || storageKey;
+    if (key) return `wx3000_grid_col_widths_${key}`;
+    const colSignature = columns.map((c) => String(c.key)).join('_');
+    return `wx3000_grid_col_widths_${colSignature}`;
+  }, [gridId, storageKey, columns]);
+
+  // 載入持久化自訂欄寬 (若無則使用欄位定義之預設寬度)
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try {
+      const stored = localStorage.getItem(effectiveStorageKey);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch {
+      // ignore
+    }
+    const initial: Record<string, number> = {};
+    columns.forEach((col) => {
+      const parsed = parseColWidth(col.width);
+      if (parsed) {
+        initial[col.key] = parsed;
+      }
+    });
+    return initial;
+  });
+
+  // 當 Key 或欄位結構改變時同步載入
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(effectiveStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setColWidths((prev) => ({ ...prev, ...parsed }));
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    const initial: Record<string, number> = {};
+    columns.forEach((col) => {
+      const parsed = parseColWidth(col.width);
+      if (parsed) {
+        initial[col.key] = parsed;
+      }
+    });
+    setColWidths((prev) => ({ ...initial, ...prev }));
+  }, [effectiveStorageKey]);
+
+  // 取得特定欄位當前寬度物件樣式
+  const getColWidthStyle = useCallback(
+    (col: ColumnDefV2<T>): React.CSSProperties => {
+      const customWidth = colWidths[col.key];
+      if (customWidth) {
+        return {
+          width: `${customWidth}px`,
+          minWidth: `${customWidth}px`,
+          maxWidth: `${customWidth}px`,
+          flexShrink: 0,
+        };
+      }
+      if (col.width === '1fr') {
+        return {
+          width: undefined,
+          minWidth: '180px',
+          flex: 1,
+        };
+      }
+      const defaultW = col.width || '150px';
+      return {
+        width: defaultW,
+        minWidth: defaultW,
+        flexShrink: 0,
+      };
+    },
+    [colWidths]
+  );
+
+  const getColCurrentWidth = useCallback(
+    (col: ColumnDefV2<T>): number => {
+      if (colWidths[col.key]) return colWidths[col.key];
+      const parsed = parseColWidth(col.width);
+      if (parsed) return parsed;
+      return 150;
+    },
+    [colWidths]
+  );
+
+  // 滑鼠拖曳欄寬處理 (Mouse Drag Column Resizing)
+  const resizingRef = useRef<{
+    colKey: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent, colKey: string, currentWidth: number) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      resizingRef.current = {
+        colKey,
+        startX: e.clientX,
+        startWidth: currentWidth,
+      };
+
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (!resizingRef.current) return;
+        const delta = moveEvent.clientX - resizingRef.current.startX;
+        const newWidth = Math.max(50, Math.round(resizingRef.current.startWidth + delta));
+
+        setColWidths((prev) => ({
+          ...prev,
+          [resizingRef.current!.colKey]: newWidth,
+        }));
+      };
+
+      const handleMouseUp = () => {
+        setColWidths((latestWidths) => {
+          try {
+            localStorage.setItem(effectiveStorageKey, JSON.stringify(latestWidths));
+          } catch {
+            // ignore
+          }
+          return latestWidths;
+        });
+
+        resizingRef.current = null;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    },
+    [effectiveStorageKey]
+  );
   const [selectedCell, setSelectedCell] = useState<{ r: number; c: number }>({ r: 0, c: 0 });
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editValue, setEditValue] = useState<string>('');
@@ -126,13 +284,14 @@ export function FoxProGridV2<T extends Record<string, any>>({
       const rowEl = tableBodyRef.current.children[selectedCell.r] as HTMLElement | undefined;
       if (rowEl) {
         rowEl.scrollIntoView({ block: 'nearest' });
-        const cellEl = rowEl.children[selectedCell.c + 1] as HTMLElement | undefined;
+        const cellChildIndex = showRowIndex ? selectedCell.c + 1 : selectedCell.c;
+        const cellEl = rowEl.children[cellChildIndex] as HTMLElement | undefined;
         if (cellEl) {
           cellEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         }
       }
     }
-  }, [selectedCell.r, selectedCell.c]);
+  }, [selectedCell.r, selectedCell.c, showRowIndex]);
 
   // Pad display rows up to minRows (15 rows) for seamless Excel experience
   const displayRows = useMemo(() => {
@@ -518,19 +677,19 @@ export function FoxProGridV2<T extends Record<string, any>>({
   };
 
   return (
-    <div ref={gridContainerRef} className="flex-1 min-h-0 flex flex-col w-full h-full font-mono outline-none">
+    <div ref={gridContainerRef} className="flex-1 min-h-0 flex flex-col w-full h-full font-mono outline-none print:h-auto print:overflow-visible">
       {/* Excel 15-Row Grid Container */}
       <div
         style={height ? { height } : undefined}
-        className={`w-full border-2 rounded shadow-md overflow-hidden flex flex-col select-none transition-colors ${
+        className={`w-full border-2 rounded shadow-md overflow-hidden flex flex-col select-none transition-colors print:border-none print:shadow-none print:h-auto print:overflow-visible ${
           height ? '' : 'flex-1 min-h-0'
         } ${
           isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-blue-900'
         }`}
       >
         {/* Horizontal Scroll Wrapper (Locks HeaderGroups, Header & Rows together) */}
-        <div className="overflow-x-auto flex-1 min-h-0 flex flex-col">
-          <div className="min-w-full w-max flex-1 min-h-0 flex flex-col">
+        <div className="overflow-x-auto flex-1 min-h-0 flex flex-col print:overflow-visible print:w-full">
+          <div className="min-w-full w-max flex-1 min-h-0 flex flex-col print:w-full">
             {/* Grouped Header Row */}
             {headerGroups && headerGroups.length > 0 && (
               <div
@@ -558,38 +717,59 @@ export function FoxProGridV2<T extends Record<string, any>>({
                 isDark ? 'bg-slate-950 text-yellow-300 border-slate-800' : 'bg-[#1e3a8a] text-white border-blue-900'
               }`}
             >
-              <div
-                className={`w-[50px] h-full flex items-center justify-center border-r shrink-0 ${
-                  isDark ? 'border-slate-800' : 'border-blue-800'
-                }`}
-              >
-                項次
-              </div>
-              {columns.map((col) => (
+              {showRowIndex && (
                 <div
-                  key={col.key}
-                  style={{
-                    width: col.width === '1fr' ? undefined : col.width || '150px',
-                    minWidth: col.width === '1fr' ? '180px' : undefined,
-                    flex: col.width === '1fr' ? 1 : undefined,
-                  }}
-                  className={`h-full flex items-center px-3 border-r last:border-r-0 shrink-0 font-bold ${
+                  className={`w-[50px] h-full flex items-center justify-center border-r shrink-0 ${
                     isDark ? 'border-slate-800' : 'border-blue-800'
-                  } ${
-                    col.align === 'center'
-                      ? 'justify-center'
-                      : col.align === 'right'
-                      ? 'justify-end'
-                      : 'justify-start'
                   }`}
                 >
-                  {col.label}
+                  項次
                 </div>
-              ))}
+              )}
+              {columns.map((col) => {
+                const currentWidth = getColCurrentWidth(col);
+                return (
+                  <div
+                    key={col.key}
+                    style={getColWidthStyle(col)}
+                    className={`h-full flex items-center px-3 border-r last:border-r-0 shrink-0 font-bold relative group/col select-none ${
+                      isDark ? 'border-slate-800' : 'border-blue-800'
+                    } ${
+                      col.align === 'center'
+                        ? 'justify-center'
+                        : col.align === 'right'
+                        ? 'justify-end'
+                        : 'justify-start'
+                    }`}
+                  >
+                    <span className="truncate pr-1">{col.label}</span>
+
+                    {/* 拖曳調整欄寬把手 (Column Resizer Handle) */}
+                    <div
+                      title="拖曳以調整欄寬，雙擊重置預設寬度"
+                      onMouseDown={(e) => handleResizeStart(e, col.key, currentWidth)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        const defW = parseColWidth(col.width) || 130;
+                        setColWidths((prev) => {
+                          const next = { ...prev, [col.key]: defW };
+                          try {
+                            localStorage.setItem(effectiveStorageKey, JSON.stringify(next));
+                          } catch {}
+                          return next;
+                        });
+                      }}
+                      className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize select-none flex items-center justify-center hover:bg-blue-400/40 active:bg-yellow-400/60 z-20 group print:hidden"
+                    >
+                      <div className="w-[1.5px] h-3.5 bg-white/30 group-hover:bg-yellow-300 transition-colors" />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Rows Body */}
-            <div ref={tableBodyRef} className={`flex-1 min-h-0 overflow-y-auto ${isDark ? 'bg-slate-900' : 'bg-[#f8fafc]'}`}>
+            <div ref={tableBodyRef} className={`flex-1 min-h-0 overflow-y-auto print:overflow-visible print:h-auto ${isDark ? 'bg-slate-900' : 'bg-[#f8fafc]'}`}>
               {displayRows.map((row, rIdx) => {
                 const isRowSelected = selectedCell.r === rIdx;
                 const isEven = rIdx % 2 === 1;
@@ -618,15 +798,17 @@ export function FoxProGridV2<T extends Record<string, any>>({
                     }`}
                   >
                     {/* Index Cell */}
-                    <div
-                      className={`w-[50px] h-full flex items-center justify-center border-r font-bold shrink-0 ${
-                        isDark
-                          ? 'border-slate-800 text-yellow-400 bg-slate-950'
-                          : 'border-gray-200 text-gray-500 bg-gray-50'
-                      }`}
-                    >
-                      {String(rIdx + 1).padStart(2, '0')}
-                    </div>
+                    {showRowIndex && (
+                      <div
+                        className={`w-[50px] h-full flex items-center justify-center border-r font-bold shrink-0 ${
+                          isDark
+                            ? 'border-slate-800 text-yellow-400 bg-slate-950'
+                            : 'border-gray-200 text-gray-500 bg-gray-50'
+                        }`}
+                      >
+                        {String(rIdx + 1).padStart(2, '0')}
+                      </div>
+                    )}
 
                     {/* Data Cells */}
                     {columns.map((col, cIdx) => {
@@ -636,11 +818,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
                       return (
                         <div
                           key={col.key}
-                          style={{
-                            width: col.width === '1fr' ? undefined : col.width || '150px',
-                            minWidth: col.width === '1fr' ? '180px' : undefined,
-                            flex: col.width === '1fr' ? 1 : undefined,
-                          }}
+                          style={getColWidthStyle(col)}
                           onClick={() => {
                             if (isEditing && (selectedCell.r !== rIdx || selectedCell.c !== cIdx)) {
                               const success = commitEdit(selectedCell.r, selectedCell.c, editValue);
@@ -660,30 +838,43 @@ export function FoxProGridV2<T extends Record<string, any>>({
                           } ${
                             isCellFocused
                               ? isDark
-                                ? 'border-2 border-yellow-400 bg-yellow-950/90 font-bold text-white shadow-inner z-10'
-                                : 'border-2 border-[#eab308] bg-[#fef9c3] font-bold text-black shadow-inner z-10'
+                                ? 'border-2 border-yellow-400 bg-yellow-950/90 font-bold !text-white shadow-inner z-10 print:border-none print:shadow-none print:bg-transparent print:!text-black'
+                                : 'border-2 border-[#eab308] bg-[#fef9c3] font-bold !text-slate-900 shadow-inner z-10 print:border-none print:shadow-none print:bg-transparent print:!text-black'
                               : ''
                           } ${
-                            isDark && col.className
-                              ? col.className.replace(/text-(black|blue-\d+|gray-\d+|slate-\d+)/g, 'text-white')
-                              : col.className || ''
+                            isDark
+                              ? col.className
+                                ? col.className.replace(/text-(black|blue-\d+|gray-\d+|slate-\d+)/g, 'text-sky-200')
+                                : col.isPrimaryKey
+                                ? 'text-sky-300 font-bold'
+                                : ''
+                              : col.className
+                              ? col.className
+                                  .replace(/text-(yellow|amber)-\d+/g, 'text-blue-900')
+                                  .replace(/dark:text-(yellow|amber)-\d+/g, '')
+                              : col.isPrimaryKey
+                              ? 'text-blue-900 font-bold'
+                              : ''
                           }`}
                         >
                           {isCellFocused && isEditing ? (
-                            <input
-                              ref={inputRef}
-                              type="text"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={() => {
-                                if (isEditing) {
-                                  commitEdit(selectedCell.r, selectedCell.c, editValue);
-                                }
-                              }}
-                              className={`w-full h-full bg-transparent outline-none border-none font-mono text-sm font-bold p-0 ${
-                                isDark ? 'text-white' : 'text-black'
-                              }`}
-                            />
+                            <>
+                              <input
+                                ref={inputRef}
+                                type="text"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => {
+                                  if (isEditing) {
+                                    commitEdit(selectedCell.r, selectedCell.c, editValue);
+                                  }
+                                }}
+                                className={`w-full h-full bg-transparent outline-none border-none font-mono text-sm font-bold p-0 print:hidden ${
+                                  isDark ? 'text-white' : 'text-black'
+                                }`}
+                              />
+                              <span className="hidden print:inline font-mono text-sm font-bold">{editValue}</span>
+                            </>
                           ) : col.renderCell ? (
                             col.renderCell(cellVal, row, rIdx)
                           ) : (
@@ -700,9 +891,9 @@ export function FoxProGridV2<T extends Record<string, any>>({
         </div>
       </div>
 
-      {/* StatusBar */}
+      {/* StatusBar (列印時隱藏狀態列與操作按鈕) */}
       <div
-        className={`mt-1.5 sm:mt-2 shrink-0 flex flex-wrap items-center justify-between px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded font-bold text-xs sm:text-sm border-t-2 shadow gap-1.5 sm:gap-2 transition-colors ${
+        className={`mt-1.5 sm:mt-2 shrink-0 flex flex-wrap items-center justify-between px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded font-bold text-xs sm:text-sm border-t-2 shadow gap-1.5 sm:gap-2 transition-colors print:hidden ${
           isDark
             ? 'bg-slate-950 text-slate-100 border-yellow-500'
             : 'bg-blue-950 text-white border-yellow-500'

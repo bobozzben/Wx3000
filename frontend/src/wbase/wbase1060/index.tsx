@@ -140,10 +140,9 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
             if (onBackToMenu) onBackToMenu();
           }}
           statusBarInfo={(row) =>
-            row && row.feeCode ? (
+            row && (row.itemno || row.feeCode) ? (
               <span className="text-xs">
-                目前選取：[{row.feeCode}] {row.feeName} | 收費金額：NT${' '}
-                {Number(row.price || 0).toLocaleString('zh-TW', { minimumFractionDigits: 2 })}
+                目前選取：[{row.itemno || row.feeCode}] {row.item || row.feeName} | 收費金額：{Number(row.amt !== undefined ? row.amt : row.price || 0).toLocaleString('zh-TW')}
               </span>
             ) : null
           }
@@ -152,7 +151,7 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
             setSelectedIndex(idx);
           }}
           onInsertRow={() => {
-            const newRow = { feeCode: '', feeName: '', price: 0, memo: '' };
+            const newRow = { itemno: '', item: '', amt: 0, feeCode: '', feeName: '', price: 0 };
             setRows([...rows, newRow]);
           }}
           onDeleteRow={() => openDeleteConfirm()}
@@ -176,7 +175,7 @@ export const Wbase1060Page: React.FC<Wbase1060PageProps> = ({ onBackToMenu }) =>
             <p className="text-sm mb-6 leading-relaxed">
               您即將刪除收費項目：
               <span className="font-bold text-yellow-400 ml-1">
-                [{selectedRow.feeCode}] {selectedRow.feeName}
+                [{selectedRow.itemno || selectedRow.feeCode}] {selectedRow.item || selectedRow.feeName}
               </span>
               <br />
               此操作將從 PostgreSQL 資料庫中移除資料，無法復原。

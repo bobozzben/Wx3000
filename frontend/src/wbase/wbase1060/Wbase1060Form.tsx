@@ -18,17 +18,22 @@ interface Wbase1060FormProps {
   onExit?: () => void;
 }
 
+/**
+ * recitem.dbf 3 個欄位名稱與抬頭定義 (嚴格對齊，未對應欄位不顯示)
+ * "項目,項目名稱,收費金額"
+ * "itemno,item,amt"
+ */
 const FEE_COLUMNS: ColumnDefV2<FeeItem>[] = [
-  { key: 'feeCode', label: '項目代號', isPrimaryKey: true, width: '160px', className: 'font-bold' },
-  { key: 'feeName', label: '項目名稱', width: '1fr', className: 'font-bold' },
+  { key: 'itemno', label: '項目', isPrimaryKey: true, width: '130px', className: 'text-blue-900 dark:text-sky-300 font-bold' },
+  { key: 'item', label: '項目名稱', width: '1fr', className: 'font-semibold' },
   {
-    key: 'price',
+    key: 'amt',
     label: '收費金額',
-    width: '200px',
+    width: '180px',
     align: 'right',
     renderCell: (val) => (
       <span className="w-full text-right font-mono font-bold">
-        NT$ {Number(val || 0).toLocaleString('zh-TW', { minimumFractionDigits: 2 })}
+        {Number(val || 0).toLocaleString('zh-TW')}
       </span>
     ),
   },
@@ -48,6 +53,9 @@ export const Wbase1060Form: React.FC<Wbase1060FormProps> = ({
   onExit,
 }) => {
   const createEmptyRow = useCallback((): FeeItem => ({
+    itemno: '',
+    item: '',
+    amt: 0,
     feeCode: '',
     feeName: '',
     price: 0,
@@ -57,18 +65,19 @@ export const Wbase1060Form: React.FC<Wbase1060FormProps> = ({
     return rows
       .filter(
         (x) =>
-          x.feeCode.toLowerCase().includes(query.toLowerCase()) ||
-          x.feeName.toLowerCase().includes(query.toLowerCase())
+          (x.itemno || x.feeCode || '').toLowerCase().includes(query.toLowerCase()) ||
+          (x.item || x.feeName || '').toLowerCase().includes(query.toLowerCase())
       )
       .map((x) => ({
-        code: x.feeCode,
-        name: x.feeName,
-        spec: `NT$ ${Number(x.price || 0).toLocaleString('zh-TW')}`,
+        code: x.itemno || x.feeCode || '',
+        name: x.item || x.feeName || '',
+        spec: `${Number(x.amt !== undefined ? x.amt : x.price || 0).toLocaleString('zh-TW')}`,
       }));
   };
 
   return (
     <FoxProGridV2<FeeItem>
+      gridId="wbase1060_grid"
       rows={rows}
       columns={FEE_COLUMNS}
       createEmptyRow={createEmptyRow}
@@ -80,7 +89,7 @@ export const Wbase1060Form: React.FC<Wbase1060FormProps> = ({
       onSelectRow={onSelectRow}
       onF3Search={handleF3Search}
       f3SearchTitle="收費項目開窗搜尋 [F3]"
-      getRowKey={(row, idx) => row.feeCode || idx}
+      getRowKey={(row, idx) => row.itemno || row.feeCode || idx}
       onInsertRow={onInsertRow}
       onDeleteRow={onDeleteRow}
       onRefreshData={onRefreshData}

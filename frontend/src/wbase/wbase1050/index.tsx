@@ -140,9 +140,9 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
             if (onBackToMenu) onBackToMenu();
           }}
           statusBarInfo={(row) =>
-            row && row.taxCode ? (
+            row && (row.no || row.taxCode) ? (
               <span className="text-xs">
-                目前選取：[{row.taxCode}] {row.taxName} | 分機：{row.ext || '-'}
+                目前選取：[{row.no || row.taxCode}] {row.name || row.taxName} {row.department || row.unit ? `| 單位：${row.department || row.unit}` : ''}
               </span>
             ) : null
           }
@@ -151,7 +151,7 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
             setSelectedIndex(idx);
           }}
           onInsertRow={() => {
-            const newRow = { taxCode: '', taxName: '', taxBureau: '', unit: '', tel: '', ext: '', mobile: '', email: '', memo: '' };
+            const newRow = { no: '', name: '', department: '', tel: '', helpman: '', addr: '', memo: '' };
             setRows([...rows, newRow]);
           }}
           onDeleteRow={() => openDeleteConfirm()}
@@ -175,7 +175,7 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
             <p className="text-sm mb-6 leading-relaxed">
               您即將刪除稅務人員資料：
               <span className="font-bold text-yellow-400 ml-1">
-                [{selectedRow.taxCode}] {selectedRow.taxName}
+                [{selectedRow.no || selectedRow.taxCode}] {selectedRow.name || selectedRow.taxName}
               </span>
               <br />
               此操作將從 PostgreSQL 資料庫中移除資料，無法復原。

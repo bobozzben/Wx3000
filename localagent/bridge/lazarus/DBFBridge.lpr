@@ -401,6 +401,8 @@ end;
 
 { 將 JSON 值格式化為 VFP SQL 字面量 (支援 Number, Boolean, String, Null) }
 function FormatVfpLiteral(item: TJSONData): string;
+var
+  s: string;
 begin
   if (item = nil) or (item.JSONType = jtNull) then
     Result := ''''''
@@ -414,7 +416,17 @@ begin
       Result := '.F.';
   end
   else
-    Result := '''' + StringReplace(item.AsString, '''', '''''', [rfReplaceAll]) + '''';
+  begin
+    s := item.AsString;
+    if Pos('''', s) = 0 then
+      Result := '''' + s + ''''
+    else if Pos('"', s) = 0 then
+      Result := '"' + s + '"'
+    else if (Pos('[', s) = 0) and (Pos(']', s) = 0) then
+      Result := '[' + s + ']'
+    else
+      Result := 'STRCONV("' + EncodeStringBase64(s) + '", 14)';
+  end;
 end;
 
 { 執行 WRITE 指令 (INSERT / UPDATE / DELETE) }
