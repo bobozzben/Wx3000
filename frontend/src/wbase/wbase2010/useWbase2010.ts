@@ -164,7 +164,7 @@ export function useWbase2010(onBackToMenu?: () => void) {
     fetchCompanies();
   }, [fetchCompanies]);
 
-  // Focus specific input field with yellow highlight animation
+  // Focus specific input field with yellow highlight animation and FoxPro text selection
   const focusField = useCallback((fid: string, flash = true) => {
     const el = inputRefsMap.current.get(fid);
     if (el) {
@@ -173,6 +173,11 @@ export function useWbase2010(onBackToMenu?: () => void) {
         el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } catch {
         // Fallback
+      }
+      if ('select' in el && typeof (el as any).select === 'function') {
+        try {
+          (el as HTMLInputElement).select();
+        } catch {}
       }
       if (flash) {
         el.classList.add('fox-flash');
@@ -489,13 +494,23 @@ export function useWbase2010(onBackToMenu?: () => void) {
         return;
       }
 
-      // Enter jumps to next field across tabs
-      if (e.key === 'Enter') {
+      // Enter or ArrowDown jumps to next field, ArrowUp jumps to previous field across tabs
+      if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         const activeEl = document.activeElement as HTMLElement;
         if (!activeEl) return;
 
-        if (activeEl.tagName === 'TEXTAREA' && !e.ctrlKey) {
-          if (e.shiftKey) return;
+        const isTextArea = activeEl.tagName === 'TEXTAREA';
+        if (isTextArea) {
+          const textarea = activeEl as HTMLTextAreaElement;
+          if (e.key === 'Enter' && (e.shiftKey || e.ctrlKey)) return;
+          if (e.key === 'ArrowUp') {
+            const textBefore = textarea.value.slice(0, textarea.selectionStart);
+            if (textBefore.includes('\n')) return;
+          }
+          if (e.key === 'ArrowDown') {
+            const textAfter = textarea.value.slice(textarea.selectionEnd);
+            if (textAfter.includes('\n')) return;
+          }
         }
         if (activeEl.tagName === 'BUTTON') return;
 
@@ -506,12 +521,14 @@ export function useWbase2010(onBackToMenu?: () => void) {
         const currentIdx = allFieldsOrdered.findIndex((item) => item.fid === fid);
         if (currentIdx === -1) return;
 
-        let nextIdx = (currentIdx + 1) % allFieldsOrdered.length;
+        const step = e.key === 'ArrowUp' ? -1 : 1;
+        let nextIdx = (currentIdx + step + allFieldsOrdered.length) % allFieldsOrdered.length;
         let iterations = 0;
         while (iterations < allFieldsOrdered.length) {
           const candidate = allFieldsOrdered[nextIdx];
           const el = inputRefsMap.current.get(candidate.fid);
-          if (el && !el.disabled) {
+          const isDisabled = candidate.fid === 'f3_code' && mode === 'edit';
+          if (el && !isDisabled && !el.disabled) {
             if (candidate.tabIdx !== activeTab) {
               setActiveTab(candidate.tabIdx);
               setTimeout(() => focusField(candidate.fid), 80);
@@ -520,7 +537,7 @@ export function useWbase2010(onBackToMenu?: () => void) {
             }
             break;
           }
-          nextIdx = (nextIdx + 1) % allFieldsOrdered.length;
+          nextIdx = (nextIdx + step + allFieldsOrdered.length) % allFieldsOrdered.length;
           iterations++;
         }
       }

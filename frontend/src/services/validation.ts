@@ -16,7 +16,7 @@ export const isValidEmail = (email?: string | null): boolean => {
 /**
  * 電子郵件非阻斷性提示文字
  */
-export const EMAIL_WARNING_TEXT = '電子郵件格式可能不正確（範例: user@example.com），此為提示，仍可正常儲存。';
+export const EMAIL_WARNING_TEXT = '電子郵件格式可能不正確（範例: user@example.com）';
 export const EMAIL_SAVE_WARNING_TOAST = '已成功儲存！(⚠️ 提示：電子郵件格式非標準，已照常存檔)';
 
 /**
@@ -117,16 +117,39 @@ export const MSG_BAD_UNINO = ' 統一編號輸入錯誤 。';
 export const MSG_BAD_ID = '身份證編號,可能錯誤...';
 
 /**
+ * 證書別檢查 (空白:會計師, 2:記帳士, 3:報稅代理人)
+ */
+export const checkCertType = (certType?: string | null): { valid: boolean; message: string } => {
+  if (!certType) return { valid: true, message: '' };
+  const t = certType.trim();
+  if (t === '' || t === '1' || t === '2' || t === '3') {
+    return { valid: true, message: '' };
+  }
+  return {
+    valid: false,
+    message: '證書別僅允許 空白(會計師)、2(記帳士)、3(報稅代理人)',
+  };
+};
+
+/**
  * 申報ID / 身分證欄提示性檢查 (對齊 ChkIdWarnMsg)
  * - 空白放行
  * - 8 碼走統一編號檢查
  * - 10 碼走身分證或新/舊式居留證檢查
+ * - 長度非 8 碼且非 10 碼視為錯誤
  * - 回傳錯誤提示訊息（若合法則回傳空字串）
  */
 export const checkTaxId = (id?: string | null): { valid: boolean; message: string } => {
   if (!id) return { valid: true, message: '' };
   const s = id.trim().toUpperCase();
   if (s === '') return { valid: true, message: '' };
+
+  if (s.length !== 8 && s.length !== 10) {
+    return {
+      valid: false,
+      message: '申報ID長度需為8碼(統編)或10碼(身分證/居留證)',
+    };
+  }
 
   if (s.length === 8) {
     if (!isTwBusinessId(s)) {
@@ -148,12 +171,16 @@ export const checkTaxId = (id?: string | null): { valid: boolean; message: strin
 /**
  * 統一編號欄提示性檢查 (對齊 UninoWarnMsg)
  * - 空白放行
- * - 輸入時必須符合 8 碼統編加權檢核
+ * - 輸入時必須剛好為 8 碼數字且符合加權檢核
  */
 export const checkUnifiedNo = (unino?: string | null): { valid: boolean; message: string } => {
   if (!unino) return { valid: true, message: '' };
   const s = unino.trim();
   if (s === '') return { valid: true, message: '' };
+
+  if (s.length !== 8 || !/^\d{8}$/.test(s)) {
+    return { valid: false, message: '統一編號格式需為8位數字' };
+  }
 
   if (!isTwBusinessId(s)) {
     return { valid: false, message: MSG_BAD_UNINO };

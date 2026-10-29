@@ -353,6 +353,8 @@ export const Wbase2010SplitPage: React.FC<Wbase2010SplitPageProps> = ({ onBackTo
               setFormData={setFormData}
               inputRefsMap={inputRefsMap}
               mode={mode}
+              onSwitchTab={switchTab}
+              onSave={saveForm}
             />
           </div>
         </div>

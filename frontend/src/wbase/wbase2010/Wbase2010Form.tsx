@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   FIELD_METADATA,
+  TAB_FIELDS_MAP,
 } from './companyFieldDefs';
 import { useTheme } from '../menu/ThemeContext';
 import {
@@ -17,6 +18,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { isValidEmail, EMAIL_WARNING_TEXT } from '../../services/validation';
+import { useFoxProCardNavigation } from '../../components/FoxProGridCard';
 
 interface Wbase2010FormProps {
   activeTab?: number;
@@ -24,6 +26,17 @@ interface Wbase2010FormProps {
   setFormData: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   inputRefsMap: React.MutableRefObject<Map<string, HTMLInputElement | HTMLTextAreaElement>>;
   mode?: 'grid' | 'edit' | 'add';
+  onSwitchTab?: (tabIdx: number) => void;
+  onSave?: () => void;
+}
+
+// 彙總全頁所有欄位循序清單 (跨分頁 0~5 循序)
+const ALL_FIELDS_ORDERED: { tabIdx: number; fid: string }[] = [];
+for (let t = 0; t <= 5; t++) {
+  const fids = TAB_FIELDS_MAP[t] || [];
+  for (const fid of fids) {
+    ALL_FIELDS_ORDERED.push({ tabIdx: t, fid });
+  }
 }
 
 function SectionCard({
@@ -66,12 +79,27 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
   setFormData,
   inputRefsMap,
   mode = 'edit',
+  onSwitchTab,
+  onSave,
 }) => {
   const { isDark } = useTheme();
 
   const handleInputChange = (fid: string, value: string) => {
     setFormData((prev) => ({ ...prev, [fid]: value }));
   };
+
+  const {
+    handleFieldKeyDown,
+    handleFieldFocus,
+  } = useFoxProCardNavigation<string>({
+    fieldOrder: ALL_FIELDS_ORDERED.map((f) => f.fid),
+    inputRefsMap,
+    isFieldDisabled: (fid) => fid === 'f3_code' && mode === 'edit',
+    onSave,
+    onSwitchTab,
+    tabFieldsMap: TAB_FIELDS_MAP,
+    activeTab,
+  });
 
   const renderField = (fid: string) => {
     const meta = FIELD_METADATA[fid] || { label: fid, dbfCol: fid };
@@ -93,6 +121,14 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
       disabled: isDisabled,
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
         handleInputChange(fid, e.target.value),
+      onFocus: handleFieldFocus,
+      onClick: (e: React.MouseEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        try {
+          (e.currentTarget as HTMLInputElement).select();
+        } catch {}
+      },
+      onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+        handleFieldKeyDown(e, fid),
       placeholder: meta.placeholder || '',
     };
 
@@ -125,21 +161,21 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
           <textarea
             {...inputProps}
             rows={2}
-            className={`w-full min-h-[64px] rounded-[8px] border px-3 py-2 text-[13px] font-medium transition ${
+            className={`w-full min-h-[64px] rounded-[8px] border px-3 py-2 text-[13px] font-mono font-medium transition ${
               isDark
                 ? isDisabled
                   ? 'bg-slate-800/60 border-slate-700 text-slate-500 cursor-not-allowed'
-                  : 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500'
+                  : 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/50'
                 : isDisabled
                 ? 'bg-slate-100 border-slate-300 text-slate-600 cursor-not-allowed opacity-90 font-medium'
-                : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 shadow-2xs'
+                : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-amber-400/60 shadow-2xs'
             }`}
           />
         ) : (
           <input
             {...inputProps}
             type={isEmailField ? 'email' : 'text'}
-            className={`w-full h-8 rounded-[8px] border px-3 text-[13px] font-medium transition shadow-2xs ${
+            className={`w-full h-8 rounded-[8px] border px-3 text-[13px] font-mono font-medium transition shadow-2xs ${
               isEmailInvalid
                 ? isDark
                   ? 'bg-slate-900 border-amber-500 text-amber-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold'
@@ -147,10 +183,10 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
                 : isDark
                 ? isDisabled
                   ? 'bg-slate-800/60 border-slate-700 text-slate-500 cursor-not-allowed'
-                  : 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500'
+                  : 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/50'
                 : isDisabled
                 ? 'bg-slate-100 border-slate-300 text-slate-600 cursor-not-allowed opacity-90 font-medium'
-                : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 shadow-2xs'
+                : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-amber-400/60 shadow-2xs'
             }`}
           />
         )}

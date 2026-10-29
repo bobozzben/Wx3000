@@ -3,6 +3,7 @@ import {
   isValidEmail,
   checkTaxId,
   checkUnifiedNo,
+  checkCertType,
   checkBig5Compatible,
   getBig5ByteLength,
 } from './validation';
@@ -25,7 +26,7 @@ export interface CpaFieldRule {
 
 export const CPA_FIELD_RULES: Record<string, CpaFieldRule> = {
   cpaCode: { key: 'cpaCode', label: '代號', maxBytes: 10, required: true, uppercase: true, description: '不可為空且不可重複' },
-  certType: { key: 'certType', label: '證書別', maxBytes: 1, required: false, uppercase: false, description: '空白/1:會計師 2:記帳士 3:報稅代理人' },
+  certType: { key: 'certType', label: '證書別', maxBytes: 1, required: false, uppercase: false, description: '空白:會計師 2:記帳士 3:報稅代理人' },
   cpaName: { key: 'cpaName', label: '姓名', maxBytes: 40, required: true, uppercase: false, description: '必填，最多40位元組' },
   taxId: { key: 'taxId', label: '申報ID', maxBytes: 10, required: false, uppercase: true, description: '身分證/新舊居留證/8碼統編 (提示性驗證)' },
   licenseNo: { key: 'licenseNo', label: '證書年度或國稅別', maxBytes: 3, required: false, uppercase: false, description: '如 097' },
@@ -78,12 +79,39 @@ export const validateCpaForm = (
     }
   }
 
-  // 3. 姓名必填
+  // 3. 證書別檢查 (僅限 空白、1、2、3)
+  const certCheck = checkCertType(formData.certType);
+  if (!certCheck.valid) {
+    blockingErrors.push(certCheck.message);
+  }
+
+  // 4. 姓名必填
   if (!name) {
     blockingErrors.push('姓名不可空白！');
   }
 
-  // 4. Big5 可存性哨兵 (全欄位檢查)
+  // 5. 申報ID (身分證/居留證/8碼統編) - 提示性檢核，仍可存檔
+  if (formData.taxId && formData.taxId.trim()) {
+    const taxIdCheck = checkTaxId(formData.taxId);
+    if (!taxIdCheck.valid && taxIdCheck.message) {
+      warnings.push(`申報ID：${taxIdCheck.message.trim()}`);
+    }
+  }
+
+  // 6. 統一編號 (8碼統編) - 提示性檢核，仍可存檔
+  if (formData.unifiedNo && formData.unifiedNo.trim()) {
+    const uninoCheck = checkUnifiedNo(formData.unifiedNo);
+    if (!uninoCheck.valid && uninoCheck.message) {
+      warnings.push(`統一編號：${uninoCheck.message.trim()}`);
+    }
+  }
+
+  // 7. E-mail 格式 - 提示性檢核，仍可存檔
+  if (formData.email && formData.email.trim() && !isValidEmail(formData.email)) {
+    warnings.push('E-MAIL：格式非標準');
+  }
+
+  // 8. Big5 可存性哨兵 (全欄位檢查)
   const fieldsToCheck = [
     formData.cpaName,
     formData.taxId,
@@ -100,24 +128,7 @@ export const validateCpaForm = (
     }
   }
 
-  // 5. 提示性檢查：申報ID (身分證/居留證/8碼統編)
-  const taxIdCheck = checkTaxId(formData.taxId);
-  if (!taxIdCheck.valid && taxIdCheck.message) {
-    warnings.push(`申報ID：${taxIdCheck.message.trim()}`);
-  }
-
-  // 6. 提示性檢查：統一編號 (8碼統編)
-  const uninoCheck = checkUnifiedNo(formData.unifiedNo);
-  if (!uninoCheck.valid && uninoCheck.message) {
-    warnings.push(`統一編號：${uninoCheck.message.trim()}`);
-  }
-
-  // 7. 提示性檢查：E-mail 格式
-  if (formData.email && !isValidEmail(formData.email)) {
-    warnings.push('E-MAIL：格式非標準');
-  }
-
-  // 8. 欄位位元組超長提示
+  // 9. 欄位位元組超長提示
   if (getBig5ByteLength(formData.cpaName) > 40) {
     warnings.push('姓名長度超過 40 位元組，存入 DBF 時將自動截斷');
   }

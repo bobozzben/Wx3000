@@ -160,7 +160,7 @@ export const useWbase1020 = create<Wbase1020State>((set, get) => ({
       formData: {
         ...EMPTY_ROW,
         cpaCode: newCode,
-        certType: '1',
+        certType: '',
       },
     });
   },
@@ -179,10 +179,10 @@ export const useWbase1020 = create<Wbase1020State>((set, get) => ({
     const originalRow = mode === 'edit' ? rows[selectedIndex] : undefined;
     const originalCode = originalRow?.cpaCode;
 
-    // 前置欄位驗證 (必填、唯一性、Big5 哨兵、提示性檢查)
+    // 前置欄位驗證 (必填、唯一性、證書別、申報ID、統編、Big5 哨兵) - 阻斷錯誤
     const valResult = validateCpaForm(formData, rows, mode, originalCode);
     if (!valResult.isValid) {
-      set({ errorToast: valResult.blockingErrors[0] || '欄位驗證未通過' });
+      set({ errorToast: `無法儲存！${valResult.blockingErrors.join('；')}` });
       return false;
     }
 

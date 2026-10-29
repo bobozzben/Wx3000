@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useWbase1020 } from './useWbase1020';
-import { Wbase1020Form, CPA_FIELDS_ORDERED } from './Wbase1020Form';
+import { Wbase1020Form } from './Wbase1020Form';
 import { Wbase1020Print } from './wbase1020Print';
 import type { CpaItem } from '../../services/wbase1020';
-import { FoxProGridCard } from '../../components/FoxProGridCard';
+import { FoxProGridCard, foxProFocusAndSelect } from '../../components/FoxProGridCard';
 import type { FoxProGridCardColumn } from '../../components/FoxProGridCard';
 import { WbasePageHeader } from '../../components/WbasePageHeader';
 import { useTheme } from '../menu/ThemeContext';
-import { isValidEmail, checkTaxId, checkUnifiedNo } from '../../services/validation';
+import { isValidEmail, checkTaxId, checkUnifiedNo, checkCertType } from '../../services/validation';
 import {
   Users,
   Search,
@@ -29,7 +29,33 @@ interface Wbase1020PageProps {
 
 const CPA_GRID_COLUMNS: FoxProGridCardColumn<CpaItem>[] = [
   { key: 'cpaCode', label: '代號', width: '70px', className: 'font-bold font-mono' },
-  { key: 'certType', label: '證書別', width: '75px', align: 'center', className: 'font-mono' },
+  {
+    key: 'certType',
+    label: '證書別',
+    width: '75px',
+    align: 'center',
+    className: 'font-mono',
+    render: (item) => {
+      const ct = String(item.certType || '').trim();
+      const check = checkCertType(ct);
+      const isInvalid = !check.valid;
+      return (
+        <span className="flex items-center justify-center gap-1">
+          {isInvalid && (
+            <span
+              className="px-1 py-0.2 bg-red-600 text-white text-[10px] font-bold rounded shadow-sm"
+              title={check.message}
+            >
+              !
+            </span>
+          )}
+          <span className={isInvalid ? 'text-red-500 font-bold' : ''}>
+            {ct || '-'}
+          </span>
+        </span>
+      );
+    },
+  },
   { key: 'cpaName', label: '姓名', width: '180px', className: 'font-bold' },
   {
     key: 'taxId',
@@ -37,22 +63,15 @@ const CPA_GRID_COLUMNS: FoxProGridCardColumn<CpaItem>[] = [
     width: '120px',
     className: 'font-mono',
     render: (item) => {
-      const taxIdStr = String(item.taxId || '');
+      const taxIdStr = String(item.taxId || '').trim();
       const check = checkTaxId(taxIdStr);
-      const isInvalid = !check.valid;
+      const isInvalid = Boolean(taxIdStr) && !check.valid;
       return (
-        <span className="flex items-center gap-1.5 truncate">
-          {isInvalid && (
-            <span
-              className="px-1.5 py-0.5 bg-amber-500 text-black text-[10px] font-bold rounded shrink-0 shadow-sm"
-              title={`${check.message.trim()} (提示性警示)`}
-            >
-              ⚠️ ID
-            </span>
-          )}
-          <span className={isInvalid ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''}>
-            {taxIdStr}
-          </span>
+        <span
+          className={`truncate ${isInvalid ? 'text-red-600 dark:text-red-400 font-bold' : ''}`}
+          title={isInvalid ? check.message.trim() : undefined}
+        >
+          {taxIdStr || '-'}
         </span>
       );
     },
@@ -69,22 +88,15 @@ const CPA_GRID_COLUMNS: FoxProGridCardColumn<CpaItem>[] = [
     width: '100px',
     className: 'font-mono',
     render: (item) => {
-      const uninoStr = String(item.unifiedNo || '');
+      const uninoStr = String(item.unifiedNo || '').trim();
       const check = checkUnifiedNo(uninoStr);
-      const isInvalid = !check.valid;
+      const isInvalid = Boolean(uninoStr) && !check.valid;
       return (
-        <span className="flex items-center gap-1.5 truncate">
-          {isInvalid && (
-            <span
-              className="px-1.5 py-0.5 bg-amber-500 text-black text-[10px] font-bold rounded shrink-0 shadow-sm"
-              title={`${check.message.trim()} (提示性警示)`}
-            >
-              ⚠️ 統編
-            </span>
-          )}
-          <span className={isInvalid ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''}>
-            {uninoStr}
-          </span>
+        <span
+          className={`truncate ${isInvalid ? 'text-red-600 dark:text-red-400 font-bold' : ''}`}
+          title={isInvalid ? check.message.trim() : undefined}
+        >
+          {uninoStr || '-'}
         </span>
       );
     },
@@ -163,13 +175,11 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
     refreshData();
   }, [refreshData]);
 
-  // Focus specific input field with yellow highlight
+  // Focus specific input field with yellow highlight and select all text (FoxPro 盲打風格)
   const focusField = useCallback((fid: string) => {
     const el = inputRefsMap.current.get(fid);
     if (el) {
-      el.focus();
-      el.classList.add('fox-flash');
-      setTimeout(() => el.classList.remove('fox-flash'), 250);
+      foxProFocusAndSelect(el, true);
     }
   }, []);
 
@@ -250,22 +260,11 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
     }
   };
 
-  // Keyboard navigation inside Form (Enter moves to next field, Esc saves)
-  const handleFormFieldKeyDown = (e: React.KeyboardEvent, fid: keyof CpaItem) => {
+  // Keyboard navigation inside Form (Esc/F9 saves, F12 cancels)
+  const handleFormFieldKeyDown = (e: React.KeyboardEvent) => {
     if (mode === 'grid') return;
 
-    if (e.key === 'Enter') {
-      if (e.currentTarget.tagName === 'TEXTAREA' && e.shiftKey) return;
-      e.preventDefault();
-      const currentIdx = CPA_FIELDS_ORDERED.indexOf(fid);
-      if (currentIdx !== -1 && currentIdx < CPA_FIELDS_ORDERED.length - 1) {
-        const nextFid = CPA_FIELDS_ORDERED[currentIdx + 1];
-        focusField(nextFid as string);
-      } else {
-        // Last field, trigger save
-        saveForm();
-      }
-    } else if (e.key === 'Escape' || e.key === 'F9') {
+    if (e.key === 'Escape' || e.key === 'F9') {
       e.preventDefault();
       saveForm();
     } else if (e.key === 'F12') {
@@ -306,6 +305,8 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
         <div className="w-full shrink-0">
           <FoxProGridCard<CpaItem>
             title="會計師/記帳士清單 (FoxProGridCard)"
+            gridId="wbase1020"
+            storageKey="wbase1020_grid_widths"
             totalCount={rows.length}
             shortcutHint="↑↓ 換筆 · Enter / F6 編修 · Ins 新增 · F2 查詢 · Del 刪除"
             data={rows}
@@ -335,6 +336,7 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
             existingRows={rows}
             onFieldKeyDown={handleFormFieldKeyDown}
             onStartEdit={startEdit}
+            onSave={saveForm}
           />
         </div>
       </div>

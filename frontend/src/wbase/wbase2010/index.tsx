@@ -361,6 +361,8 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
               setFormData={setFormData}
               inputRefsMap={inputRefsMap}
               mode={mode}
+              onSwitchTab={switchTab}
+              onSave={saveForm}
             />
           </div>
         </div>
