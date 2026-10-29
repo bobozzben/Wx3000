@@ -339,12 +339,6 @@ export function FoxProGridCard<T extends Record<string, any>>({
   }, [effectiveStorageKey]);
 
   // 3. 滑鼠拖曳欄寬處理 (Mouse Drag Column Resizing)
-  const resizingRef = useRef<{
-    colKey: string;
-    startX: number;
-    startWidth: number;
-  } | null>(null);
-
   const handleResizeStart = useCallback(
     (e: React.MouseEvent, colKey: string, defaultWidthStr?: string) => {
       e.preventDefault();
@@ -355,41 +349,50 @@ export function FoxProGridCard<T extends Record<string, any>>({
         ? Math.round(parentHeader.getBoundingClientRect().width)
         : colWidths[colKey] || parseColWidth(defaultWidthStr) || 120;
 
-      resizingRef.current = {
-        colKey,
-        startX: e.clientX,
-        startWidth: currentActualWidth,
-      };
+      const startX = e.clientX;
+      const startWidth = currentActualWidth;
+      let lastWidth = currentActualWidth;
+      let animId: number | null = null;
 
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!resizingRef.current) return;
-        const delta = moveEvent.clientX - resizingRef.current.startX;
-        const newWidth = Math.max(40, Math.round(resizingRef.current.startWidth + delta));
+        const delta = moveEvent.clientX - startX;
+        const newWidth = Math.max(40, Math.round(startWidth + delta));
+        lastWidth = newWidth;
 
-        setColWidths((prev) => ({
-          ...prev,
-          [resizingRef.current!.colKey]: newWidth,
-        }));
+        if (animId !== null) {
+          cancelAnimationFrame(animId);
+        }
+        animId = requestAnimationFrame(() => {
+          setColWidths((prev) => ({
+            ...prev,
+            [colKey]: newWidth,
+          }));
+        });
       };
 
       const handleMouseUp = () => {
-        setColWidths((latestWidths) => {
-          try {
-            localStorage.setItem(effectiveStorageKey, JSON.stringify(latestWidths));
-          } catch (err) {
-            console.warn('Failed to save colWidths to localStorage:', err);
-          }
-          return latestWidths;
-        });
+        if (animId !== null) {
+          cancelAnimationFrame(animId);
+          animId = null;
+        }
 
-        resizingRef.current = null;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
+
+        setColWidths((prev) => {
+          const latest = { ...prev, [colKey]: lastWidth };
+          try {
+            localStorage.setItem(effectiveStorageKey, JSON.stringify(latest));
+          } catch (err) {
+            console.warn('Failed to save colWidths to localStorage:', err);
+          }
+          return latest;
+        });
       };
 
       window.addEventListener('mousemove', handleMouseMove);

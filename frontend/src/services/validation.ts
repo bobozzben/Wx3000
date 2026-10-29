@@ -300,3 +300,142 @@ export const getNextAutoNo = (existingCodes: string[]): string => {
 
   return '01';
 };
+
+/**
+ * 民國年日期檢查與正規化 (對齊 util_rocdate.pas ROCStringToDate 與 DateToROC9)
+ * 支援格式:
+ * - 9碼民國字串: '115/10/08' 或 '075/01/01'
+ * - 8碼民國字串: '15/10/08' 或 '75/01/01' (epoch 33: 00..33 -> 100..133; 34..99 -> 034..099)
+ * - 7碼純數字: '0750101' 或 '1151008'
+ * - 6碼純數字: '750101' (補百年為 '075/01/01')
+ * - 8碼西元年: '20261008' 或 '2026/10/08' (轉民國 '115/10/08')
+ * - 空白或無數字: 視為合法清空
+ */
+export const checkRocDate = (
+  dateStr?: string | null
+): { valid: boolean; message: string; normalized?: string } => {
+  if (!dateStr || !dateStr.trim()) {
+    return { valid: true, message: '', normalized: '' };
+  }
+
+  let text = dateStr.trim().replace(/-/g, '/');
+  // 空白遮罩視為清空
+  if (text === '//' || text === '/  /' || text === '___/__/__' || text === '___/__') {
+    return { valid: true, message: '', normalized: '' };
+  }
+
+  const digits = text.replace(/\D/g, '');
+  if (digits === '') {
+    return { valid: true, message: '', normalized: '' };
+  }
+
+  let rocYear = 0;
+  let month = 0;
+  let day = 0;
+
+  if (text.includes('/')) {
+    const parts = text.split('/').filter((p) => p.trim() !== '');
+    if (parts.length === 3) {
+      const yVal = parseInt(parts[0], 10);
+      const mVal = parseInt(parts[1], 10);
+      const dVal = parseInt(parts[2], 10);
+
+      if (isNaN(yVal) || isNaN(mVal) || isNaN(dVal)) {
+        return { valid: false, message: '生日日期格式不正確！需為有效數字' };
+      }
+
+      // 西元年判斷 (大於 1911)
+      if (yVal > 1911) {
+        rocYear = yVal - 1911;
+      } else if (parts[0].length <= 2) {
+        // 兩碼民國年補百年 (epoch 33)
+        rocYear = yVal <= 33 ? 100 + yVal : yVal;
+      } else {
+        rocYear = yVal;
+      }
+      month = mVal;
+      day = dVal;
+    } else {
+      return { valid: false, message: '生日格式錯誤！需為 年/月/日 (如 075/01/01)' };
+    }
+  } else {
+    // 純數字字串
+    if (digits.length === 6) {
+      // 6 碼 YYMMDD
+      const yVal = parseInt(digits.slice(0, 2), 10);
+      rocYear = yVal <= 33 ? 100 + yVal : yVal;
+      month = parseInt(digits.slice(2, 4), 10);
+      day = parseInt(digits.slice(4, 6), 10);
+    } else if (digits.length === 7) {
+      // 7 碼 YYYMMDD
+      rocYear = parseInt(digits.slice(0, 3), 10);
+      month = parseInt(digits.slice(3, 5), 10);
+      day = parseInt(digits.slice(5, 7), 10);
+    } else if (digits.length === 8) {
+      // 8 碼西元 YYYYMMDD
+      const westYear = parseInt(digits.slice(0, 4), 10);
+      rocYear = westYear - 1911;
+      month = parseInt(digits.slice(4, 6), 10);
+      day = parseInt(digits.slice(6, 8), 10);
+    } else {
+      return {
+        valid: false,
+        message: '生日長度錯誤！需為 6 碼(750101)、7 碼(0750101) 或 9 碼(075/01/01)',
+      };
+    }
+  }
+
+  // 驗證年份、月份、日期之曆法有效性
+  if (rocYear <= 0 || rocYear > 200) {
+    return { valid: false, message: `民國年份 (${rocYear}) 不在合理範圍！` };
+  }
+  if (month < 1 || month > 12) {
+    return { valid: false, message: `月份 (${month}) 錯誤！需介於 01 ~ 12 月` };
+  }
+
+  // 判斷西元閏年
+  const adYear = rocYear + 1911;
+  const isLeap = (adYear % 4 === 0 && adYear % 100 !== 0) || adYear % 400 === 0;
+  const daysInMonth = [0, 31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const maxDays = daysInMonth[month] || 31;
+
+  if (day < 1 || day > maxDays) {
+    return {
+      valid: false,
+      message: `日期 (${day}日) 不存在！民國 ${rocYear} 年 ${month} 月僅有 ${maxDays} 天`,
+    };
+  }
+
+  const normalized = `${String(rocYear).padStart(3, '0')}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+  return { valid: true, message: '', normalized };
+};
+
+/**
+ * 簡易取得正規化民國年 9 碼格式 (若格式不合法則原樣傳回)
+ */
+export const normalizeRocDate = (dateStr?: string | null): string => {
+  const check = checkRocDate(dateStr);
+  return check.valid && check.normalized !== undefined ? check.normalized : (dateStr || '').trim();
+};
+
+/**
+ * 純數字手機檢核 (對齊 wbase130.pas FieldDigitOnly 'phone')
+ */
+export const checkPhoneDigits = (phone?: string | null): { valid: boolean; message: string } => {
+  if (!phone || !phone.trim()) return { valid: true, message: '' };
+  const s = phone.trim();
+  if (!/^\d+$/.test(s)) {
+    return { valid: false, message: '電子送達手機僅允許輸入數字 (0~9)！' };
+  }
+  if (s.length > 10) {
+    return { valid: false, message: '電子送達手機長度不可超過 10 碼！' };
+  }
+  return { valid: true, message: '' };
+};
+
+/**
+ * SUPERVISOR 保留帳號檢查
+ */
+export const isSupervisor = (code?: string | null): boolean => {
+  return (code || '').trim().toUpperCase() === 'SUPERVISOR';
+};

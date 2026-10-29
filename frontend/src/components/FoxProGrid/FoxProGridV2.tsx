@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { SearchModal } from './SearchModal';
 import type { SearchItem } from './SearchModal';
 import { useTheme } from '../../wbase/menu/ThemeContext';
+import { truncateBig5 } from '../../services/validation';
+import { AlertCircle, XCircle } from 'lucide-react';
 
 export interface HeaderGroupDef {
   label: React.ReactNode;
@@ -18,6 +20,21 @@ export interface ColumnDefV2<T> {
   className?: string;
   /** Set to true if this column is the table's Primary Key field */
   isPrimaryKey?: boolean;
+  /** Automatically convert input to uppercase (InputMask !) */
+  uppercase?: boolean;
+  /** Only allow digits 0-9 (InputMask 9) */
+  digitOnly?: boolean;
+  /** Maximum bytes allowed (Big5 byte limit) */
+  maxBytes?: number;
+  /** Maximum text character length */
+  maxLength?: number;
+  /** Custom column validation */
+  validate?: (
+    val: string,
+    row: T,
+    rowIndex: number,
+    allRows: T[]
+  ) => { valid: boolean; message: string; isWarning?: boolean };
   renderCell?: (val: any, row: T, rIdx: number) => React.ReactNode;
 }
 
@@ -46,7 +63,7 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
   onF3Search?: (query: string, colKey: keyof T & string) => Promise<SearchItem[]>;
   /** F3 Search modal title */
   f3SearchTitle?: string;
-  /** Minimum visible rows for Excel-style view (default 15) */
+  /** Minimum visible rows for grid (default 0: 只顯示實際筆數，對齊 FoxPro GRID 物件模式) */
   minRows?: number;
   /** Container height (default '608px') */
   height?: string;
@@ -94,7 +111,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
   onSelectRow,
   onF3Search,
   f3SearchTitle = '資料搜尋 [F3]',
-  minRows = 15,
+  minRows = 0,
   height,
   getRowKey,
   onInsertRow,
@@ -201,52 +218,55 @@ export function FoxProGridV2<T extends Record<string, any>>({
   );
 
   // 滑鼠拖曳欄寬處理 (Mouse Drag Column Resizing)
-  const resizingRef = useRef<{
-    colKey: string;
-    startX: number;
-    startWidth: number;
-  } | null>(null);
-
   const handleResizeStart = useCallback(
     (e: React.MouseEvent, colKey: string, currentWidth: number) => {
       e.preventDefault();
       e.stopPropagation();
 
-      resizingRef.current = {
-        colKey,
-        startX: e.clientX,
-        startWidth: currentWidth,
-      };
+      const startX = e.clientX;
+      const startWidth = currentWidth;
+      let lastWidth = currentWidth;
+      let animId: number | null = null;
 
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!resizingRef.current) return;
-        const delta = moveEvent.clientX - resizingRef.current.startX;
-        const newWidth = Math.max(50, Math.round(resizingRef.current.startWidth + delta));
+        const delta = moveEvent.clientX - startX;
+        const newWidth = Math.max(40, Math.round(startWidth + delta));
+        lastWidth = newWidth;
 
-        setColWidths((prev) => ({
-          ...prev,
-          [resizingRef.current!.colKey]: newWidth,
-        }));
+        if (animId !== null) {
+          cancelAnimationFrame(animId);
+        }
+        animId = requestAnimationFrame(() => {
+          setColWidths((prev) => ({
+            ...prev,
+            [colKey]: newWidth,
+          }));
+        });
       };
 
       const handleMouseUp = () => {
-        setColWidths((latestWidths) => {
-          try {
-            localStorage.setItem(effectiveStorageKey, JSON.stringify(latestWidths));
-          } catch {
-            // ignore
-          }
-          return latestWidths;
-        });
+        if (animId !== null) {
+          cancelAnimationFrame(animId);
+          animId = null;
+        }
 
-        resizingRef.current = null;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
+
+        setColWidths((prev) => {
+          const latest = { ...prev, [colKey]: lastWidth };
+          try {
+            localStorage.setItem(effectiveStorageKey, JSON.stringify(latest));
+          } catch {
+            // ignore
+          }
+          return latest;
+        });
       };
 
       window.addEventListener('mousemove', handleMouseMove);
@@ -264,10 +284,22 @@ export function FoxProGridV2<T extends Record<string, any>>({
     columns[0]?.key || ('' as any)
   );
 
-  const [pkErrorAlert, setPkErrorAlert] = useState<{ open: boolean; message: string }>({
-    open: false,
-    message: '',
-  });
+  // 右下角提示訊息狀態 (對齊 FoxPro 盲打風格)
+  const [toastAlert, setToastAlert] = useState<{
+    message: string;
+    type: 'error' | 'warning' | 'success';
+  } | null>(null);
+
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((message: string, type: 'error' | 'warning' | 'success' = 'error') => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    setToastAlert({ message, type });
+    toastTimerRef.current = setTimeout(() => {
+      setToastAlert(null);
+    }, 4000);
+  }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -293,15 +325,27 @@ export function FoxProGridV2<T extends Record<string, any>>({
     }
   }, [selectedCell.r, selectedCell.c, showRowIndex]);
 
-  // Pad display rows up to minRows (15 rows) for seamless Excel experience
+  // Only pad display rows if minRows > 0; default minRows = 0 shows only actual rows (FoxPro Grid style)
   const displayRows = useMemo(() => {
-    if (rows.length >= minRows) return rows;
+    if (minRows <= 0 || rows.length >= minRows) return rows;
     const padded = [...rows];
     while (padded.length < minRows) {
       padded.push(createEmptyRowRef.current());
     }
     return padded;
   }, [rows, minRows]);
+
+  // Adjust selected row index if rows shrink
+  useEffect(() => {
+    if (displayRows.length > 0 && selectedCell.r >= displayRows.length) {
+      setSelectedCell((prev) => ({ ...prev, r: displayRows.length - 1 }));
+    }
+  }, [displayRows.length, selectedCell.r]);
+
+  // 主鍵欄位索引 (Primary Key Column Index)
+  const pkColIndex = useMemo(() => {
+    return columns.findIndex((col) => col.isPrimaryKey);
+  }, [columns]);
 
   const currentSelectedRow = displayRows[selectedCell.r];
 
@@ -324,14 +368,19 @@ export function FoxProGridV2<T extends Record<string, any>>({
     return statusBarInfo;
   }, [statusBarInfo, currentSelectedRow, selectedCell.r]);
 
-  // Primary Key existence check helper for Grid Editing
-  const checkPrimaryKeyDuplicate = useCallback(
-    (r: number, c: number, value: string): boolean => {
+  // Primary Key existence & duplicate check helper for Grid Editing
+  const checkPrimaryKey = useCallback(
+    (r: number, c: number, value: string): { valid: boolean; message: string } => {
       const col = columns[c];
-      if (!col || !col.isPrimaryKey) return false; // Non-primary key fields don't check!
+      if (!col || !col.isPrimaryKey) return { valid: true, message: '' };
 
       const val = value.trim().toUpperCase();
-      if (!val) return false;
+      if (!val) {
+        return {
+          valid: false,
+          message: `主鍵「${col.label}」不可空白！請輸入編號。`,
+        };
+      }
 
       // Check if value already exists in displayRows (excluding current row r)
       const isDuplicate = displayRows.some((row, idx) => {
@@ -341,39 +390,88 @@ export function FoxProGridV2<T extends Record<string, any>>({
       });
 
       if (isDuplicate) {
-        setPkErrorAlert({
-          open: true,
-          message: `⚠️ 主鍵欄位「${col.label}」資料 "${value.trim()}" 已存在於系統，請重新輸入！`,
-        });
-        return true;
+        return {
+          valid: false,
+          message: `主鍵「${col.label}」編號 "${val}" 已重複，請重新輸入！`,
+        };
       }
 
-      return false;
+      return { valid: true, message: '' };
     },
     [columns, displayRows]
   );
 
-  // Helper to commit edits with Primary Key validation
+  // Helper to commit edits with Primary Key and column validation
   const commitEdit = useCallback(
     (r: number, c: number, value: string): boolean => {
       const col = columns[c];
       if (!col) return false;
 
-      // Primary Key duplicate check before commit!
+      let processedVal = value;
+      if (col.uppercase) {
+        processedVal = processedVal.toUpperCase();
+      }
+      if (col.digitOnly) {
+        processedVal = processedVal.replace(/\D/g, '');
+      }
+      if (col.maxBytes && col.maxBytes > 0) {
+        processedVal = truncateBig5(processedVal, col.maxBytes);
+      }
+
+      // 1. Primary Key blank & duplicate check before commit!
       if (col.isPrimaryKey) {
-        if (checkPrimaryKeyDuplicate(r, c, value)) {
+        const pkCheck = checkPrimaryKey(r, c, processedVal);
+        if (!pkCheck.valid) {
+          showToast(pkCheck.message, 'error');
+          setSelectedCell({ r, c });
           setIsEditing(true);
           setTimeout(() => {
             inputRef.current?.focus();
             inputRef.current?.select();
           }, 50);
-          return false; // REJECT COMMIT
+          return false; // REJECT COMMIT & DO NOT SAVE
+        }
+      } else {
+        // If editing a non-PK column, verify that current row's PK is not blank
+        if (pkColIndex !== -1) {
+          const currentPkVal = String(displayRows[r]?.[columns[pkColIndex].key] || '').trim();
+          if (!currentPkVal) {
+            showToast(`主鍵「${columns[pkColIndex].label}」不可空白！請輸入編號。`, 'error');
+            setSelectedCell({ r, c: pkColIndex });
+            setIsEditing(true);
+            setTimeout(() => {
+              inputRef.current?.focus();
+              inputRef.current?.select();
+            }, 50);
+            return false; // REJECT COMMIT & FORCE BACK TO PK COLUMN
+          }
+        }
+      }
+
+      // 2. Custom column validation
+      if (col.validate) {
+        const valRes = col.validate(processedVal, displayRows[r], r, displayRows);
+        if (!valRes.valid) {
+          if (valRes.isWarning) {
+            // Warning: show prompt toast, but allow commit!
+            showToast(valRes.message, 'warning');
+          } else {
+            // Blocking error: reject commit and keep focus!
+            showToast(valRes.message, 'error');
+            setSelectedCell({ r, c });
+            setIsEditing(true);
+            setTimeout(() => {
+              inputRef.current?.focus();
+              inputRef.current?.select();
+            }, 50);
+            return false;
+          }
         }
       }
 
       const colKey = col.key;
       const updated = [...displayRows];
-      const targetRow = { ...updated[r], [colKey]: value };
+      const targetRow = { ...updated[r], [colKey]: processedVal };
       updated[r] = targetRow;
       onRowsChange(updated);
       setHasModified(true);
@@ -382,12 +480,111 @@ export function FoxProGridV2<T extends Record<string, any>>({
       }
       return true;
     },
-    [columns, displayRows, onRowsChange, onSaveRow, checkPrimaryKeyDuplicate]
+    [columns, displayRows, onRowsChange, onSaveRow, checkPrimaryKey, showToast, pkColIndex]
   );
+
+  // 新增列處理 (Insert Row: 驗證當前列主鍵後新增，並直接聚焦第一欄進入編輯)
+  const isAddingRowRef = useRef(false);
+  const handleInsertRow = useCallback(() => {
+    // 檢查當前列的主鍵是否已填且無重複
+    if (displayRows.length > 0 && pkColIndex !== -1) {
+      const curPkCol = columns[pkColIndex];
+      const curPkVal = (isEditing && selectedCell.c === pkColIndex
+        ? editValue
+        : String(displayRows[selectedCell.r]?.[curPkCol.key] || '')
+      ).trim().toUpperCase();
+
+      if (!curPkVal) {
+        showToast(`主鍵「${curPkCol.label}」不可空白！請先輸入編號。`, 'error');
+        setSelectedCell({ r: selectedCell.r, c: pkColIndex });
+        setIsEditing(true);
+        setTimeout(() => {
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        }, 50);
+        return;
+      }
+
+      const isDup = displayRows.some((row, idx) => {
+        if (idx === selectedCell.r) return false;
+        return String(row[curPkCol.key] || '').trim().toUpperCase() === curPkVal;
+      });
+      if (isDup) {
+        showToast(`主鍵「${curPkCol.label}」編號 "${curPkVal}" 已重複，請重新輸入！`, 'error');
+        setSelectedCell({ r: selectedCell.r, c: pkColIndex });
+        setIsEditing(true);
+        setTimeout(() => {
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        }, 50);
+        return;
+      }
+    }
+
+    if (isEditing) {
+      const ok = commitEdit(selectedCell.r, selectedCell.c, editValue);
+      if (!ok) return;
+    }
+
+    isAddingRowRef.current = true;
+    if (onInsertRow) {
+      onInsertRow();
+    } else {
+      const newRows = [...displayRows, createEmptyRow()];
+      onRowsChange(newRows);
+      const newRowIdx = newRows.length - 1;
+      const initialCol = pkColIndex >= 0 ? pkColIndex : 0;
+      setSelectedCell({ r: newRowIdx, c: initialCol });
+      setEditValue('');
+      setIsEditing(true);
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.select();
+        }
+      }, 60);
+    }
+  }, [
+    displayRows,
+    pkColIndex,
+    columns,
+    isEditing,
+    selectedCell,
+    editValue,
+    commitEdit,
+    showToast,
+    onInsertRow,
+    createEmptyRow,
+    onRowsChange,
+  ]);
+
+  // 當新增列時，游標自動聚焦至新列的第一欄 (column 0) 並進入編輯模式
+  const prevRowsLengthRef = useRef(rows.length);
+  useEffect(() => {
+    if (rows.length > prevRowsLengthRef.current) {
+      if (isAddingRowRef.current) {
+        isAddingRowRef.current = false;
+        const newRowIdx = rows.length - 1;
+        const initialCol = pkColIndex >= 0 ? pkColIndex : 0;
+        setSelectedCell({ r: newRowIdx, c: initialCol });
+        setEditValue('');
+        setIsEditing(true);
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+          }
+        }, 60);
+      }
+    }
+    prevRowsLengthRef.current = rows.length;
+  }, [rows.length, pkColIndex]);
 
   // Helper to move cell focus
   const moveCell = useCallback(
     (r: number, c: number, dr: number, dc: number = 0) => {
+      if (displayRows.length === 0) return;
+
       let nr = r + dr;
       let nc = c + dc;
 
@@ -400,11 +597,14 @@ export function FoxProGridV2<T extends Record<string, any>>({
       }
 
       if (nr >= displayRows.length) {
-        const newRows = [...displayRows, createEmptyRow()];
-        onRowsChange(newRows);
-        // Ensure index moves forward
-        nr = displayRows.length;
-        nc = 0;
+        // Last cell advance (e.g. Enter or Tab on the last column of the last row) appends a new row (FoxPro Grid style)
+        if (dc > 0) {
+          handleInsertRow();
+          return;
+        } else {
+          // ArrowDown at bottom stops at last row without appending blank rows
+          nr = Math.max(0, displayRows.length - 1);
+        }
       } else if (nr < 0) {
         nr = 0;
       }
@@ -412,7 +612,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
       setSelectedCell({ r: nr, c: nc });
       setIsEditing(false);
     },
-    [columns.length, displayRows, createEmptyRow, onRowsChange]
+    [columns.length, displayRows.length, handleInsertRow]
   );
 
   // Auto-focus input when editing starts and place cursor at the end (prevents character selection overwrite)
@@ -456,6 +656,18 @@ export function FoxProGridV2<T extends Record<string, any>>({
       if (e.key === 'F7') {
         e.preventDefault();
         if (onOpenPrint) onOpenPrint();
+        return;
+      }
+
+      // Ins: Insert Row (FoxPro 樣式: 聚焦第1欄進入編輯)
+      if (e.key === 'Insert') {
+        e.preventDefault();
+        handleInsertRow();
+        return;
+      }
+
+      // 若查無資料，其他儲存格導覽鍵直接略過
+      if (displayRows.length === 0) {
         return;
       }
 
@@ -548,6 +760,31 @@ export function FoxProGridV2<T extends Record<string, any>>({
           return;
         }
 
+        // 當目前列主鍵空白時，阻止移動離開主鍵欄位，並提示警示
+        if (
+          pkColIndex !== -1 &&
+          (e.key === 'Tab' ||
+            e.key === 'ArrowUp' ||
+            e.key === 'ArrowDown' ||
+            e.key === 'ArrowLeft' ||
+            e.key === 'ArrowRight' ||
+            e.key === 'PageUp' ||
+            e.key === 'PageDown')
+        ) {
+          const curPkVal = String(displayRows[r]?.[columns[pkColIndex].key] || '').trim();
+          if (!curPkVal) {
+            e.preventDefault();
+            showToast(`主鍵「${columns[pkColIndex].label}」不可空白！請輸入編號。`, 'error');
+            setSelectedCell({ r, c: pkColIndex });
+            setIsEditing(true);
+            setTimeout(() => {
+              inputRef.current?.focus();
+              inputRef.current?.select();
+            }, 50);
+            return;
+          }
+        }
+
         if (e.key === 'Tab') {
           e.preventDefault();
           moveCell(r, c, 0, e.shiftKey ? -1 : 1);
@@ -622,8 +859,23 @@ export function FoxProGridV2<T extends Record<string, any>>({
           !e.altKey &&
           !e.metaKey
         ) {
+          if (pkColIndex !== -1 && c !== pkColIndex) {
+            const curPkVal = String(displayRows[r]?.[columns[pkColIndex].key] || '').trim();
+            if (!curPkVal) {
+              e.preventDefault();
+              showToast(`主鍵「${columns[pkColIndex].label}」不可空白！請先輸入編號。`, 'error');
+              setSelectedCell({ r, c: pkColIndex });
+              setIsEditing(true);
+              return;
+            }
+          }
+          if (col.digitOnly && !/^\d$/.test(e.key)) {
+            e.preventDefault();
+            return;
+          }
           e.preventDefault();
-          setEditValue(e.key);
+          const initKey = col.uppercase ? e.key.toUpperCase() : e.key;
+          setEditValue(initKey);
           setIsEditing(true);
           return;
         }
@@ -642,8 +894,9 @@ export function FoxProGridV2<T extends Record<string, any>>({
     searchModalOpen,
     commitEdit,
     moveCell,
-    createEmptyRow,
-    onRowsChange,
+    handleInsertRow,
+    pkColIndex,
+    showToast,
     onF3Search,
     onOpenPrint,
     onShowSummary,
@@ -822,7 +1075,20 @@ export function FoxProGridV2<T extends Record<string, any>>({
                           onClick={() => {
                             if (isEditing && (selectedCell.r !== rIdx || selectedCell.c !== cIdx)) {
                               const success = commitEdit(selectedCell.r, selectedCell.c, editValue);
-                              if (!success) return; // Block cell switch on duplicate PK!
+                              if (!success) return; // Block cell switch on invalid PK!
+                            }
+                            if (selectedCell.r !== rIdx && pkColIndex !== -1) {
+                              const curPkVal = String(displayRows[selectedCell.r]?.[columns[pkColIndex].key] || '').trim();
+                              if (!curPkVal) {
+                                showToast(`主鍵「${columns[pkColIndex].label}」不可空白！請輸入編號。`, 'error');
+                                setSelectedCell({ r: selectedCell.r, c: pkColIndex });
+                                setIsEditing(true);
+                                setTimeout(() => {
+                                  inputRef.current?.focus();
+                                  inputRef.current?.select();
+                                }, 50);
+                                return;
+                              }
                             }
                             setSelectedCell({ r: rIdx, c: cIdx });
                             setIsEditing(false);
@@ -863,7 +1129,13 @@ export function FoxProGridV2<T extends Record<string, any>>({
                                 ref={inputRef}
                                 type="text"
                                 value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
+                                maxLength={col.maxLength}
+                                onChange={(e) => {
+                                  let val = e.target.value;
+                                  if (col.uppercase) val = val.toUpperCase();
+                                  if (col.digitOnly) val = val.replace(/\D/g, '');
+                                  setEditValue(val);
+                                }}
                                 onBlur={() => {
                                   if (isEditing) {
                                     commitEdit(selectedCell.r, selectedCell.c, editValue);
@@ -886,6 +1158,18 @@ export function FoxProGridV2<T extends Record<string, any>>({
                   </div>
                 );
               })}
+              {displayRows.length === 0 && (
+                <div className={`p-8 text-center text-sm font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  查無資料 (可按{' '}
+                  <kbd
+                    onClick={handleInsertRow}
+                    className="px-1.5 py-0.5 rounded bg-yellow-400 text-blue-950 font-bold text-xs cursor-pointer hover:bg-yellow-300"
+                  >
+                    Ins
+                  </kbd>{' '}
+                  鍵新增第一筆資料)
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -906,7 +1190,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
           <span className="text-yellow-400 font-bold whitespace-nowrap">
             目前位置:{' '}
             <span className="text-white font-mono">
-              第 {selectedCell.r + 1} 列 / 第 {selectedCell.c + 1} 欄
+              第 {displayRows.length === 0 ? 0 : selectedCell.r + 1} 列 / 第 {columns.length === 0 ? 0 : selectedCell.c + 1} 欄
             </span>
           </span>
           {evaluatedStatusBarInfo && <span className="text-gray-300 text-xs hidden sm:inline">{evaluatedStatusBarInfo}</span>}
@@ -916,7 +1200,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
           {onInsertRow && (
             <button
               type="button"
-              onClick={onInsertRow}
+              onClick={handleInsertRow}
               className="flex items-center space-x-1 px-2.5 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black rounded border border-yellow-600 shadow-xs transition cursor-pointer"
             >
               <span className="bg-yellow-600 text-white text-[10px] px-1 rounded font-mono">Ins</span>
@@ -1011,33 +1295,33 @@ export function FoxProGridV2<T extends Record<string, any>>({
         />
       )}
 
-      {/* Primary Key Duplicate Alert Modal */}
-      {pkErrorAlert.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div
-            className={`border-4 rounded-lg p-6 max-w-md text-center font-mono shadow-2xl transition-colors ${
-              isDark
-                ? 'bg-slate-900 border-red-500 text-white'
-                : 'bg-red-950 border-yellow-400 text-white'
-            }`}
-          >
-            <h4 className="text-xl font-bold text-yellow-300 mb-3">主鍵資料重複提示</h4>
-            <p className="text-base font-semibold mb-6">{pkErrorAlert.message}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setPkErrorAlert({ open: false, message: '' });
-                setIsEditing(true);
-                setTimeout(() => {
-                  inputRef.current?.focus();
-                  inputRef.current?.select();
-                }, 50);
-              }}
-              className="bg-yellow-400 text-black px-6 py-2 rounded font-bold text-base hover:bg-yellow-300 transition cursor-pointer"
-            >
-              確定 (Enter / Esc)
-            </button>
+      {/* 右下角提示通知 (對齊 FoxPro 盲打風格，非阻斷式彈窗) */}
+      {toastAlert && (
+        <div
+          className={`fixed bottom-12 right-6 z-50 flex items-center justify-between space-x-3 px-4 py-2.5 rounded-lg shadow-2xl border-2 font-bold text-sm max-w-md transition-all animate-bounce ${
+            toastAlert.type === 'error'
+              ? 'bg-red-600 text-white border-red-400'
+              : toastAlert.type === 'warning'
+              ? 'bg-amber-600 text-white border-amber-400'
+              : 'bg-emerald-600 text-white border-emerald-400'
+          }`}
+          role="alert"
+        >
+          <div className="flex items-center space-x-2">
+            {toastAlert.type === 'error' ? (
+              <XCircle className="w-5 h-5 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 shrink-0" />
+            )}
+            <span>{toastAlert.message}</span>
           </div>
+          <button
+            type="button"
+            onClick={() => setToastAlert(null)}
+            className="text-white hover:text-gray-200 underline text-xs ml-2 cursor-pointer"
+          >
+            關閉
+          </button>
         </div>
       )}
     </div>

@@ -11,8 +11,9 @@ import {
   deleteEmp,
   printEmpList,
   callWaccrep3106b,
+  validateEmpRow,
+  canDeleteEmp,
 } from '../../services/wbase1030';
-import { isValidEmail, EMAIL_SAVE_WARNING_TOAST } from '../../services/validation';
 
 interface Wbase1030State {
   rows: EmpItem[];
@@ -78,21 +79,40 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
   handleSaveRow: async (updatedRow) => {
     const code = (updatedRow.no || updatedRow.empCode || '').trim();
     if (!code) return;
+
+    const { rows } = get();
+    // 前置欄位驗證 (對齊 wbase130.pas)
+    const originalRow = rows.find(
+      (r) =>
+        (r._record_number && r._record_number === updatedRow._record_number) ||
+        (r.no || r.empCode || '').trim().toUpperCase() === code.toUpperCase()
+    );
+    const originalCode = originalRow ? originalRow.no || originalRow.empCode : undefined;
+
+    const valResult = validateEmpRow(updatedRow, rows, originalCode);
+    if (!valResult.isValid) {
+      set({ errorToast: `無法儲存！${valResult.blockingErrors.join('；')}` });
+      return;
+    }
+
+    const payload = valResult.normalizedRow;
     try {
-      const isNew = !get().rows.some(
-        (r) => (r.no || r.empCode || '').trim().toUpperCase() === code.toUpperCase()
+      const isNew = !rows.some(
+        (r) => (r.no || r.empCode || '').trim().toUpperCase() === payload.no.toUpperCase()
       );
       if (isNew) {
-        await createEmp(updatedRow);
+        await createEmp(payload);
       } else {
-        await updateEmp(code, updatedRow);
+        await updateEmp(originalCode ? originalCode.trim() : payload.no, payload);
       }
-      const isEmailInvalid = !isValidEmail(updatedRow.email);
-      const toastMsg = isEmailInvalid
-        ? EMAIL_SAVE_WARNING_TOAST
-        : '已成功儲存至 PostgreSQL 資料庫！';
+
+      let toastMsg = '已成功儲存至 PostgreSQL 資料庫與 DBF！';
+      if (valResult.warnings.length > 0) {
+        toastMsg = `已成功儲存！(⚠️ 提示：${valResult.warnings.join('、')}，已照常存檔)`;
+      }
+
       set({ showAutoCloseToast: true, toastMessage: toastMsg });
-      setTimeout(() => set({ showAutoCloseToast: false }), 3000);
+      setTimeout(() => set({ showAutoCloseToast: false }), 4000);
       await get().refreshData();
     } catch (e: any) {
       console.error('Save employee row error:', e);
@@ -104,17 +124,20 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
   handleSaveAll: async () => {
     set({ loading: true });
     try {
-      for (const row of get().rows) {
+      const { rows } = get();
+      for (const row of rows) {
         const code = (row.no || row.empCode || '').trim();
         if (code) {
-          await updateEmp(code, row);
+          const valResult = validateEmpRow(row, rows, code);
+          if (valResult.isValid) {
+            await updateEmp(code, valResult.normalizedRow);
+          }
         }
       }
-      const hasInvalidEmail = get().rows.some((r) => !isValidEmail(r.email));
-      const toastMsg = hasInvalidEmail
-        ? EMAIL_SAVE_WARNING_TOAST
-        : '已成功儲存至 PostgreSQL 資料庫！';
-      set({ showAutoCloseToast: true, toastMessage: toastMsg });
+      set({
+        showAutoCloseToast: true,
+        toastMessage: '已批次儲存至 PostgreSQL 資料庫與 DBF！',
+      });
       setTimeout(() => set({ showAutoCloseToast: false }), 3000);
       await get().refreshData();
     } catch (e: any) {
@@ -127,6 +150,14 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
   },
 
   openDeleteConfirm: (idx) => {
+    const { rows, selectedIndex } = get();
+    const targetIdx = idx !== undefined ? idx : selectedIndex;
+    const target = rows[targetIdx];
+    const delCheck = canDeleteEmp(target);
+    if (!delCheck.canDelete) {
+      set({ errorToast: delCheck.message });
+      return;
+    }
     if (idx !== undefined) set({ selectedIndex: idx });
     set({ isDeleteConfirmOpen: true });
   },
@@ -134,6 +165,12 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
   confirmDelete: async () => {
     const { rows, selectedIndex, refreshData } = get();
     const target = rows[selectedIndex];
+    const delCheck = canDeleteEmp(target);
+    if (!delCheck.canDelete) {
+      set({ errorToast: delCheck.message, isDeleteConfirmOpen: false });
+      return false;
+    }
+
     const code = (target?.no || target?.empCode || '').trim();
     if (!target || !code) {
       const newRows = [...rows];
