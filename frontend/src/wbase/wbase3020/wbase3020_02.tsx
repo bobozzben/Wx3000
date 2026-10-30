@@ -3,6 +3,7 @@ import { useWbase3020 } from './useWbase3020';
 import { Wbase3020_buyinv_print } from './wbase3020_buyinv_print';
 import { FoxProGridV2, type ColumnDefV2, type HeaderGroupDef } from '../../components/FoxProGrid/FoxProGridV2';
 import type { InvoicePurchaseItem } from '../../services/wbase3020';
+import { checkUnifiedNo } from '../../services/validation';
 import {
   Receipt,
   Search,
@@ -22,7 +23,36 @@ interface Wbase3020_02Props {
 const INVOICE_COLUMNS: ColumnDefV2<InvoicePurchaseItem>[] = [
   { key: 'companyCode', label: '公司編號', isPrimaryKey: true, width: '120px', className: 'font-bold text-blue-900' },
   { key: 'companyShortName', label: '公司簡稱', width: '140px', className: 'font-bold' },
-  { key: 'unifiedNo', label: '公司統編', width: '130px', className: 'font-mono' },
+  {
+    key: 'unifiedNo',
+    label: '公司統編',
+    width: '130px',
+    className: 'font-mono',
+    validate: (val) => {
+      const check = checkUnifiedNo(val);
+      if (!check.valid) {
+        return { valid: false, message: `統編提示：${check.message}`, isWarning: true };
+      }
+      return { valid: true, message: '' };
+    },
+    renderCell: (v) => {
+      const s = String(v || '').trim();
+      const check = checkUnifiedNo(s);
+      const isInvalid = s !== '' && !check.valid;
+      return (
+        <span className="flex items-center gap-1.5 truncate font-mono">
+          {isInvalid && (
+            <span title={check.message.trim()} className="flex items-center shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+            </span>
+          )}
+          <span className={isInvalid ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''}>
+            {s || '-'}
+          </span>
+        </span>
+      );
+    },
+  },
   { key: 'taxNo', label: '稅籍編號', width: '130px', className: 'font-mono' },
   { key: 'manualTwoDup', label: '二聯', width: '70px', align: 'right', renderCell: (v) => <span className="w-full text-right font-mono">{Number(v || 0)}</span> },
   { key: 'manualTwoDupSub', label: '二聯副', width: '70px', align: 'right', renderCell: (v) => <span className="w-full text-right font-mono">{Number(v || 0)}</span> },

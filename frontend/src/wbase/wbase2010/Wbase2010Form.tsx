@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FIELD_METADATA,
   TAB_FIELDS_MAP,
@@ -16,9 +16,96 @@ import {
   Calendar,
   UserCheck,
   FileSpreadsheet,
+  MapPin,
 } from 'lucide-react';
-import { isValidEmail, EMAIL_WARNING_TEXT } from '../../services/validation';
+import {
+  isValidEmail,
+  EMAIL_WARNING_TEXT,
+  checkUnifiedNo,
+  checkNationalId,
+  checkTaxId,
+  checkTaxNo,
+  checkHouseTaxNo,
+  checkPhoneFormat,
+  checkRocDate,
+  checkMonthDay,
+  WBASE210_CHOICE_RULES,
+  checkChoiceField,
+  deriveOrganizationFromName,
+  truncateBig5,
+} from '../../services/validation';
 import { useFoxProCardNavigation } from '../../components/FoxProGridCard';
+import { AddressSelectModal } from '../../components/FoxProGrid/AddressSelectModal';
+
+/** 地址欄位清單 (支援 F2/F4 開窗及小按鈕) */
+const ADDRESS_FIELDS = new Set([
+  'f3_addr',
+  'f3_invaddr',
+  'f3_ownerAddr',
+  'f6_bkaddr',
+  'f6_sbkaddr',
+  'f7_tbkaddr',
+  'f8_qbkaddr',
+  'f8_clsaddr',
+]);
+
+/** 8碼統一編號欄位清單 */
+const UNIFIED_NO_FIELDS = new Set([
+  'f3_uni',
+  'f4_mainunino',
+  'f4_compno',
+  'f5_compno5',
+  'f6_compno6',
+  'f6_bkunino',
+]);
+
+/** 10碼身分證號欄位清單 */
+const NATIONAL_ID_FIELDS = new Set([
+  'f3_idNo',
+]);
+
+/** 8碼統編或10碼身分證欄位清單 */
+const TAX_ID_OR_NAT_FIELDS = new Set([
+  'f4_pbkidno',
+  'f6_bkidno',
+  'f6_sbkidno',
+  'f7_tbkidno',
+  'f8_qbkidno',
+  'f8_clsidno',
+]);
+
+/** 電話格式提示欄位清單 */
+const PHONE_FIELDS = new Set([
+  'f3_tel',
+  'f3_fax',
+  'f4_linktel1',
+  'f4_pbktel',
+  'f5_linktel5',
+  'f6_bktel',
+  'f6_sbktel',
+  'f7_tbktel',
+  'f8_qbktel',
+  'f8_clstel',
+]);
+
+/** 民國年月日檢核欄位 (D9 / D8) */
+const ROC_DATE_FIELDS = new Set([
+  'f6_bdaten',
+  'f6_edate',
+  'f6_rdate',
+  'f6_bkdate',
+  'f6_sbkdate',
+  'f7_tbkdate',
+  'f8_qbkdate',
+  'f8_clsdate',
+  'f8_setdate',
+]);
+
+/** 月日檢核欄位 (MD 4碼) */
+const MONTH_DAY_FIELDS = new Set([
+  'f6_bkbd',
+  'f6_bked',
+]);
 
 interface Wbase2010FormProps {
   activeTab?: number;
@@ -84,8 +171,74 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
 }) => {
   const { isDark } = useTheme();
 
+  // 地址選單狀態
+  const [addrModalOpen, setAddrModalOpen] = useState(false);
+  const [activeAddressField, setActiveAddressField] = useState<string>('');
+  const [currentAddrValue, setCurrentAddrValue] = useState<string>('');
+
+  const openAddressModal = (fieldId: string) => {
+    setActiveAddressField(fieldId);
+    setCurrentAddrValue(formData[fieldId] || '');
+    setAddrModalOpen(true);
+  };
+
+  const handleAddressConfirm = (selectedAddress: string) => {
+    setAddrModalOpen(false);
+    if (activeAddressField) {
+      setFormData((prev) => ({ ...prev, [activeAddressField]: selectedAddress }));
+      setTimeout(() => {
+        const el = inputRefsMap.current.get(activeAddressField);
+        if (el) {
+          el.focus();
+        }
+      }, 50);
+    }
+  };
+
   const handleInputChange = (fid: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [fid]: value }));
+    let nextVal = value;
+    // 自動大寫處理 (限定值欄位與英文代碼欄位)
+    if (
+      WBASE210_CHOICE_RULES[fid] ||
+      fid === 'f3_code' ||
+      fid === 'f3_acctType' ||
+      fid === 'f6_pnostd' ||
+      fid === 'f6_pno' ||
+      fid === 'f6_pno2' ||
+      fid === 'f6_pno3' ||
+      fid === 'f6_orga'
+    ) {
+      nextVal = nextVal.toUpperCase();
+    }
+
+    setFormData((prev) => {
+      const updated = { ...prev, [fid]: nextVal };
+      // 連動：公司名稱變更時
+      if (fid === 'f3_name') {
+        // 若簡稱未填，自動帶入前 4 個字 (8 bytes)
+        if (!updated.f3_short || updated.f3_short.trim() === '') {
+          updated.f3_short = truncateBig5(nextVal, 8);
+        }
+        // 若扣繳義務人未填，自動帶入公司名稱
+        if (!updated.f5_chname || updated.f5_chname.trim() === '') {
+          updated.f5_chname = nextVal;
+        }
+        // 若組織別未填，自動由名稱關鍵字推導 (股份有限公司->1, 有限->2, 獨資->6 等)
+        if (!updated.f6_orga || updated.f6_orga.trim() === '') {
+          const derivedOrga = deriveOrganizationFromName(nextVal);
+          if (derivedOrga) {
+            updated.f6_orga = derivedOrga;
+          }
+        }
+      }
+      // 連動：公司地址變更時，若聯絡地址未填，自動同步
+      if (fid === 'f3_addr') {
+        if (!updated.f3_invaddr || updated.f3_invaddr.trim() === '') {
+          updated.f3_invaddr = nextVal;
+        }
+      }
+      return updated;
+    });
   };
 
   const {
@@ -94,7 +247,13 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
   } = useFoxProCardNavigation<string>({
     fieldOrder: ALL_FIELDS_ORDERED.map((f) => f.fid),
     inputRefsMap,
-    isFieldDisabled: (fid) => fid === 'f3_code' && mode === 'edit',
+    isFieldDisabled: (fid) => {
+      if (fid === 'f3_code' && mode === 'edit') return true;
+      if (fid === 'f6_bkother' && formData.f6_bkprior !== '3') return true;
+      if (fid === 'f6_sbkother' && formData.f6_sbkprior !== '2') return true;
+      if (fid === 'f4_mainunino' && formData.f4_tpay !== '2') return true;
+      return false;
+    },
     onSave,
     onSwitchTab,
     tabFieldsMap: TAB_FIELDS_MAP,
@@ -105,7 +264,52 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
     const meta = FIELD_METADATA[fid] || { label: fid, dbfCol: fid };
     const val = formData[fid] || '';
     const isTextArea = meta.type === 'textarea';
-    const isDisabled = fid === 'f3_code' && mode === 'edit';
+    
+    // 依據 wbase210.pas 判斷是否依連動條件停用
+    let isDisabled = false;
+    if (fid === 'f3_code' && mode === 'edit') isDisabled = true;
+    else if (fid === 'f6_bkother' && formData.f6_bkprior !== '3') isDisabled = true;
+    else if (fid === 'f6_sbkother' && formData.f6_sbkprior !== '2') isDisabled = true;
+    else if (fid === 'f4_mainunino' && formData.f4_tpay !== '2') isDisabled = true;
+
+    const isAddressField = ADDRESS_FIELDS.has(fid);
+    const isUninoField = UNIFIED_NO_FIELDS.has(fid);
+    const isNatIdField = NATIONAL_ID_FIELDS.has(fid);
+    const isTaxIdField = TAX_ID_OR_NAT_FIELDS.has(fid);
+    const choiceRule = WBASE210_CHOICE_RULES[fid];
+
+    let warningMessage = '';
+    if (val.trim()) {
+      if (isUninoField) {
+        const res = checkUnifiedNo(val);
+        if (!res.valid) warningMessage = res.message.trim();
+      } else if (isNatIdField) {
+        const res = checkNationalId(val);
+        if (!res.valid) warningMessage = res.message.trim();
+      } else if (isTaxIdField) {
+        const res = checkTaxId(val);
+        if (!res.valid) warningMessage = res.message.trim();
+      } else if (fid === 'f3_taxNo') {
+        const res = checkTaxNo(val);
+        if (!res.valid) warningMessage = res.message.trim();
+      } else if (fid === 'f5_house') {
+        const res = checkHouseTaxNo(val);
+        if (!res.valid) warningMessage = res.message.trim();
+      } else if (choiceRule) {
+        const res = checkChoiceField(fid, val);
+        if (!res.valid) warningMessage = res.message.trim();
+      } else if (ROC_DATE_FIELDS.has(fid)) {
+        const res = checkRocDate(val);
+        if (!res.valid) warningMessage = res.message.trim();
+      } else if (MONTH_DAY_FIELDS.has(fid)) {
+        const res = checkMonthDay(val);
+        if (!res.valid) warningMessage = res.message.trim();
+      } else if (PHONE_FIELDS.has(fid)) {
+        const res = checkPhoneFormat(val);
+        if (!res.valid) warningMessage = res.message.trim();
+      }
+    }
+    const hasWarning = Boolean(warningMessage);
 
     const inputProps = {
       'data-field': fid,
@@ -122,13 +326,14 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
         handleInputChange(fid, e.target.value),
       onFocus: handleFieldFocus,
-      onClick: (e: React.MouseEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        try {
-          (e.currentTarget as HTMLInputElement).select();
-        } catch {}
+      onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        if (isAddressField && (e.key === 'F2' || e.key === 'F4')) {
+          e.preventDefault();
+          openAddressModal(fid);
+          return;
+        }
+        handleFieldKeyDown(e, fid);
       },
-      onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-        handleFieldKeyDown(e, fid),
       placeholder: meta.placeholder || '',
     };
 
@@ -137,7 +342,7 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
 
     return (
       <div key={fid} className={isTextArea ? 'col-span-full' : ''}>
-        <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center justify-between mb-1.5 gap-2">
           <label
             htmlFor={fid}
             className={`block text-[11px] font-bold tracking-wide truncate ${
@@ -149,11 +354,25 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
             <span className={`text-[10px] font-semibold ml-1 font-mono ${isDark ? 'text-blue-400' : 'text-indigo-600'}`}>
               {meta.dbfCol}
             </span>
+            {choiceRule && (
+              <span className="text-[10px] text-amber-500 font-mono ml-1.5 font-bold" title={choiceRule.msg}>
+                [{choiceRule.allowed.join('/')}]
+              </span>
+            )}
           </label>
           {isEmailField && isEmailInvalid && (
-            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 flex items-center gap-1 font-mono">
+            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 flex items-center gap-1 font-mono shrink-0">
               <AlertCircle size={11} />
               格式非標準
+            </span>
+          )}
+          {hasWarning && (
+            <span
+              className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 flex items-center gap-1 font-mono shrink-0"
+              title={warningMessage}
+            >
+              <AlertCircle size={11} />
+              {warningMessage}
             </span>
           )}
         </div>
@@ -171,12 +390,38 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
                 : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-amber-400/60 shadow-2xs'
             }`}
           />
+        ) : isAddressField ? (
+          <div className="relative flex items-center">
+            <input
+              {...inputProps}
+              type="text"
+              className={`w-full h-8 rounded-[8px] border pl-3 pr-20 text-[13px] font-mono font-medium transition shadow-2xs ${
+                isDark
+                  ? isDisabled
+                    ? 'bg-slate-800/60 border-slate-700 text-slate-500 cursor-not-allowed'
+                    : 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/50'
+                  : isDisabled
+                  ? 'bg-slate-100 border-slate-300 text-slate-600 cursor-not-allowed opacity-90 font-medium'
+                  : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-amber-400/60 shadow-2xs'
+              }`}
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => openAddressModal(fid)}
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 px-2 rounded bg-blue-700 hover:bg-blue-600 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs cursor-pointer border border-blue-900 transition-colors"
+              title="開啟地址選單 [F2 / F4]"
+            >
+              <MapPin size={11} className="text-yellow-300" />
+              <span>F2 地址</span>
+            </button>
+          </div>
         ) : (
           <input
             {...inputProps}
             type={isEmailField ? 'email' : 'text'}
             className={`w-full h-8 rounded-[8px] border px-3 text-[13px] font-mono font-medium transition shadow-2xs ${
-              isEmailInvalid
+              isEmailInvalid || hasWarning
                 ? isDark
                   ? 'bg-slate-900 border-amber-500 text-amber-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold'
                   : 'bg-amber-50/50 border-amber-500 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs font-bold'
@@ -193,6 +438,11 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
         {isEmailField && isEmailInvalid && (
           <p className="mt-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
             <span>⚠️ {EMAIL_WARNING_TEXT}</span>
+          </p>
+        )}
+        {hasWarning && (
+          <p className="mt-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1 font-mono">
+            <span>⚠️ 提示：{warningMessage} (此為提示，仍可正常存檔)</span>
           </p>
         )}
       </div>
@@ -378,6 +628,14 @@ export const Wbase2010Form: React.FC<Wbase2010FormProps> = ({
           </SectionCard>
         </div>
       )}
+
+      {/* 地址開窗選單 (util_hi_addr) */}
+      <AddressSelectModal
+        isOpen={addrModalOpen}
+        initialValue={currentAddrValue}
+        onClose={() => setAddrModalOpen(false)}
+        onConfirm={handleAddressConfirm}
+      />
     </div>
   );
 };

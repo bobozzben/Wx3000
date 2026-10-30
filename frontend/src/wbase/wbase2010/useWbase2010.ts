@@ -4,7 +4,11 @@ import {
   type CompanyItem,
   TAB_FIELDS_MAP,
 } from './companyFieldDefs';
-import { isValidEmail } from '../../services/validation';
+import {
+  isValidEmail,
+  WBASE210_CHOICE_RULES,
+  truncateBig5,
+} from '../../services/validation';
 
 const parseCapital = (val: any): number => {
   if (!val) return 0;
@@ -26,18 +30,6 @@ export function useWbase2010(onBackToMenu?: () => void) {
 
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const inputRefsMap = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement>>(new Map());
-
-  // Flattened field order across all tabs (0..5) for Enter key navigation
-  const allFieldsOrdered = useMemo(() => {
-    const fieldsList: { tabIdx: number; fid: string }[] = [];
-    for (let t = 0; t <= 5; t++) {
-      const fids = TAB_FIELDS_MAP[t] || [];
-      for (const fid of fids) {
-        fieldsList.push({ tabIdx: t, fid });
-      }
-    }
-    return fieldsList;
-  }, []);
 
   // Filtered companies based on search modal query
   const filteredCompanies = useMemo(() => {
@@ -170,7 +162,7 @@ export function useWbase2010(onBackToMenu?: () => void) {
     if (el) {
       el.focus({ preventScroll: true });
       try {
-        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       } catch {
         // Fallback
       }
@@ -244,6 +236,29 @@ export function useWbase2010(onBackToMenu?: () => void) {
         emptyValues[fid] = '';
       }
     }
+    // 對齊 wbase210.pas 新增預設值
+    emptyValues['f4_t401'] = 'Y';
+    emptyValues['f4_tzero'] = 'Y';
+    emptyValues['f4_tflog'] = 'Y';
+    emptyValues['f4_tnot'] = 'N';
+    emptyValues['f4_datayn'] = 'Y';
+    emptyValues['f4_monthv'] = '0';
+    emptyValues['f4_kind'] = '0';
+    emptyValues['f4_mediatype'] = '2';
+    emptyValues['f4_tpay'] = '0';
+    emptyValues['f4_pbktype'] = '1';
+    emptyValues['f5_upcode'] = 'N';
+    emptyValues['f5_bktype5'] = '1';
+    emptyValues['f6_bktype'] = '1';
+    emptyValues['f6_bktax'] = 'Y';
+    emptyValues['f6_bkprior'] = '1';
+    emptyValues['f6_sbktype'] = '1';
+    emptyValues['f6_sbktax'] = 'Y';
+    emptyValues['f6_sbkprior'] = '1';
+    emptyValues['f6_bkbd'] = '0101';
+    emptyValues['f6_bked'] = '1231';
+    emptyValues['f7_tbktype'] = '1';
+
     setFormData(emptyValues);
 
     setTimeout(() => {
@@ -263,24 +278,73 @@ export function useWbase2010(onBackToMenu?: () => void) {
   const saveForm = useCallback(async () => {
     const code = formData.f3_code?.trim();
     const name = formData.f3_name?.trim();
-    if (!code || !name) {
-      alert('請輸入客戶編號與客戶名稱！');
+    if (!code) {
+      alert('請輸入客戶編號!!');
+      focusField('f3_code', true);
       return;
     }
+    if (!name) {
+      alert('請輸入客戶名稱!!');
+      focusField('f3_name', true);
+      return;
+    }
+
+    // 新增時檢查客戶代號是否重複 (對齊 wbase210.pas KeyExists)
+    if (mode === 'add') {
+      const exists = companies.some((c) => c.code.trim().toUpperCase() === code.toUpperCase());
+      if (exists) {
+        alert('客戶代號已存在!!');
+        focusField('f3_code', true);
+        return;
+      }
+    }
+
+    // 記帳起始日與結束日起訖檢查 (對齊 wbase210.pas line 2873)
+    const bkbd = (formData.f6_bkbd || '').trim();
+    const bked = (formData.f6_bked || '').trim();
+    if (bkbd && bked && bkbd > bked) {
+      if (!window.confirm(`記帳起始日 ${bkbd} 大於結束日 ${bked}，是否為非歷年制？`)) {
+        setActiveTab(3); // 切到 F6 結算簽證
+        setTimeout(() => focusField('f6_bkbd', true), 100);
+        return;
+      }
+    }
+
+    // 限定值欄位未填寫提醒 (對齊 wbase210.pas line 2897 BlankChoices)
+    const blankChoices: string[] = [];
+    for (const [fid, rule] of Object.entries(WBASE210_CHOICE_RULES)) {
+      const val = (formData[fid] || '').trim();
+      if (!val) {
+        blankChoices.push(rule.label);
+      }
+    }
+    if (blankChoices.length > 0) {
+      const confirmSave = window.confirm(
+        `未填寫欄位：\n${blankChoices.join('、')}\n\n是否仍要存檔？`
+      );
+      if (!confirmSave) {
+        return;
+      }
+    }
+
+    // 存檔預設值自動補齊 (對齊 wbase210.pas lines 2762-2799)
+    const shortVal = formData.f3_short?.trim() || truncateBig5(name, 8);
+    const addrVal = formData.f3_addr?.trim() || '';
+    const invaddrVal = formData.f3_invaddr?.trim() || addrVal;
 
     const payload: CompanyItem = {
       code,
       name,
       eng: formData.f3_eng || '',
-      short: formData.f3_short || name.slice(0, 2),
+      short: shortVal,
       uni: formData.f3_uni || '',
       taxNo: formData.f3_taxNo || '',
       taxOffice: formData.f3_offno || formData.f3_taxOffice || '',
       capital: formData.f3_capital || '',
       tel: formData.f3_tel || '',
       fax: formData.f3_fax || '',
-      addr: formData.f3_addr || '',
-      addr2: formData.f3_invaddr || formData.f3_addr2 || '',
+      addr: addrVal,
+      addr2: invaddrVal,
       email: formData.f3_email || '',
       acctType: formData.f3_acctType || '一般',
       owner: formData.f3_owner || '',
@@ -297,6 +361,15 @@ export function useWbase2010(onBackToMenu?: () => void) {
         payload[fid] = formData[fid] || '';
       }
     }
+
+    // 營業稅與各類扣繳之預設標記補齊
+    if (!payload.f4_t401) payload.f4_t401 = 'Y';
+    if (!payload.f4_tzero) payload.f4_tzero = 'Y';
+    if (!payload.f4_tflog) payload.f4_tflog = 'Y';
+    if (!payload.f5_upcode) payload.f5_upcode = 'N';
+    if (!payload.f6_bkbd) payload.f6_bkbd = '0101';
+    if (!payload.f6_bked) payload.f6_bked = '1231';
+    if (!payload.f4_outrate) payload.f4_outrate = '5';
 
     // Pre-submit validation for field length limits against DB schema
     const FIELD_LENGTH_LIMITS: Record<string, { label: string; maxLen: number }> = {
@@ -471,7 +544,8 @@ export function useWbase2010(onBackToMenu?: () => void) {
     }
   };
 
-  // Keyboard navigation inside Edit / Add mode (F3-F8, Enter, Esc)
+  // Keyboard navigation inside Edit / Add mode (F3-F8, Esc)
+  // 欄位內之 Enter / ArrowDown / ArrowUp 由 Wbase2010Form 之 useFoxProCardNavigation 處理，避免雙重事件衝突
   useEffect(() => {
     if (mode === 'grid') return;
 
@@ -493,59 +567,11 @@ export function useWbase2010(onBackToMenu?: () => void) {
         saveForm();
         return;
       }
-
-      // Enter or ArrowDown jumps to next field, ArrowUp jumps to previous field across tabs
-      if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        const activeEl = document.activeElement as HTMLElement;
-        if (!activeEl) return;
-
-        const isTextArea = activeEl.tagName === 'TEXTAREA';
-        if (isTextArea) {
-          const textarea = activeEl as HTMLTextAreaElement;
-          if (e.key === 'Enter' && (e.shiftKey || e.ctrlKey)) return;
-          if (e.key === 'ArrowUp') {
-            const textBefore = textarea.value.slice(0, textarea.selectionStart);
-            if (textBefore.includes('\n')) return;
-          }
-          if (e.key === 'ArrowDown') {
-            const textAfter = textarea.value.slice(textarea.selectionEnd);
-            if (textAfter.includes('\n')) return;
-          }
-        }
-        if (activeEl.tagName === 'BUTTON') return;
-
-        const fid = activeEl.getAttribute('data-field');
-        if (!fid) return;
-
-        e.preventDefault();
-        const currentIdx = allFieldsOrdered.findIndex((item) => item.fid === fid);
-        if (currentIdx === -1) return;
-
-        const step = e.key === 'ArrowUp' ? -1 : 1;
-        let nextIdx = (currentIdx + step + allFieldsOrdered.length) % allFieldsOrdered.length;
-        let iterations = 0;
-        while (iterations < allFieldsOrdered.length) {
-          const candidate = allFieldsOrdered[nextIdx];
-          const el = inputRefsMap.current.get(candidate.fid);
-          const isDisabled = candidate.fid === 'f3_code' && mode === 'edit';
-          if (el && !isDisabled && !el.disabled) {
-            if (candidate.tabIdx !== activeTab) {
-              setActiveTab(candidate.tabIdx);
-              setTimeout(() => focusField(candidate.fid), 80);
-            } else {
-              focusField(candidate.fid);
-            }
-            break;
-          }
-          nextIdx = (nextIdx + step + allFieldsOrdered.length) % allFieldsOrdered.length;
-          iterations++;
-        }
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode, activeTab, allFieldsOrdered, switchTab, saveForm, focusField]);
+  }, [mode, switchTab, saveForm]);
 
   return {
     companies,

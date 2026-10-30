@@ -288,9 +288,11 @@ export const Wbase2010Page: React.FC<Wbase2010PageProps> = ({ onBackToMenu }) =>
             gridColsLayout="grid-cols-1 md:grid-cols-[90px_1fr_130px_90px_140px_70px]"
             selectedIndex={selectedIndex}
             onSelectRow={(_c, idx) => {
+              if (mode !== 'grid') return;
               setSelectedIndex(idx);
               gridContainerRef.current?.focus();
             }}
+            enableScrollSync={mode === 'grid'}
             onDoubleClickRow={startEdit}
             onKeyDown={handleGridKeyDown}
             gridContainerRef={gridContainerRef as unknown as React.RefObject<HTMLDivElement>}

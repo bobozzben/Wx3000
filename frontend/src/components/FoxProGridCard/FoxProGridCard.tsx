@@ -21,7 +21,7 @@ export function foxProFocusAndSelect(
   if (!el) return;
   try {
     el.focus({ preventScroll: true });
-    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
   } catch {}
   if ('select' in el && typeof (el as any).select === 'function') {
     try {
@@ -163,6 +163,7 @@ export function useFoxProCardNavigation<TField extends string = string>({
         }
 
         e.preventDefault();
+        e.stopPropagation();
         moveToField(fid, 'next');
         return;
       }
@@ -176,6 +177,7 @@ export function useFoxProCardNavigation<TField extends string = string>({
         }
 
         e.preventDefault();
+        e.stopPropagation();
         moveToField(fid, 'prev');
         return;
       }

@@ -189,6 +189,27 @@ export const checkUnifiedNo = (unino?: string | null): { valid: boolean; message
 };
 
 /**
+ * 台灣身分證 / 居留證提示性檢查 (10 碼)
+ * - 空白放行
+ * - 輸入時必須為 10 碼且符合身分證或新/舊式居留證加權檢核
+ */
+export const checkNationalId = (id?: string | null): { valid: boolean; message: string } => {
+  if (!id) return { valid: true, message: '' };
+  const s = id.trim().toUpperCase();
+  if (s === '') return { valid: true, message: '' };
+
+  if (s.length !== 10) {
+    return { valid: false, message: '身分證字號長度需為10碼' };
+  }
+
+  if (isTwNationalId(s) || isTwOldResidentId(s)) {
+    return { valid: true, message: '' };
+  }
+  return { valid: false, message: MSG_BAD_ID };
+};
+
+
+/**
  * 計算字串的 Big5 位元組長度 (ASCII 1 byte，中文字/全形 2 bytes)
  */
 export const getBig5ByteLength = (str?: string | null): number => {
@@ -438,4 +459,318 @@ export const checkPhoneDigits = (phone?: string | null): { valid: boolean; messa
  */
 export const isSupervisor = (code?: string | null): boolean => {
   return (code || '').trim().toUpperCase() === 'SUPERVISOR';
+};
+
+/**
+ * ============================================================================
+ * w3000 位移式加解密演算法 (對齊 util_w3000crypt.pas 與 wbase130.pas)
+ * - psw: 8 bytes, 各 byte 位移 +1..+8 (解密 -1..-8)
+ * - onepassno: 15 bytes, 各 byte 位移 i mod 8 (解密 -(i mod 8))
+ * ============================================================================
+ */
+
+/**
+ * 密碼加密 (8 bytes, 對齊 util_w3000crypt.pas W3000_Encrypt)
+ * @param plain 明文字串
+ * @returns 8 位元組加密密文字串
+ */
+export const w3000EncryptPsw = (plain?: string | null): string => {
+  const p = (plain || '').trim();
+  // 最多 8 位元組，不足補空白到 8 碼 (對齊 Copy(ToBig5(aText), 1, 8) + while < 8 do raw += ' ')
+  let padded = truncateBig5(p, 8);
+  while (getBig5ByteLength(padded) < 8) {
+    padded += ' ';
+  }
+
+  let result = '';
+  for (let i = 1; i <= 8; i++) {
+    const code = i <= padded.length ? padded.charCodeAt(i - 1) : 32;
+    const enc = (code + i) % 256;
+    result += String.fromCharCode(enc);
+  }
+  return result;
+};
+
+/**
+ * 密碼解密 (8 bytes, 對齊 util_w3000crypt.pas W3000_Decrypt 與 wbase130.pas MyOnGetText)
+ * 支援 16 碼 Hex 字串或 8 位元組原始密文字串 (如 !"#$%&'()
+ * @param cipherOrHex 密文字串或 Hex
+ * @returns 解密後明文字串 (TrimRight 結尾空白，全空白解密為空字串)
+ */
+export const w3000DecryptPsw = (cipherOrHex?: string | null): string => {
+  if (!cipherOrHex) return '';
+  const str = cipherOrHex.trim();
+  if (!str) return '';
+
+  let rawBytes = str;
+  // 若為 16 碼 16進位字串 (PG hex 存法)
+  if (/^[0-9A-Fa-f]{16}$/.test(str)) {
+    let converted = '';
+    for (let i = 0; i < 16; i += 2) {
+      converted += String.fromCharCode(parseInt(str.slice(i, i + 2), 16));
+    }
+    rawBytes = converted;
+  }
+
+  let decrypted = '';
+  for (let i = 1; i <= 8; i++) {
+    const code = i <= rawBytes.length ? rawBytes.charCodeAt(i - 1) : 0;
+    const dec = (code - i + 256) % 256;
+    decrypted += String.fromCharCode(dec);
+  }
+
+  // TrimRight 去除尾部空白 (對齊 Pascal TrimRight(FromBig5(...)))
+  return decrypted.replace(/\s+$/, '');
+};
+
+/**
+ * 一站式驗證碼加密 (15 bytes, 對齊 util_w3000crypt.pas W3000_Encrypt15)
+ * @param plain 明文字串
+ * @returns 15 位元組加密密文字串
+ */
+export const w3000EncryptOnepass = (plain?: string | null): string => {
+  const p = (plain || '').trim();
+  let padded = truncateBig5(p, 15);
+  while (getBig5ByteLength(padded) < 15) {
+    padded += ' ';
+  }
+
+  let result = '';
+  for (let i = 1; i <= 15; i++) {
+    const code = i <= padded.length ? padded.charCodeAt(i - 1) : 32;
+    const xmei = i % 8;
+    const enc = (code + xmei) % 256;
+    result += String.fromCharCode(enc);
+  }
+  return result;
+};
+
+/**
+ * 一站式驗證碼解密 (15 bytes, 對齊 util_w3000crypt.pas W3000_Decrypt15 與 wbase130.pas MyOnGetText)
+ * 支援 30 碼 Hex 字串或 15 位元組原始密文字串
+ * @param cipherOrHex 密文字串或 Hex
+ * @returns 解密後明文字串 (TrimRight 結尾空白)
+ */
+export const w3000DecryptOnepass = (cipherOrHex?: string | null): string => {
+  if (!cipherOrHex) return '';
+  const str = cipherOrHex.trim();
+  if (!str) return '';
+
+  let rawBytes = str;
+  // 若為 30 碼 16進位字串
+  if (/^[0-9A-Fa-f]{30}$/.test(str)) {
+    let converted = '';
+    for (let i = 0; i < 30; i += 2) {
+      converted += String.fromCharCode(parseInt(str.slice(i, i + 2), 16));
+    }
+    rawBytes = converted;
+  }
+
+  let decrypted = '';
+  for (let i = 1; i <= 15; i++) {
+    const code = i <= rawBytes.length ? rawBytes.charCodeAt(i - 1) : 0;
+    const xmei = i % 8;
+    const dec = (code - xmei + 256) % 256;
+    decrypted += String.fromCharCode(dec);
+  }
+
+  return decrypted.replace(/\s+$/, '');
+};
+
+/**
+ * 密碼欄位規則檢核 (8 bytes, 大寫, Big5 相容)
+ */
+export const checkPswRule = (psw?: string | null): { valid: boolean; message: string } => {
+  if (!psw) return { valid: true, message: '' };
+  const val = psw.trim();
+  if (getBig5ByteLength(val) > 8) {
+    return { valid: false, message: '密碼長度超過上限 (最多 8 位元組)！' };
+  }
+  const b5 = checkBig5Compatible(val);
+  if (!b5.valid) {
+    return { valid: false, message: b5.message };
+  }
+  return { valid: true, message: '' };
+};
+
+/**
+ * 一站式驗證碼規則檢核 (15 bytes, Big5 相容)
+ */
+export const checkOnepassRule = (onepass?: string | null): { valid: boolean; message: string } => {
+  if (!onepass) return { valid: true, message: '' };
+  const val = onepass.trim();
+  if (getBig5ByteLength(val) > 15) {
+    return { valid: false, message: '一站式驗證碼長度超過上限 (最多 15 位元組)！' };
+  }
+  const b5 = checkBig5Compatible(val);
+  if (!b5.valid) {
+    return { valid: false, message: b5.message };
+  }
+  return { valid: true, message: '' };
+};
+
+/**
+ * 營業稅稅籍編號檢查 (wbase210.pas: 9 碼，第 1~4 碼為數字，第 5 碼為數字或 F/G/H，第 6~9 碼為數字)
+ */
+export const checkTaxNo = (taxNo?: string | null): { valid: boolean; message: string } => {
+  if (!taxNo) return { valid: true, message: '' };
+  const s = taxNo.trim().toUpperCase();
+  if (s === '') return { valid: true, message: '' };
+
+  if (s.length !== 9) {
+    return { valid: false, message: '稅籍編號可能有誤 (需為9碼，如 1234F5678)' };
+  }
+  for (let i = 0; i < 9; i++) {
+    const ch = s[i];
+    if (i === 4) {
+      if (!/[\dFGH]/.test(ch)) {
+        return { valid: false, message: '稅籍編號可能有誤 (第5碼需為數字或F/G/H)' };
+      }
+    } else {
+      if (!/\d/.test(ch)) {
+        return { valid: false, message: '稅籍編號可能有誤 (其餘碼需為數字)' };
+      }
+    }
+  }
+  return { valid: true, message: '' };
+};
+
+/**
+ * 房屋稅籍編號檢查 (wbase210.pas: 12 碼，第 1 碼英文大寫，第 2~3 碼數字，第 4 碼英文或數字，第 5~12 碼數字)
+ */
+export const checkHouseTaxNo = (house?: string | null): { valid: boolean; message: string } => {
+  if (!house) return { valid: true, message: '' };
+  const s = house.trim().toUpperCase();
+  if (s === '') return { valid: true, message: '' };
+
+  if (s.length !== 12) {
+    return { valid: false, message: '房屋稅籍編號可能有誤 (需為12碼)' };
+  }
+  for (let i = 0; i < 12; i++) {
+    const ch = s[i];
+    if (i === 0) {
+      if (!/[A-Z]/.test(ch)) return { valid: false, message: '房屋稅籍編號可能有誤 (第1碼需為英文字母)' };
+    } else if (i === 3) {
+      if (!/[A-Z0-9]/.test(ch)) return { valid: false, message: '房屋稅籍編號可能有誤 (第4碼需為英文字母或數字)' };
+    } else {
+      if (!/\d/.test(ch)) return { valid: false, message: '房屋稅籍編號可能有誤 (需為數字)' };
+    }
+  }
+  return { valid: true, message: '' };
+};
+
+/**
+ * 電話格式提示性檢查 (wbase210.pas: 輸入非空且不含 '-' 時提示標準格式)
+ */
+export const checkPhoneFormat = (phone?: string | null): { valid: boolean; message: string } => {
+  if (!phone) return { valid: true, message: '' };
+  const s = phone.trim();
+  if (s === '') return { valid: true, message: '' };
+  if (!s.includes('-')) {
+    return { valid: false, message: '電話建議格式[區域號碼-電話號碼#分機號碼]，如 02-12345678#123' };
+  }
+  return { valid: true, message: '' };
+};
+
+/**
+ * 月日格式檢查 (wbase210.pas Mask: MD。4 碼 MMDD，如記帳起始日 0101、結束日 1231)
+ */
+export const checkMonthDay = (mdStr?: string | null): { valid: boolean; message: string } => {
+  if (!mdStr) return { valid: true, message: '' };
+  const s = mdStr.trim();
+  if (s === '') return { valid: true, message: '' };
+
+  const digits = s.replace(/[^0-9]/g, '');
+  if (digits.length !== 4) {
+    return { valid: false, message: '月/日不正確 (例如 01/01 或 0101)' };
+  }
+  const month = parseInt(digits.slice(0, 2), 10);
+  const day = parseInt(digits.slice(2, 4), 10);
+  if (month < 1 || month > 12) {
+    return { valid: false, message: '月份需介於 01~12' };
+  }
+  if (day < 1 || day > 31) {
+    return { valid: false, message: '日期需介於 01~31' };
+  }
+  return { valid: true, message: '' };
+};
+
+/**
+ * 限定輸入值的欄位定義表 (wbase210.pas F210_CHOICES 與 F210_YN)
+ */
+export interface ChoiceRule {
+  allowed: string[];
+  label: string;
+  msg: string;
+}
+
+export const WBASE210_CHOICE_RULES: Record<string, ChoiceRule> = {
+  f3_acctType: { allowed: ['A', 'B', 'C', 'D', 'E', 'F', 'G'], label: '會計類別', msg: '會計類別，僅能輸入A~G' },
+  f4_monthv: { allowed: ['0', '1'], label: '申報週期', msg: '申報週期請輸入 0 或 1' },
+  f4_kind: { allowed: ['0', '1', '2', '3'], label: '申報種類', msg: '申報種類請輸入 0~3' },
+  f4_mediatype: { allowed: ['0', '1', '2', '3', '4'], label: '媒體申報(.TXT)', msg: '媒體申報請輸入 0~4' },
+  f4_t401: { allowed: ['Y', 'N'], label: '申報書媒體申報(.TET)', msg: '申報書媒體申報請輸入 Y 或 N' },
+  f4_tflog: { allowed: ['Y', 'N'], label: '固定資產退稅申報(.T08)', msg: '固定資產退稅申報請輸入 Y 或 N' },
+  f4_tzero: { allowed: ['Y', 'N'], label: '零稅率媒體申報(.T02)', msg: '零稅率媒體申報請輸入 Y 或 N' },
+  f4_tpay: { allowed: ['0', '1', '2'], label: '彙總註記', msg: '彙總註記請輸入 0~2' },
+  f4_datayn: { allowed: ['Y', 'N'], label: '營業稅基本資料轉檔(Y/N)', msg: '請輸入 Y 或 N' },
+  f4_pbktype: { allowed: ['1', '2'], label: '營業稅申報', msg: '營業稅申報請輸入 1 或 2' },
+  f4_idno401: { allowed: ['Y', 'N'], label: '身份證列印轉檔(Y/N)', msg: '身份證列印轉檔請輸入 Y 或 N' },
+  f5_upcode: { allowed: ['Y', 'N'], label: '上市上櫃', msg: '上市上櫃請輸入 Y 或 N' },
+  f5_bktype5: { allowed: ['1', '2'], label: '各類扣繳申報', msg: '各類扣繳申報請輸入 1 或 2' },
+  f6_orga: { allowed: ['1', '2', '3', '4', '5', '6', '7', '8', '0', 'L', 'M'], label: '公司組織', msg: '公司組織請輸入 1~8、0、L、M' },
+  f6_bktype: { allowed: ['1', '2', '3'], label: '帳務處理型態', msg: '帳務處理型態請輸入 1~3' },
+  f6_bktax: { allowed: ['Y', 'N'], label: '是否代扣(帳務處理)', msg: '是否代扣請輸入 Y 或 N' },
+  f6_bkprior: { allowed: ['1', '2', '3'], label: '委任內容及權限(帳務處理)', msg: '委任內容及權限請輸入 1~3' },
+  f6_sbktype: { allowed: ['1', '2', '3', '4'], label: '結算申報處理', msg: '結算申報處理請輸入 1~4' },
+  f6_sbktax: { allowed: ['Y', 'N'], label: '是否代扣(結算申報)', msg: '是否代扣請輸入 Y 或 N' },
+  f6_sbkprior: { allowed: ['1', '2'], label: '委任內容及權限(結算申報)', msg: '委任內容及權限請輸入 1 或 2' },
+  f7_tbktype: { allowed: ['1', '2', '3'], label: '委託代辦情形', msg: '委託代辦情形請輸入 1~3' },
+  f8_qbktax: { allowed: ['Y', 'N'], label: '清算是否代扣', msg: '清算是否代扣請輸入 Y 或 N' },
+  f8_wendtype: { allowed: ['1', '2'], label: '申報類別', msg: '申報類別請輸入 1 或 2' },
+  f8_qbktype: { allowed: ['1', '2', '3', '4'], label: '清算申報型態', msg: '清算申報型態請輸入 1~4' },
+  f8_qbkprior: { allowed: ['1', '2'], label: '清算委任內容權限', msg: '清算委任內容權限請輸入 1 或 2' },
+};
+
+/**
+ * 限定輸入值檢查 (wbase210.pas CheckChoice)
+ */
+export const checkChoiceField = (fieldId: string, value?: string | null): { valid: boolean; message: string } => {
+  const rule = WBASE210_CHOICE_RULES[fieldId];
+  if (!rule || !value) return { valid: true, message: '' };
+  const s = value.trim().toUpperCase();
+  if (s === '') return { valid: true, message: '' };
+
+  if (s.length === 1 && rule.allowed.includes(s)) {
+    return { valid: true, message: '' };
+  }
+  return { valid: false, message: rule.msg };
+};
+
+/**
+ * 公司組織關鍵字對照表 (wbase210rows.pas ORGA_WORDS)
+ */
+const ORGA_KEYWORDS = [
+  { word: '股份有限公司', code: '1' },
+  { word: '有限', code: '2' },
+  { word: '無限', code: '3' },
+  { word: '兩合', code: '4' },
+  { word: '合夥', code: '5' },
+  { word: '獨資', code: '6' },
+  { word: '國外分公司', code: '7' },
+  { word: '國外辦事處', code: '8' },
+  { word: '其它', code: '0' },
+];
+
+/**
+ * 依公司名稱自動判斷公司組織代號 (對齊 wbase210.pas 行 1828-1834)
+ */
+export const deriveOrganizationFromName = (companyName: string): string => {
+  if (!companyName) return '';
+  for (const item of ORGA_KEYWORDS) {
+    if (companyName.includes(item.word)) {
+      return item.code;
+    }
+  }
+  return '';
 };

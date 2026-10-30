@@ -287,9 +287,11 @@ export const Wbase2010SplitPage: React.FC<Wbase2010SplitPageProps> = ({ onBackTo
             gridColsLayout="grid-cols-1 md:grid-cols-[80px_1fr_110px_80px_60px]"
             selectedIndex={selectedIndex}
             onSelectRow={(_c, idx) => {
+              if (mode !== 'grid') return;
               setSelectedIndex(idx);
               gridContainerRef.current?.focus();
             }}
+            enableScrollSync={mode === 'grid'}
             onDoubleClickRow={startEdit}
             onKeyDown={handleGridKeyDown}
             gridContainerRef={gridContainerRef as unknown as React.RefObject<HTMLDivElement>}

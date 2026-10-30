@@ -1,8 +1,9 @@
-import React, { useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import type { TaxOfficerItem } from '../../services/wbase1050';
 import { FoxProGridV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { ColumnDefV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { SearchItem } from '../../components/FoxProGrid/SearchModal';
+import { AddressSelectModal } from '../../components/FoxProGrid/AddressSelectModal';
 
 interface Wbase1050FormProps {
   rows: TaxOfficerItem[];
@@ -46,6 +47,50 @@ export const Wbase1050Form: React.FC<Wbase1050FormProps> = ({
   onRefreshData,
   onExit,
 }) => {
+  const [addrModalOpen, setAddrModalOpen] = useState(false);
+  const [targetAddrRowIndex, setTargetAddrRowIndex] = useState<number>(-1);
+  const [currentAddrValue, setCurrentAddrValue] = useState<string>('');
+
+  const handleOpenAddrModal = useCallback((row: TaxOfficerItem, rowIndex: number, currentVal: string) => {
+    setTargetAddrRowIndex(rowIndex);
+    setCurrentAddrValue(currentVal || row.addr || row.address || '');
+    setAddrModalOpen(true);
+  }, []);
+
+  const handleAddressConfirm = useCallback(
+    (selectedAddress: string) => {
+      setAddrModalOpen(false);
+      if (targetAddrRowIndex >= 0 && targetAddrRowIndex < rows.length) {
+        const updated = [...rows];
+        const targetRow = {
+          ...updated[targetAddrRowIndex],
+          addr: selectedAddress,
+          address: selectedAddress,
+        };
+        updated[targetAddrRowIndex] = targetRow;
+        onRowsChange(updated);
+        onSaveRow(targetRow);
+      }
+    },
+    [rows, targetAddrRowIndex, onRowsChange, onSaveRow]
+  );
+
+  const columns = useMemo<ColumnDefV2<TaxOfficerItem>[]>(() => {
+    return TAX_COLUMNS.map((col) => {
+      if (col.key === 'addr') {
+        return {
+          ...col,
+          hasEllipsis: true,
+          ellipsisLabel: 'F2',
+          onEllipsisClick: (row, rIdx, curVal) => {
+            handleOpenAddrModal(row, rIdx, curVal);
+          },
+        };
+      }
+      return col;
+    });
+  }, [handleOpenAddrModal]);
+
   const createEmptyRow = useCallback((): TaxOfficerItem => ({
     no: '',
     name: '',
@@ -84,24 +129,32 @@ export const Wbase1050Form: React.FC<Wbase1050FormProps> = ({
   };
 
   return (
-    <FoxProGridV2<TaxOfficerItem>
-      gridId="wbase1050_grid"
-      rows={rows}
-      columns={TAX_COLUMNS}
-      createEmptyRow={createEmptyRow}
-      onRowsChange={onRowsChange}
-      onSaveRow={onSaveRow}
-      onOpenPrint={onOpenPrint}
-      onShowSummary={onShowSummary}
-      statusBarInfo={statusBarInfo}
-      onSelectRow={onSelectRow}
-      onF3Search={handleF3Search}
-      f3SearchTitle="稅務人員開窗搜尋 [F3]"
-      getRowKey={(row, idx) => row.no || row.taxCode || idx}
-      onInsertRow={onInsertRow}
-      onDeleteRow={onDeleteRow}
-      onRefreshData={onRefreshData}
-      onExit={onExit}
-    />
+    <>
+      <FoxProGridV2<TaxOfficerItem>
+        gridId="wbase1050_grid"
+        rows={rows}
+        columns={columns}
+        createEmptyRow={createEmptyRow}
+        onRowsChange={onRowsChange}
+        onSaveRow={onSaveRow}
+        onOpenPrint={onOpenPrint}
+        onShowSummary={onShowSummary}
+        statusBarInfo={statusBarInfo}
+        onSelectRow={onSelectRow}
+        onF3Search={handleF3Search}
+        f3SearchTitle="稅務人員開窗搜尋 [F3]"
+        getRowKey={(row, idx) => row.no || row.taxCode || idx}
+        onInsertRow={onInsertRow}
+        onDeleteRow={onDeleteRow}
+        onRefreshData={onRefreshData}
+        onExit={onExit}
+      />
+      <AddressSelectModal
+        isOpen={addrModalOpen}
+        initialValue={currentAddrValue}
+        onClose={() => setAddrModalOpen(false)}
+        onConfirm={handleAddressConfirm}
+      />
+    </>
   );
 };

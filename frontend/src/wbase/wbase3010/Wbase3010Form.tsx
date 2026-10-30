@@ -1,8 +1,9 @@
-import React, { useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import type { TicketPlaceItem } from '../../services/wbase3010';
 import { FoxProGridV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { ColumnDefV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { SearchItem } from '../../components/FoxProGrid/SearchModal';
+import { AddressSelectModal } from '../../components/FoxProGrid/AddressSelectModal';
 
 interface Wbase3010FormProps {
   rows: TicketPlaceItem[];
@@ -39,6 +40,49 @@ export const Wbase3010Form: React.FC<Wbase3010FormProps> = ({
   onRefreshData,
   onExit,
 }) => {
+  const [addrModalOpen, setAddrModalOpen] = useState(false);
+  const [targetAddrRowIndex, setTargetAddrRowIndex] = useState<number>(-1);
+  const [currentAddrValue, setCurrentAddrValue] = useState<string>('');
+
+  const handleOpenAddrModal = useCallback((row: TicketPlaceItem, rowIndex: number, currentVal: string) => {
+    setTargetAddrRowIndex(rowIndex);
+    setCurrentAddrValue(currentVal || row.placeAddress || '');
+    setAddrModalOpen(true);
+  }, []);
+
+  const handleAddressConfirm = useCallback(
+    (selectedAddress: string) => {
+      setAddrModalOpen(false);
+      if (targetAddrRowIndex >= 0 && targetAddrRowIndex < rows.length) {
+        const updated = [...rows];
+        const targetRow = {
+          ...updated[targetAddrRowIndex],
+          placeAddress: selectedAddress,
+        };
+        updated[targetAddrRowIndex] = targetRow;
+        onRowsChange(updated);
+        onSaveRow(targetRow);
+      }
+    },
+    [rows, targetAddrRowIndex, onRowsChange, onSaveRow]
+  );
+
+  const columns = useMemo<ColumnDefV2<TicketPlaceItem>[]>(() => {
+    return TICKET_PLACE_COLUMNS.map((col) => {
+      if (col.key === 'placeAddress') {
+        return {
+          ...col,
+          hasEllipsis: true,
+          ellipsisLabel: 'F2',
+          onEllipsisClick: (row, rIdx, curVal) => {
+            handleOpenAddrModal(row, rIdx, curVal);
+          },
+        };
+      }
+      return col;
+    });
+  }, [handleOpenAddrModal]);
+
   const createEmptyRow = useCallback((): TicketPlaceItem => ({
     placeCode: '',
     placeName: '',
@@ -66,23 +110,31 @@ export const Wbase3010Form: React.FC<Wbase3010FormProps> = ({
   };
 
   return (
-    <FoxProGridV2<TicketPlaceItem>
-      rows={rows}
-      columns={TICKET_PLACE_COLUMNS}
-      createEmptyRow={createEmptyRow}
-      onRowsChange={onRowsChange}
-      onSaveRow={onSaveRow}
-      onOpenPrint={onOpenPrint}
-      onShowSummary={onShowSummary}
-      statusBarInfo={statusBarInfo}
-      onSelectRow={onSelectRow}
-      onF3Search={handleF3Search}
-      f3SearchTitle="購買地點開窗搜尋 [F3]"
-      getRowKey={(row, idx) => row.placeCode || idx}
-      onInsertRow={onInsertRow}
-      onDeleteRow={onDeleteRow}
-      onRefreshData={onRefreshData}
-      onExit={onExit}
-    />
+    <>
+      <FoxProGridV2<TicketPlaceItem>
+        rows={rows}
+        columns={columns}
+        createEmptyRow={createEmptyRow}
+        onRowsChange={onRowsChange}
+        onSaveRow={onSaveRow}
+        onOpenPrint={onOpenPrint}
+        onShowSummary={onShowSummary}
+        statusBarInfo={statusBarInfo}
+        onSelectRow={onSelectRow}
+        onF3Search={handleF3Search}
+        f3SearchTitle="購買地點開窗搜尋 [F3]"
+        getRowKey={(row, idx) => row.placeCode || idx}
+        onInsertRow={onInsertRow}
+        onDeleteRow={onDeleteRow}
+        onRefreshData={onRefreshData}
+        onExit={onExit}
+      />
+      <AddressSelectModal
+        isOpen={addrModalOpen}
+        initialValue={currentAddrValue}
+        onClose={() => setAddrModalOpen(false)}
+        onConfirm={handleAddressConfirm}
+      />
+    </>
   );
 };

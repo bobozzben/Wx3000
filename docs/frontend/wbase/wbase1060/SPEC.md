@@ -3,28 +3,28 @@
 > **模組代號**：`wbase1060`  
 > **功能名稱**：收費項目資料維護作業 (`<FoxProGridV2 />` 整頁多列盲打 + 列印)  
 > **所屬模組**：`frontend/src/wbase/wbase1060/` & `backend/Controllers/Wbase1060Controller.cs`  
-> **原始 Visual FoxPro 來源**：`SourS9BASE\LIBS\wbase.vcx` Class: `wbase1060` (對應地端 `C:\w3000\comm\recitem.dbf` ⇄ PostgreSQL `"c:/w3000/comm"."recitem"`)
+> **原始 Visual FoxPro 來源**：`SourS9BASE\LIBS\wbase.vcx` Class: `wbase1060` (對應地端 `<Drive>:\w3000\comm\recitem.dbf` ⇄ PostgreSQL `<drive>:/w3000/comm` . `"recitem"`)
 
 ---
 
 ## 1. 模組定位與職責
 
 本模組用於維護事務所設定之各類服務項目與標準收費金額（如：記帳服務費、營業稅申報費、營所稅結算申報費、工商登記代辦費等）。
-1. **`<FoxProGridV2 />` 盲打體驗 (`Wbase1060Form.tsx`)**：
-   - 支援行內直接打字覆蓋、金額千分位格式化顯示 (`NT$ 3,500.00`) 與自動清理 (`sanitizeFeeItem`)。
-2. **F3 開窗快查與 F7 報表列印 (`wbase1060Print.tsx`)**：支援區間過濾、CSV 匯出與 `LocalAgent` 原生 DLL 報表列印。
-3. **混合雲地 DBF 雙向同步 (`Wbase1060Controller.cs`)**：與地端 `C:\w3000\comm\recitem.dbf` 即時雙向同步。
+1. **頂部統一標題列 (`<WbasePageHeader />`) 與 `<FoxProGridV2 />` 盲打體驗 (`Wbase1060Form.tsx`)**：
+   - 依實際資料筆數渲染列數（`minRows = 0`），支援行內直接打字覆蓋、金額千分位格式化顯示 (`NT$ 3,500`)、欄位寬度拖曳記憶 (`gridId="wbase1060"`) 與自動清理 (`sanitizeFeeItem`)。
+2. **F3 開窗快查與 F7 報表列印 (`wbase1060Print.tsx` + `<FoxProPrintModal />`)**：支援區間過濾、純元素預覽列印 (`printElementById`)、動態欄位 Excel 匯出 (`<FormUtilSelectXlsxFieldsList />`) 與 `LocalAgent` 原生 DLL 報表列印。
+3. **混合雲地 DBF 雙向同步 (`Wbase1060Controller.cs`)**：與地端 `<Drive>:\w3000\comm\recitem.dbf` 即時雙向同步。
 
 ---
 
-## 2. 資料庫與 DBF Schema 對照 (`c:/w3000/comm` . `recitem`)
+## 2. 資料庫與 DBF Schema 對照 (`<drive>:/w3000/comm` . `recitem`)
 
-| DBF / PG 欄位 | 資料型別 | EF Core 屬性 (`FeeItemMaster`) | 前端屬性 (`FeeItem`) | 說明 |
-| :--- | :--- | :--- | :--- | :--- |
-| `itemno` | `VARCHAR(255)` | `FeeCode` (PK) | `feeCode` | 收費項目代號 |
-| `item` | `VARCHAR(255)` | `FeeName` | `feeName` | 收費項目名稱 |
-| `amt` | `NUMERIC(20,4)` | `Price` | `price` | 標準收費金額 |
-| `_record_number` | `INTEGER` | `RecordNumber` | - | DBF 實體記錄號 |
+| DBF / PG 欄位 | 資料型別 | EF Core 屬性 (`FeeItemMaster`) | 前端屬性 (`FeeItem`) | 長度限制 | 說明 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `itemno` | `VARCHAR(255)` | `FeeCode` (PK) | `feeCode` | `4` Bytes | 收費項目代號 |
+| `item` | `VARCHAR(255)` | `FeeName` | `feeName` | `24` Bytes | 收費項目名稱 |
+| `amt` | `NUMERIC(20,4)` | `Price` | `price` | 數值 | 標準收費金額 |
+| `_record_number` | `INTEGER` | `RecordNumber` | - | - | DBF 實體記錄號 |
 
 ---
 

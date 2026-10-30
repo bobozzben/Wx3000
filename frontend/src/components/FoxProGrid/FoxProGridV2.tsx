@@ -3,7 +3,7 @@ import { SearchModal } from './SearchModal';
 import type { SearchItem } from './SearchModal';
 import { useTheme } from '../../wbase/menu/ThemeContext';
 import { truncateBig5 } from '../../services/validation';
-import { AlertCircle, XCircle } from 'lucide-react';
+import { AlertCircle, XCircle, AlertTriangle } from 'lucide-react';
 
 export interface HeaderGroupDef {
   label: React.ReactNode;
@@ -34,8 +34,14 @@ export interface ColumnDefV2<T> {
     row: T,
     rowIndex: number,
     allRows: T[]
-  ) => { valid: boolean; message: string; isWarning?: boolean };
+  ) => { valid: boolean; message: string; isWarning?: boolean; normalized?: string };
   renderCell?: (val: any, row: T, rIdx: number) => React.ReactNode;
+  /** Whether this column has an ellipsis / picker button (Lazarus cbsEllipsis / F2) */
+  hasEllipsis?: boolean;
+  /** Custom label for ellipsis button (default: "F2") */
+  ellipsisLabel?: string;
+  /** Callback when ellipsis button is clicked or F2/F4 key pressed on this column */
+  onEllipsisClick?: (row: T, rowIndex: number, currentValue: string) => void;
 }
 
 export interface FoxProGridV2Props<T extends Record<string, any>> {
@@ -453,8 +459,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
         const valRes = col.validate(processedVal, displayRows[r], r, displayRows);
         if (!valRes.valid) {
           if (valRes.isWarning) {
-            // Warning: show prompt toast, but allow commit!
-            showToast(valRes.message, 'warning');
+            // Warning 僅在儲存格呈現金嘆號圖示提示，不彈出 Toast 阻礙盲打
           } else {
             // Blocking error: reject commit and keep focus!
             showToast(valRes.message, 'error');
@@ -466,6 +471,9 @@ export function FoxProGridV2<T extends Record<string, any>>({
             }, 50);
             return false;
           }
+        }
+        if (valRes.normalized !== undefined) {
+          processedVal = valRes.normalized;
         }
       }
 
@@ -681,19 +689,27 @@ export function FoxProGridV2<T extends Record<string, any>>({
         return;
       }
 
-      // F2: Start Editing
-      if (e.key === 'F2') {
-        e.preventDefault();
-        if (col && col.editable !== false) {
-          if (!isEditing) {
-            setEditValue(String(displayRows[r]?.[col.key] ?? ''));
-            setIsEditing(true);
-          } else {
-            commitEdit(r, c, editValue);
-            setIsEditing(false);
-          }
+      // F2 / F4: Ellipsis Picker (ShowForm_Addr 等) 或進入編輯
+      if (e.key === 'F2' || e.key === 'F4') {
+        if (col?.hasEllipsis && col.onEllipsisClick) {
+          e.preventDefault();
+          const curVal = isEditing ? editValue : String(displayRows[r]?.[col.key] ?? '');
+          col.onEllipsisClick(displayRows[r], r, curVal);
+          return;
         }
-        return;
+        if (e.key === 'F2') {
+          e.preventDefault();
+          if (col && col.editable !== false) {
+            if (!isEditing) {
+              setEditValue(String(displayRows[r]?.[col.key] ?? ''));
+              setIsEditing(true);
+            } else {
+              commitEdit(r, c, editValue);
+              setIsEditing(false);
+            }
+          }
+          return;
+        }
       }
 
       // If cell is in Editing state
@@ -1124,7 +1140,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
                           }`}
                         >
                           {isCellFocused && isEditing ? (
-                            <>
+                            <div className="flex items-center w-full h-full relative">
                               <input
                                 ref={inputRef}
                                 type="text"
@@ -1146,11 +1162,69 @@ export function FoxProGridV2<T extends Record<string, any>>({
                                 }`}
                               />
                               <span className="hidden print:inline font-mono text-sm font-bold">{editValue}</span>
-                            </>
-                          ) : col.renderCell ? (
-                            col.renderCell(cellVal, row, rIdx)
+                              {col.hasEllipsis && (
+                                <button
+                                  type="button"
+                                  tabIndex={-1}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    col.onEllipsisClick?.(row, rIdx, editValue);
+                                  }}
+                                  className="ml-1 px-1.5 py-0.2 text-[10px] font-black rounded bg-sky-600 hover:bg-sky-500 text-white shadow-xs shrink-0 cursor-pointer"
+                                  title={`按 F2 開啟${col.ellipsisLabel || '選單'}`}
+                                >
+                                  {col.ellipsisLabel || 'F2'}
+                                </button>
+                              )}
+                            </div>
                           ) : (
-                            <span className="truncate">{cellVal}</span>
+                            <div className="flex items-center justify-between w-full h-full overflow-hidden">
+                              <div className="truncate flex-1 min-w-0">
+                                {col.renderCell ? (
+                                  col.renderCell(cellVal, row, rIdx)
+                                ) : (
+                                  (() => {
+                                    const valRes = col.validate ? col.validate(String(cellVal ?? ''), row, rIdx, displayRows) : null;
+                                    const hasWarn = valRes && !valRes.valid && valRes.isWarning;
+                                    const hasErr = valRes && !valRes.valid && !valRes.isWarning;
+                                    return (
+                                      <span className="flex items-center gap-1.5 truncate">
+                                        {hasWarn && (
+                                          <span title={valRes.message} className="flex items-center shrink-0">
+                                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                                          </span>
+                                        )}
+                                        {hasErr && (
+                                          <span
+                                            className="px-1 py-0.2 bg-red-600 text-white text-[10px] font-black rounded shrink-0 shadow-sm leading-none"
+                                            title={valRes.message}
+                                          >
+                                            !
+                                          </span>
+                                        )}
+                                        <span className={`truncate ${hasErr ? 'text-red-500 font-bold' : hasWarn ? 'text-amber-600 dark:text-amber-400 font-medium' : ''}`}>
+                                          {cellVal}
+                                        </span>
+                                      </span>
+                                    );
+                                  })()
+                                )}
+                              </div>
+                              {isCellFocused && col.hasEllipsis && (
+                                <button
+                                  type="button"
+                                  tabIndex={-1}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    col.onEllipsisClick?.(row, rIdx, String(cellVal || ''));
+                                  }}
+                                  className="ml-1 px-1.5 py-0.2 text-[10px] font-black rounded bg-sky-600 hover:bg-sky-500 text-white shadow-xs shrink-0 cursor-pointer"
+                                  title={`按 F2 開啟${col.ellipsisLabel || '選單'}`}
+                                >
+                                  {col.ellipsisLabel || 'F2'}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       );
@@ -1247,10 +1321,29 @@ export function FoxProGridV2<T extends Record<string, any>>({
           {/* Keyboard hints */}
           {!hideKeyboardHints && (
             <>
-              {!hideF2Hint && (
-                <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-yellow-300 font-bold">
-                  [F2] 編輯
-                </span>
+              {columns[selectedCell.c]?.hasEllipsis ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cCol = columns[selectedCell.c];
+                    if (cCol?.onEllipsisClick) {
+                      const curVal = isEditing
+                        ? editValue
+                        : String(displayRows[selectedCell.r]?.[cCol.key] ?? '');
+                      cCol.onEllipsisClick(displayRows[selectedCell.r], selectedCell.r, curVal);
+                    }
+                  }}
+                  className="bg-sky-600 hover:bg-sky-500 px-2 py-0.5 rounded border border-sky-400 text-white font-black cursor-pointer shadow-xs transition"
+                  title="按 F2 開啟選單"
+                >
+                  [F2] {columns[selectedCell.c]?.ellipsisLabel || '地址選單'}
+                </button>
+              ) : (
+                !hideF2Hint && (
+                  <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-yellow-300 font-bold">
+                    [F2] 編輯
+                  </span>
+                )
               )}
               {onF3Search && (
                 <span className="bg-blue-900 px-2 py-0.5 rounded border border-blue-600 text-cyan-300 font-bold">

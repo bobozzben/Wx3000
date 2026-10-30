@@ -8,11 +8,28 @@ import {
   checkBig5Compatible,
   truncateBig5,
   checkRocDate,
+  normalizeRocDate,
   checkPhoneDigits,
   isSupervisor,
+  w3000EncryptPsw,
+  w3000DecryptPsw,
+  w3000EncryptOnepass,
+  w3000DecryptOnepass,
+  checkPswRule,
+  checkOnepassRule,
 } from './validation';
 
-export { EMAIL_SAVE_WARNING_TOAST };
+export {
+  EMAIL_SAVE_WARNING_TOAST,
+  w3000EncryptPsw,
+  w3000DecryptPsw,
+  w3000EncryptOnepass,
+  w3000DecryptOnepass,
+  checkPswRule,
+  checkOnepassRule,
+  checkRocDate,
+  normalizeRocDate,
+};
 
 export interface EmpItem {
   no: string;
@@ -53,7 +70,7 @@ export const EMP_FIELD_RULES: Record<
   }
 > = {
   no: { label: '編號', maxBytes: 10, required: true, uppercase: true },
-  name: { label: '姓名', maxBytes: 20, required: true },
+  name: { label: '姓名', maxBytes: 20, required: false },
   psw: { label: '密碼', maxBytes: 8, uppercase: true },
   birthday: { label: '生日', maxBytes: 9 },
   tel: { label: '電話', maxBytes: 20 },
@@ -112,23 +129,39 @@ export const validateEmpRow = (
     }
   }
 
-  // 4. 姓名必填
-  if (!name) {
-    blockingErrors.push('姓名不可空白！');
-  }
+  // 4. 姓名非必填 (允許空白存檔)
+  // 若有填寫則在後續 normalizeRow 做 Big5 截斷處理
 
-  // 5. 生日民國年檢查與正規化 (wbase130.pas: d := ROCStringToDate(aText))
+  // 5. 生日民國年檢查與正規化 (提示性檢核，不強制阻斷存檔)
   let normalizedBirthday = (row.birthday || '').trim();
   if (normalizedBirthday) {
     const bCheck = checkRocDate(normalizedBirthday);
-    if (!bCheck.valid) {
-      blockingErrors.push(`生日錯誤：${bCheck.message}`);
-    } else if (bCheck.normalized !== undefined) {
+    if (bCheck.valid && bCheck.normalized) {
       normalizedBirthday = bCheck.normalized;
+    } else if (!bCheck.valid) {
+      warnings.push(`生日提示：${bCheck.message} (仍可照常存檔)`);
     }
   }
 
-  // 6. 電子送達手機純數字檢查 (wbase130.pas: FieldDigitOnly 'phone')
+  // 6. 密碼檢查 (wbase130.pas: psw, 8 bytes, 大寫, Big5 相容)
+  const pswRaw = (row.psw || '').trim().toUpperCase();
+  if (pswRaw) {
+    const pswCheck = checkPswRule(pswRaw);
+    if (!pswCheck.valid) {
+      blockingErrors.push(`密碼錯誤：${pswCheck.message}`);
+    }
+  }
+
+  // 7. 一站式驗證碼檢查 (wbase130.pas: onepassno, 15 bytes, Big5 相容)
+  const onepassRaw = (row.onepassno || row.onePassNo || '').trim();
+  if (onepassRaw) {
+    const onepassCheck = checkOnepassRule(onepassRaw);
+    if (!onepassCheck.valid) {
+      blockingErrors.push(`一站式驗證碼錯誤：${onepassCheck.message}`);
+    }
+  }
+
+  // 8. 電子送達手機純數字檢查 (wbase130.pas: FieldDigitOnly 'phone')
   const phoneStr = (row.phone || row.mobile || '').trim();
   if (phoneStr) {
     const phoneCheck = checkPhoneDigits(phoneStr);
@@ -137,7 +170,7 @@ export const validateEmpRow = (
     }
   }
 
-  // 7. 身分證字號 / 統編檢查 (wbase130.pas: ChkIdWarnMsg 僅提示不阻擋，仍可存檔)
+  // 9. 身分證字號 / 統編檢查 (wbase130.pas: ChkIdWarnMsg 僅提示不阻擋，仍可存檔)
   const idStr = (row.id || '').trim().toUpperCase();
   if (idStr) {
     const idCheck = checkTaxId(idStr);
@@ -146,18 +179,19 @@ export const validateEmpRow = (
     }
   }
 
-  // 8. 電子郵件格式檢查 (提示性檢核，仍可存檔)
+  // 10. 電子郵件格式檢查 (提示性檢核，仍可存檔)
   const emailStr = (row.email || '').trim();
   if (emailStr && !isValidEmail(emailStr)) {
     warnings.push(`電子郵件：${EMAIL_WARNING_TEXT}`);
   }
 
-  // 9. Big5 可存性哨兵 (全欄位統一入口, wbase130.pas FromBig5(ToBig5(aText)) <> aText)
+  // 11. Big5 可存性哨兵 (全欄位統一入口, wbase130.pas FromBig5(ToBig5(aText)) <> aText)
   const fieldsToCheck = [
     name,
     row.addr,
     row.memo,
-    row.psw,
+    pswRaw,
+    onepassRaw,
     phoneStr,
     idStr,
     emailStr,
@@ -170,19 +204,19 @@ export const validateEmpRow = (
     }
   }
 
-  // 10. 長度超限截斷整理
+  // 12. 長度超限截斷整理
   const normalizedRow: EmpItem = {
     ...row,
     no: truncateBig5(code, EMP_FIELD_RULES.no.maxBytes),
     name: truncateBig5(name, EMP_FIELD_RULES.name.maxBytes),
-    psw: truncateBig5((row.psw || '').trim().toUpperCase(), EMP_FIELD_RULES.psw.maxBytes),
+    psw: truncateBig5(pswRaw, EMP_FIELD_RULES.psw.maxBytes),
     birthday: normalizedBirthday,
     tel: truncateBig5((row.tel || '').trim(), EMP_FIELD_RULES.tel.maxBytes),
     id: truncateBig5(idStr, EMP_FIELD_RULES.id.maxBytes),
     addr: truncateBig5((row.addr || '').trim(), EMP_FIELD_RULES.addr.maxBytes),
     memo: truncateBig5((row.memo || '').trim(), EMP_FIELD_RULES.memo.maxBytes),
     oneuserid: truncateBig5((row.oneuserid || '').trim(), EMP_FIELD_RULES.oneuserid.maxBytes),
-    onepassno: truncateBig5((row.onepassno || '').trim(), EMP_FIELD_RULES.onepassno.maxBytes),
+    onepassno: truncateBig5(onepassRaw, EMP_FIELD_RULES.onepassno.maxBytes),
     phone: phoneStr,
     email: truncateBig5(emailStr, EMP_FIELD_RULES.email.maxBytes),
 
@@ -191,7 +225,7 @@ export const validateEmpRow = (
     depName: (row.memo || '').trim(),
     mobile: phoneStr,
     oneUserId: (row.oneuserid || '').trim(),
-    onePassNo: (row.onepassno || '').trim(),
+    onePassNo: onepassRaw,
     address: (row.addr || '').trim(),
   };
 
@@ -248,14 +282,17 @@ export const normalizeEmpItem = (raw: any): EmpItem => {
 
   const no = (raw.no || raw.empCode || '').trim().toUpperCase();
   const name = (raw.name || raw.empName || '').trim();
-  const psw = (raw.psw || '').trim();
-  const birthday = (raw.birthday || '').trim();
+  // 解密 psw (若 DBF 為 !"#$%&'( 則解為空字串，符合盲打維護顯示)
+  const psw = w3000DecryptPsw(raw.psw);
+  // 生日格式正規化為 YYY/MM/DD
+  const birthday = normalizeRocDate(raw.birthday);
   const tel = (raw.tel || '').trim();
-  const id = (raw.id || '').trim();
+  const id = (raw.id || '').trim().toUpperCase();
   const addr = (raw.addr || raw.address || '').trim();
   const memo = (raw.memo || raw.depName || '').trim();
   const oneuserid = (raw.oneuserid || raw.oneUserId || '').trim();
-  const onepassno = (raw.onepassno || raw.onePassNo || '').trim();
+  // 解密 onepassno (15 bytes 位移解密)
+  const onepassno = w3000DecryptOnepass(raw.onepassno || raw.onePassNo);
   const phone = (raw.phone || raw.mobile || '').trim();
   const email = (raw.email || '').trim();
 
@@ -285,27 +322,44 @@ export const normalizeEmpItem = (raw: any): EmpItem => {
 };
 
 export const sanitizeEmpItemForSave = (item: EmpItem): any => {
-  const norm = normalizeEmpItem(item);
-  return {
-    no: norm.no,
-    name: norm.name,
-    psw: norm.psw,
-    birthday: norm.birthday,
-    tel: norm.tel,
-    id: norm.id,
-    addr: norm.addr,
-    memo: norm.memo,
-    oneuserid: norm.oneuserid,
-    onepassno: norm.onepassno,
-    phone: norm.phone,
-    email: norm.email,
+  const code = (item.no || item.empCode || '').trim().toUpperCase();
+  const name = (item.name || item.empName || '').trim();
+  const psw = (item.psw || '').trim().toUpperCase();
+  const birthday = (item.birthday || '').trim();
+  const tel = (item.tel || '').trim();
+  const id = (item.id || '').trim().toUpperCase();
+  const addr = (item.addr || item.address || '').trim();
+  const memo = (item.memo || item.depName || '').trim();
+  const oneuserid = (item.oneuserid || item.oneUserId || '').trim();
+  const onepassno = (item.onepassno || item.onePassNo || '').trim();
+  const phone = (item.phone || item.mobile || '').trim();
+  const email = (item.email || '').trim();
 
-    empCode: norm.no,
-    empName: norm.name,
-    mobile: norm.phone,
-    depName: norm.memo,
-    oneUserId: norm.oneuserid,
-    onePassNo: norm.onepassno,
+  // 加密 psw 與 onepassno 為 DBF 8/15 bytes 格式 (對齊 util_w3000crypt.pas)
+  const encPsw = w3000EncryptPsw(psw);
+  const encOnePass = w3000EncryptOnepass(onepassno);
+  const normBirthday = normalizeRocDate(birthday);
+
+  return {
+    no: truncateBig5(code, EMP_FIELD_RULES.no.maxBytes),
+    name: truncateBig5(name, EMP_FIELD_RULES.name.maxBytes),
+    psw: encPsw,
+    birthday: normBirthday,
+    tel: truncateBig5(tel, EMP_FIELD_RULES.tel.maxBytes),
+    id: truncateBig5(id, EMP_FIELD_RULES.id.maxBytes),
+    addr: truncateBig5(addr, EMP_FIELD_RULES.addr.maxBytes),
+    memo: truncateBig5(memo, EMP_FIELD_RULES.memo.maxBytes),
+    oneuserid: truncateBig5(oneuserid, EMP_FIELD_RULES.oneuserid.maxBytes),
+    onepassno: encOnePass,
+    phone: phone,
+    email: truncateBig5(email, EMP_FIELD_RULES.email.maxBytes),
+
+    empCode: code,
+    empName: name,
+    mobile: phone,
+    depName: memo,
+    oneUserId: oneuserid,
+    onePassNo: encOnePass,
   };
 };
 

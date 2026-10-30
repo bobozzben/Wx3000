@@ -1,14 +1,18 @@
-import React, { useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import type { EmpItem } from '../../services/wbase1030';
 import { FoxProGridV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { ColumnDefV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import type { SearchItem } from '../../components/FoxProGrid/SearchModal';
+import { AddressSelectModal } from '../../components/FoxProGrid/AddressSelectModal';
 import {
   isValidEmail,
   checkTaxId,
   checkRocDate,
   checkPhoneDigits,
   checkBig5Compatible,
+  checkPswRule,
+  checkOnepassRule,
 } from '../../services/validation';
 
 interface Wbase1030FormProps {
@@ -85,7 +89,7 @@ const KEYIN_COLUMNS: ColumnDefV2<EmpItem>[] = [
     validate: (val) => {
       const trimmed = val.trim();
       if (!trimmed) {
-        return { valid: false, message: '姓名不可空白！請輸入人員姓名。' };
+        return { valid: true, message: '' };
       }
       const b5 = checkBig5Compatible(trimmed);
       if (!b5.valid) {
@@ -96,7 +100,7 @@ const KEYIN_COLUMNS: ColumnDefV2<EmpItem>[] = [
     renderCell: (val: any) => {
       const name = String(val || '').trim();
       if (!name) {
-        return <span className="text-red-500 font-bold text-xs">[姓名空白]</span>;
+        return <span className="text-gray-400 dark:text-slate-500">-</span>;
       }
       return <span className="truncate">{name}</span>;
     },
@@ -109,9 +113,9 @@ const KEYIN_COLUMNS: ColumnDefV2<EmpItem>[] = [
     maxLength: 8,
     maxBytes: 8,
     validate: (val) => {
-      const b5 = checkBig5Compatible(val);
-      if (!b5.valid) {
-        return { valid: false, message: b5.message };
+      const check = checkPswRule(val);
+      if (!check.valid) {
+        return { valid: false, message: check.message };
       }
       return { valid: true, message: '' };
     },
@@ -128,31 +132,20 @@ const KEYIN_COLUMNS: ColumnDefV2<EmpItem>[] = [
     maxLength: 9,
     validate: (val) => {
       const trimmed = val.trim();
-      if (!trimmed) return { valid: true, message: '' };
+      if (!trimmed) return { valid: true, message: '', normalized: '' };
       const check = checkRocDate(trimmed);
       if (!check.valid) {
-        return { valid: false, message: check.message };
+        return { valid: false, message: `生日提示：${check.message}`, isWarning: true };
       }
-      return { valid: true, message: '' };
+      return { valid: true, message: '', normalized: check.normalized };
     },
     renderCell: (val: any) => {
       const bStr = String(val || '').trim();
       if (!bStr) return <span className="text-gray-400 dark:text-slate-500">-</span>;
       const check = checkRocDate(bStr);
-      const isInvalid = !check.valid;
       return (
-        <span className="flex items-center gap-1 font-mono">
-          {isInvalid && (
-            <span
-              className="px-1 py-0.2 bg-red-600 text-white text-[10px] font-bold rounded shadow-sm"
-              title={check.message}
-            >
-              !
-            </span>
-          )}
-          <span className={isInvalid ? 'text-red-500 font-bold' : ''}>
-            {check.valid && check.normalized ? check.normalized : bStr}
-          </span>
+        <span className="font-mono">
+          {check.valid && check.normalized ? check.normalized : bStr}
         </span>
       );
     },
@@ -203,11 +196,8 @@ const KEYIN_COLUMNS: ColumnDefV2<EmpItem>[] = [
       return (
         <span className="flex items-center gap-1.5 truncate font-mono">
           {isInvalid && (
-            <span
-              className="px-1.5 py-0.5 bg-amber-500 text-black text-[10px] font-bold rounded shrink-0 shadow-sm"
-              title={`${check.message.trim()} (提示，仍可正常存檔)`}
-            >
-              ⚠️ 提示
+            <span title={check.message.trim()} className="flex items-center shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
             </span>
           )}
           <span className={isInvalid ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''}>
@@ -258,6 +248,18 @@ const KEYIN_COLUMNS: ColumnDefV2<EmpItem>[] = [
     width: '180px',
     maxLength: 15,
     maxBytes: 15,
+    validate: (val) => {
+      const check = checkOnepassRule(val);
+      if (!check.valid) {
+        return { valid: false, message: check.message };
+      }
+      return { valid: true, message: '' };
+    },
+    renderCell: (val: any) => {
+      const passStr = String(val || '').trim();
+      if (!passStr) return <span className="text-gray-400 dark:text-slate-500">-</span>;
+      return <span className="font-mono">{passStr}</span>;
+    },
   },
   {
     key: 'phone',
@@ -352,6 +354,50 @@ export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
   onRefreshData,
   onExit,
 }) => {
+  const [addrModalOpen, setAddrModalOpen] = useState(false);
+  const [targetAddrRowIndex, setTargetAddrRowIndex] = useState<number>(-1);
+  const [currentAddrValue, setCurrentAddrValue] = useState<string>('');
+
+  const handleOpenAddrModal = useCallback((row: EmpItem, rowIndex: number, currentVal: string) => {
+    setTargetAddrRowIndex(rowIndex);
+    setCurrentAddrValue(currentVal || row.addr || row.address || '');
+    setAddrModalOpen(true);
+  }, []);
+
+  const handleAddressConfirm = useCallback(
+    (selectedAddress: string) => {
+      setAddrModalOpen(false);
+      if (targetAddrRowIndex >= 0 && targetAddrRowIndex < rows.length) {
+        const updated = [...rows];
+        const targetRow = {
+          ...updated[targetAddrRowIndex],
+          addr: selectedAddress,
+          address: selectedAddress,
+        };
+        updated[targetAddrRowIndex] = targetRow;
+        onRowsChange(updated);
+        onSaveRow(targetRow);
+      }
+    },
+    [rows, targetAddrRowIndex, onRowsChange, onSaveRow]
+  );
+
+  const columns = useMemo<ColumnDefV2<EmpItem>[]>(() => {
+    return KEYIN_COLUMNS.map((col) => {
+      if (col.key === 'addr') {
+        return {
+          ...col,
+          hasEllipsis: true,
+          ellipsisLabel: 'F2',
+          onEllipsisClick: (row, rIdx, curVal) => {
+            handleOpenAddrModal(row, rIdx, curVal);
+          },
+        };
+      }
+      return col;
+    });
+  }, [handleOpenAddrModal]);
+
   const createEmptyRow = useCallback((): EmpItem => ({
     no: '',
     name: '',
@@ -391,25 +437,33 @@ export const Wbase1030Form: React.FC<Wbase1030FormProps> = ({
   };
 
   return (
-    <FoxProGridV2<EmpItem>
-      gridId="wbase1030_grid"
-      rows={rows}
-      columns={KEYIN_COLUMNS}
-      createEmptyRow={createEmptyRow}
-      onRowsChange={onRowsChange}
-      onSaveRow={onSaveRow}
-      onOpenPrint={onOpenPrint}
-      onShowSummary={onShowSummary}
-      statusBarInfo={statusBarInfo}
-      onSelectRow={onSelectRow}
-      onF3Search={handleF3Search}
-      f3SearchTitle="建檔人員開窗搜尋 [F3]"
-      getRowKey={(row, idx) => row.no || row.empCode || idx}
-      onInsertRow={onInsertRow}
-      onDeleteRow={onDeleteRow}
-      onRefreshData={onRefreshData}
-      onExit={onExit}
-      minRows={0}
-    />
+    <>
+      <FoxProGridV2<EmpItem>
+        gridId="wbase1030_grid"
+        rows={rows}
+        columns={columns}
+        createEmptyRow={createEmptyRow}
+        onRowsChange={onRowsChange}
+        onSaveRow={onSaveRow}
+        onOpenPrint={onOpenPrint}
+        onShowSummary={onShowSummary}
+        statusBarInfo={statusBarInfo}
+        onSelectRow={onSelectRow}
+        onF3Search={handleF3Search}
+        f3SearchTitle="建檔人員開窗搜尋 [F3]"
+        getRowKey={(row, idx) => row.no || row.empCode || idx}
+        onInsertRow={onInsertRow}
+        onDeleteRow={onDeleteRow}
+        onRefreshData={onRefreshData}
+        onExit={onExit}
+        minRows={0}
+      />
+      <AddressSelectModal
+        isOpen={addrModalOpen}
+        initialValue={currentAddrValue}
+        onClose={() => setAddrModalOpen(false)}
+        onConfirm={handleAddressConfirm}
+      />
+    </>
   );
 };

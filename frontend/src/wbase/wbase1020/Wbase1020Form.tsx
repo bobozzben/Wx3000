@@ -14,6 +14,7 @@ import {
 } from '../../services/validation';
 import { CPA_FIELD_RULES } from '../../services/wbase1020';
 import { useFoxProCardNavigation } from '../../components/FoxProGridCard';
+import { AddressSelectModal } from '../../components/FoxProGrid/AddressSelectModal';
 
 /**
  * 依據 cpa.dbf 結構之欄位順序:
@@ -68,6 +69,7 @@ export const Wbase1020Form: React.FC<Wbase1020FormProps> = ({
 }) => {
   const { isDark } = useTheme();
   const [showDocTrackModal, setShowDocTrackModal] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
   const [warnDialog, setWarnDialog] = useState<WarnDialogInfo | null>(null);
   const warnOkBtnRef = useRef<HTMLButtonElement>(null);
   const modifiedFields = useRef<Set<string>>(new Set());
@@ -318,6 +320,13 @@ export const Wbase1020Form: React.FC<Wbase1020FormProps> = ({
       return;
     }
 
+    // address 支援按 F2 / F4 開啟地址選單 (對齊 wbase120.pas ShowForm_Addr)
+    if (fieldKey === 'address' && (e.key === 'F2' || e.key === 'F4')) {
+      e.preventDefault();
+      setShowAddressModal(true);
+      return;
+    }
+
     // Enter: 觸發欄位檢核並換至下一欄 (最後一欄自動存檔)
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -546,6 +555,18 @@ export const Wbase1020Form: React.FC<Wbase1020FormProps> = ({
               title="按 F2 或點此開啟發文字軌清單"
             >
               <span>F2</span>
+            </button>
+          )}
+
+          {fieldKey === 'address' && mode !== 'grid' && (
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => setShowAddressModal(true)}
+              className="absolute right-1 px-1.5 py-0.5 bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-bold rounded shadow-xs cursor-pointer flex items-center gap-0.5"
+              title="按 F2 或點此開啟地址選單"
+            >
+              <span>F2 地址</span>
             </button>
           )}
         </div>
@@ -813,6 +834,20 @@ export const Wbase1020Form: React.FC<Wbase1020FormProps> = ({
           </div>
         </div>
       )}
+      {/* 地址選單視窗 (對齊 wbase120.pas ShowForm_Addr) */}
+      <AddressSelectModal
+        isOpen={showAddressModal}
+        initialValue={formData.address || ''}
+        onClose={() => {
+          setShowAddressModal(false);
+          focusAndSelect('address');
+        }}
+        onConfirm={(addr) => {
+          handleInputChange('address', addr);
+          setShowAddressModal(false);
+          focusAndSelect('address');
+        }}
+      />
     </div>
   );
 };
