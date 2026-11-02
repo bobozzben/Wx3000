@@ -217,6 +217,160 @@ function Build-WbaseBridge {
     return $true
 }
 
+# 發佈新版本：本機編譯報表元件 ➔ 推送 tag 由 CI 建立草稿 Release ➔ 補傳報表元件 ➔ 正式發佈
+# 報表 DLL 與橋接程式無法在 CI 編譯，草稿階段各機器的自動更新抓不到，補檔後才正式發佈
+function Publish-Wx3000Release {
+    foreach ($tool in @("git", "gh")) {
+        if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
+            Write-Host "[錯誤] 找不到 $tool 指令，請先安裝。" -ForegroundColor Red
+            return $false
+        }
+    }
+    gh auth status *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[錯誤] GitHub CLI 尚未登入，請先執行 gh auth login。" -ForegroundColor Red
+        return $false
+    }
+    $repo = gh repo view --json nameWithOwner --jq .nameWithOwner
+    if ($LASTEXITCODE -ne 0 -or -not $repo) {
+        Write-Host "[錯誤] 無法取得 GitHub 倉庫名稱，請確認專案的 origin 指向 GitHub。" -ForegroundColor Red
+        return $false
+    }
+
+    # 報表元件要從與發佈版本相同的原始碼編譯，因此本機必須就是 GitHub main 的最新提交
+    Write-Host "[步驟 1/7] 檢查本機與 GitHub main 是否一致..." -ForegroundColor Cyan
+    git -C $RootDir fetch origin main --tags 2>&1 | Out-Host
+    $head = git -C $RootDir rev-parse HEAD
+    $remoteMain = git -C $RootDir rev-parse origin/main
+    if ($head -ne $remoteMain) {
+        Write-Host "[錯誤] 本機目前的提交 ($($head.Substring(0, 7))) 不是 GitHub main 的最新提交 ($($remoteMain.Substring(0, 7)))。" -ForegroundColor Red
+        Write-Host "        請先切換到 main 並執行 git pull，再重新發佈。" -ForegroundColor Yellow
+        return $false
+    }
+    $dirty = @(git -C $RootDir status --porcelain -- report localagent/bridge localagent/dlls.json ':(exclude)report/wbase/lib' ':(exclude)localagent/bridge/lazarus/lib')
+    if ($dirty.Count -gt 0) {
+        Write-Host "[錯誤] 報表或橋接程式原始碼有未提交的修改，編譯結果會與發佈版本不一致：" -ForegroundColor Red
+        $dirty | ForEach-Object { Write-Host "        $_" -ForegroundColor Yellow }
+        return $false
+    }
+
+    $tags = @(git -C $RootDir tag -l "v*" | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Substring(1) })
+    $suggested = "v0.0.1"
+    if ($tags.Count -gt 0) {
+        $last = [version]$tags[-1].Substring(1)
+        $suggested = "v{0}.{1}.{2}" -f $last.Major, $last.Minor, ($last.Build + 1)
+    }
+    $answer = Read-Host "請輸入要發佈的版本號 (格式 vX.Y.Z，直接按 Enter 使用 $suggested)"
+    $tag = if ($answer.Trim()) { $answer.Trim() } else { $suggested }
+    if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+        Write-Host "[錯誤] 版本號格式不正確：$tag (需為 vX.Y.Z)" -ForegroundColor Red
+        return $false
+    }
+
+    # 已存在的版本：草稿可接續完成 (例如上次 CI 失敗或中斷)，已正式發佈則停止
+    $tagCommit = git -C $RootDir rev-parse -q --verify "refs/tags/$tag^{commit}" 2>$null
+    if ($tagCommit -and $tagCommit -ne $head) {
+        Write-Host "[錯誤] $tag 已存在且指向其他提交 ($($tagCommit.Substring(0, 7)))，請改用新的版本號。" -ForegroundColor Red
+        return $false
+    }
+    $remoteTag = git -C $RootDir ls-remote --tags origin "refs/tags/$tag"
+    $releaseJson = gh release view $tag --repo $repo --json isDraft 2>$null
+    $existingRelease = if ($LASTEXITCODE -eq 0 -and $releaseJson) { $releaseJson | ConvertFrom-Json } else { $null }
+    if ($existingRelease -and -not $existingRelease.isDraft) {
+        Write-Host "[錯誤] $tag 已經正式發佈，請改用新的版本號。" -ForegroundColor Red
+        return $false
+    }
+
+    Write-Host ""
+    Write-Host "即將發佈 $tag (提交 $($head.Substring(0, 7)) 至 $repo)：" -ForegroundColor Yellow
+    Write-Host "  1. 本機編譯 wbaseRP.dll 與 WbaseBridge.exe" -ForegroundColor White
+    Write-Host "  2. 推送 tag，由 GitHub Actions 打包並建立草稿 Release (約需 5~10 分鐘)" -ForegroundColor White
+    Write-Host "  3. 上傳報表元件後正式發佈，各機器將在下次排程自動更新" -ForegroundColor White
+    if ($remoteTag) { Write-Host "  ($tag 已推送過，將接續未完成的步驟)" -ForegroundColor Gray }
+    $confirm = Read-Host "確定要發佈嗎？[Y/N]"
+    if ($confirm -notmatch "^[Yy]") {
+        Write-Host "已取消發佈。" -ForegroundColor Gray
+        return $false
+    }
+
+    # 先編譯再推送 tag，編譯失敗就不會留下沒有報表元件的草稿
+    Write-Host ""
+    Write-Host "[步驟 2/7] 編譯報表 DLL 與橋接程式..." -ForegroundColor Cyan
+    if (-not ((Build-WbaseReportDll) -and (Build-WbaseBridge))) {
+        Write-Host "[錯誤] 報表元件編譯失敗，未推送 tag。" -ForegroundColor Red
+        return $false
+    }
+
+    Write-Host "[步驟 3/7] 打包報表元件 Wx3000_ReportBin_$tag.zip ..." -ForegroundColor Cyan
+    $stageDir = Join-Path $env:TEMP "Wx3000_ReportBin_$tag"
+    $reportZip = Join-Path $env:TEMP "Wx3000_ReportBin_$tag.zip"
+    if (Test-Path $stageDir) { Remove-Item -Path $stageDir -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path (Join-Path $stageDir "wbase") | Out-Null
+    Copy-Item -Path (Join-Path $RootDir "localagent\wbase\wbaseRP.dll") -Destination (Join-Path $stageDir "wbase") -Force
+    Copy-Item -Path (Join-Path $RootDir "localagent\bridge\lazarus\WbaseBridge.exe") -Destination $stageDir -Force
+    Compress-Archive -Path "$stageDir\*" -DestinationPath $reportZip -Force
+    Remove-Item -Path $stageDir -Recurse -Force -ErrorAction SilentlyContinue
+
+    if (-not $remoteTag) {
+        Write-Host "[步驟 4/7] 建立並推送 tag $tag ..." -ForegroundColor Cyan
+        if (-not $tagCommit) { git -C $RootDir tag $tag $head 2>&1 | Out-Host }
+        git -C $RootDir push origin "refs/tags/$tag" 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[錯誤] 推送 tag 失敗，請檢查上方訊息。" -ForegroundColor Red
+            return $false
+        }
+    } else {
+        Write-Host "[步驟 4/7] $tag 已在 GitHub 上，略過推送。" -ForegroundColor Gray
+    }
+
+    if (-not $existingRelease) {
+        Write-Host "[步驟 5/7] 等待 GitHub Actions 打包並建立草稿 Release (約需 5~10 分鐘)..." -ForegroundColor Cyan
+        $runId = $null
+        for ($i = 0; $i -lt 36 -and -not $runId; $i++) {
+            $runId = gh run list --repo $repo --workflow release.yml --branch $tag --limit 1 --json databaseId --jq '.[0].databaseId'
+            if (-not $runId) { Start-Sleep -Seconds 5 }
+        }
+        if (-not $runId) {
+            Write-Host "[錯誤] 3 分鐘內沒有看到 $tag 的 Release 打包工作，請到 https://github.com/$repo/actions 確認。" -ForegroundColor Red
+            Write-Host "        確認後重新執行此選項並輸入 $tag 即可接續。" -ForegroundColor Yellow
+            return $false
+        }
+        gh run watch $runId --repo $repo --exit-status --interval 15 | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[錯誤] GitHub Actions 打包失敗：https://github.com/$repo/actions/runs/$runId" -ForegroundColor Red
+            Write-Host "        修正後執行 gh run rerun $runId --repo $repo，完成後重新執行此選項並輸入 $tag 即可接續。" -ForegroundColor Yellow
+            return $false
+        }
+        $releaseJson = gh release view $tag --repo $repo --json isDraft 2>$null
+        $existingRelease = if ($LASTEXITCODE -eq 0 -and $releaseJson) { $releaseJson | ConvertFrom-Json } else { $null }
+        if (-not ($existingRelease -and $existingRelease.isDraft)) {
+            Write-Host "[錯誤] 打包完成但找不到 $tag 的草稿 Release，請到 https://github.com/$repo/releases 確認。" -ForegroundColor Red
+            return $false
+        }
+    } else {
+        Write-Host "[步驟 5/7] $tag 的草稿 Release 已存在，略過等待。" -ForegroundColor Gray
+    }
+
+    Write-Host "[步驟 6/7] 上傳報表元件至草稿 Release ..." -ForegroundColor Cyan
+    gh release upload $tag $reportZip --repo $repo --clobber 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[錯誤] 上傳報表元件失敗，草稿尚未發佈。重新執行此選項並輸入 $tag 即可接續。" -ForegroundColor Red
+        return $false
+    }
+
+    Write-Host "[步驟 7/7] 正式發佈 $tag ..." -ForegroundColor Cyan
+    gh release edit $tag --repo $repo --draft=false --latest 2>&1 | Out-Host
+    $latest = gh api "repos/$repo/releases/latest" --jq .tag_name 2>$null
+    if ($LASTEXITCODE -ne 0 -or $latest -ne $tag) {
+        Write-Host "[錯誤] 發佈後的最新版本是 $latest 而不是 $tag，請到 https://github.com/$repo/releases 確認。" -ForegroundColor Red
+        return $false
+    }
+    $assets = gh release view $tag --repo $repo --json assets --jq '.assets[].name'
+    Write-Host "[完成] $tag 已正式發佈：https://github.com/$repo/releases/tag/$tag" -ForegroundColor Green
+    $assets | ForEach-Object { Write-Host "        - $_" -ForegroundColor Gray }
+    return $true
+}
+
 :MenuLoop while ($true) {
     Clear-Host
     $apiStatus = Get-ServiceStatusText "Wx3000Api"
@@ -245,6 +399,7 @@ function Build-WbaseBridge {
     Write-Host "   [9] 打包【Electron 快速免安裝】 ➔ Wx3000\publish\frontend\Electron\release\win-unpacked\"
     Write-Host "  [10] 打包【Electron 正式安裝包】 ➔ Wx3000\publish\frontend\Electron\release\"
     Write-Host "  [13] 編譯【報表 DLL 與橋接程式】 ➔ wbaseRP.dll + WbaseBridge.exe (Lazarus，完成後請執行 [8])"
+    Write-Host "  [14] ★ 發佈新版本到 GitHub      ➔ 編譯報表元件 ➔ CI 草稿 ➔ 補傳報表元件 ➔ 正式發佈" -ForegroundColor Yellow
     Write-Host ""
     Write-Host " 【三、服務管理與產出目錄 (Services & Folders)】" -ForegroundColor Cyan
     Write-Host "  [11] 管理 Wx3000Api Windows 服務 (安裝 / 啟動 / 停止 / 檢查區網 IP)"
@@ -252,7 +407,7 @@ function Build-WbaseBridge {
     Write-Host "   [Q] 離開程式 (Quit)"
     Write-Host "==================================================================================" -ForegroundColor Cyan
 
-    $rawChoice = Read-Host "請輸入選項代號 [1-13, A 或 Q]"
+    $rawChoice = Read-Host "請輸入選項代號 [1-14, A 或 Q]"
     $choice = if ($rawChoice) { $rawChoice.Trim().ToUpper() } else { "" }
 
     switch ($choice) {
@@ -624,6 +779,12 @@ function Build-WbaseBridge {
             if ((Build-WbaseReportDll) -and (Build-WbaseBridge)) {
                 Write-Host "請接著執行 [8] 打包 LocalAgent，隨身碟安裝檔才會帶入新版報表 DLL 與橋接程式。" -ForegroundColor Yellow
             }
+            Pause-Return
+        }
+        "14" {
+            Write-Host ""
+            Write-Host "=== [14] 發佈新版本到 GitHub Release ===" -ForegroundColor Magenta
+            [void](Publish-Wx3000Release)
             Pause-Return
         }
         { $_ -in "Q", "QUIT", "EXIT" } {

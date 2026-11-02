@@ -19,13 +19,17 @@
 
 | 選單代號 | 打包項目 | 打包後存放目的目錄 |
 | :---: | :--- | :--- |
-| **`[A]`** | ★ **全部一鍵打包 (5~10 全套重編)** (完成後統一詢問是否開啟 `publish\`) | `Wx3000\publish\` (涵蓋下方 5~10 所有目錄) |
+| **`[A]`** | ★ **全部一鍵打包 (5~10 與 13 全套重編)** (完成後統一詢問是否開啟 `publish\`) | `Wx3000\publish\` (涵蓋下方 5~10 所有目錄) |
 | **`[5]`** | ★ **全端伺服器一鍵發佈** (自動停服務 ➔ 打包前後端 ➔ 重啟服務) | `Wx3000\publish\Wx3000_Server\` (`api\`) |
 | **`[6]`** | 僅打包 **【前端靜態網頁】** | `Wx3000\publish\frontend\dist\` |
 | **`[7]`** | 僅打包 **【後端單一執行檔】** | `Wx3000\publish\backend\Release\Wx3000.Backend.exe` |
 | **`[8]`** | 打包 **【LocalAgent 執行檔】** | `Wx3000\publish\localagent\dist\` |
 | **`[9]`** | 打包 **【Electron 桌面端 - 快速免安裝版】** | `Wx3000\publish\frontend\Electron\release\win-unpacked\` |
 | **`[10]`** | 打包 **【Electron 桌面端 - 正式安裝包】** | `Wx3000\publish\frontend\Electron\release\` |
+| **`[13]`** | 編譯 **【報表 DLL 與橋接程式】** (Lazarus `lazbuild`，檢查匯出函數後才覆蓋) | `Wx3000\localagent\wbase\wbaseRP.dll`、`Wx3000\localagent\bridge\lazarus\WbaseBridge.exe` |
+| **`[14]`** | ★ **發佈新版本到 GitHub** (本機編譯報表元件 ➔ 推送 tag 由 CI 建立草稿 Release ➔ 補傳 `Wx3000_ReportBin_<版本>.zip` ➔ 正式發佈) | GitHub Releases |
+
+> 💡 **發佈新版本請一律使用 `[14]`**：報表 DLL 與橋接程式需要 Lazarus 與 FastReport，無法在 GitHub Actions 編譯。直接推送 tag 只會建立草稿 Release，各機器的自動更新看不到草稿；`[14]` 會在補傳報表元件後才正式發佈。中途失敗時，重新執行 `[14]` 並輸入同一版本號即可接續。需要先安裝並登入 GitHub CLI (`gh auth login`)，且本機必須位於 GitHub `main` 的最新提交。
 
 ---
 

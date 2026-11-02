@@ -98,7 +98,9 @@ jobs:
           retention-days: 14
 
       # ------------------------------------------------------------------------
-      # 若為推送 Git Tag (v*.*.*)，自動壓縮並建立 GitHub Release
+      # 若為推送 Git Tag (v*.*.*)，自動壓縮並建立「草稿」GitHub Release
+      # 報表 DLL 與橋接程式無法在 CI 編譯，由 Wx3000-Manager.ps1 [14] 在本機編譯後補上傳並正式發佈；
+      # 草稿不會被各機器的自動更新抓到
       # ------------------------------------------------------------------------
       - name: Create & Publish GitHub Release (Tag Push Only)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -117,5 +119,5 @@ jobs:
           if ($existing) {
             gh release upload $tagName @files --clobber
           } else {
-            gh release create $tagName @files --generate-notes
+            gh release create $tagName @files --draft --generate-notes
           }
