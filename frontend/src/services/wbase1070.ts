@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { localagentApi } from './localagent';
+import { reportFunctionMissing, type WbaseReportResult } from './localagent';
 
 export interface NoteItem {
   noteno: string;      // 編號 (DBF: noteno)
@@ -150,19 +150,5 @@ export interface Waccrep3106bParams {
 }
 
 export const callWaccrep3106b = async (
-  params: Waccrep3106bParams = {}
-): Promise<{ success: boolean; result: string; raw?: string; error?: string }> => {
-  const response = await localagentApi.post(
-    '/report',
-    {
-      dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
-      hs_chk: params.hs_chk ?? 0.125,
-      top_mag: params.top_mag ?? 0.0,
-      left_mag: params.left_mag ?? 0.0,
-      PrtIndex: params.PrtIndex ?? 0,
-      IsPrint: params.IsPrint ?? 0,
-      path: params.path ?? '',
-    }
-  );
-  return response.data;
-};
+  _params: Waccrep3106bParams = {}
+): Promise<WbaseReportResult> => reportFunctionMissing('收費備註名冊');

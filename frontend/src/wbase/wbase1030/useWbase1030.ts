@@ -222,13 +222,17 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
   triggerReportDll: async (params) => {
     set({ loading: true });
     try {
-      await callWaccrep3106b(params);
+      const res = await callWaccrep3106b(params);
+      if (!res.success) {
+        set({ errorToast: res.error || '呼叫 DLL 報表失敗', loading: false });
+        return false;
+      }
       set({ showAutoCloseToast: true, loading: false });
       setTimeout(() => set({ showAutoCloseToast: false }), 2000);
       return true;
     } catch (e) {
       console.error('Trigger DLL report error:', e);
-      set({ errorToast: '呼叫 DLL 報表失敗', loading: false });
+      set({ errorToast: e instanceof Error ? e.message : '呼叫 DLL 報表失敗', loading: false });
       return false;
     }
   },

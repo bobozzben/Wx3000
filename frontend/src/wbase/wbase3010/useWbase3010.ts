@@ -156,7 +156,11 @@ export const useWbase3010 = create<Wbase3010State>((set, get) => ({
   triggerReport: async (params) => {
     set({ loading: true });
     try {
-      await callWaccrep3106b(params);
+      const res = await callWaccrep3106b(params);
+      if (!res.success) {
+        set({ errorToast: res.error || '呼叫 DLL 報表失敗', loading: false });
+        return false;
+      }
       set({ showAutoCloseToast: true, loading: false });
       setTimeout(() => set({ showAutoCloseToast: false }), 2000);
       return true;

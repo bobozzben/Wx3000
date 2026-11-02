@@ -220,7 +220,7 @@ export const Wbase1050Page: React.FC<Wbase1050PageProps> = ({ onBackToMenu }) =>
 
       {/* Error Toast */}
       {errorToast && (
-        <div className="fixed bottom-12 right-6 z-50 flex items-center justify-between space-x-3 bg-red-600 text-white px-4 py-2.5 rounded-lg shadow-xl border border-red-400 font-bold text-sm max-w-md">
+        <div className="fixed bottom-12 right-6 z-[60] flex items-center justify-between space-x-3 bg-red-600 text-white px-4 py-2.5 rounded-lg shadow-xl border border-red-400 font-bold text-sm max-w-md">
           <div className="flex items-center space-x-2">
             <XCircle className="w-5 h-5 shrink-0" />
             <span>{errorToast}</span>

@@ -166,7 +166,11 @@ export const useWbase1070 = create<Wbase1070State>((set, get) => ({
   triggerReport: async (params) => {
     set({ loading: true });
     try {
-      await callWaccrep3106b(params);
+      const res = await callWaccrep3106b(params);
+      if (!res.success) {
+        set({ errorToast: res.error || '呼叫 DLL 報表失敗', loading: false });
+        return false;
+      }
       set({ loading: false });
       return true;
     } catch (e: any) {

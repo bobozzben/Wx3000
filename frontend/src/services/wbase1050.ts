@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { reportFunctionMissing, type WbaseReportResult } from './localagent';
 
 /**
  * taxno.dbf 7 個欄位名稱與抬頭定義:
@@ -166,25 +167,8 @@ export interface Waccrep3105bParams {
 }
 
 export const callWaccrep3105b = async (
-  params: Waccrep3105bParams = {}
-): Promise<{ success: boolean; result: string; raw?: string; error?: string }> => {
-  const response = await axios.post(
-    'http://localhost:18889/report',
-    {
-      dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
-      hs_chk: params.hs_chk ?? 0.125,
-      top_mag: params.top_mag ?? 0.0,
-      left_mag: params.left_mag ?? 0.0,
-      PrtIndex: params.PrtIndex ?? 0,
-      IsPrint: params.IsPrint ?? 0,
-      path: params.path ?? '',
-    },
-    {
-      headers: { 'Content-Type': 'application/json' },
-    }
-  );
-  return response.data;
-};
+  _params: Waccrep3105bParams = {}
+): Promise<WbaseReportResult> => reportFunctionMissing('基本稅務人員清冊');
 
 export type Waccrep3106bParams = Waccrep3105bParams;
 export const callWaccrep3106b = callWaccrep3105b;
