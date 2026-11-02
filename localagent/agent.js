@@ -3,7 +3,9 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const net = require('net');
 const { execFile, spawn } = require('child_process');
+const { StringDecoder } = require('string_decoder');
 
 let iconv;
 try {
@@ -21,6 +23,14 @@ process.on('unhandledRejection', (reason) => {
 
 // ========== 實體磁碟路徑輔助 (防止 pkg 虛擬路徑 C:\snapshot\ 導致 spawn/LoadLibrary ENOENT) ==========
 const EXEC_DIR = process.pkg ? path.dirname(process.execPath) : __dirname;
+
+// 串流每段約 64KB，切點可能落在多位元組字元中間，必須跨段解碼；逐段 toString 會把中文變成 U+FFFD
+function collectUtf8(stream) {
+  const decoder = new StringDecoder('utf8');
+  let text = '';
+  stream.on('data', (chunk) => { text += decoder.write(chunk); });
+  return () => text + decoder.end();
+}
 
 function isSnapshotPath(p) {
   return !p || /^[a-zA-Z]:[\\/]snapshot([\\/]|$)/i.test(p) || p.startsWith('/snapshot/');
@@ -50,6 +60,8 @@ try {
 const CONFIG = {
   MODE: process.env.WBASE_MODE || 'bridge',
   PORT: 18889,
+  // 只監聽本機。同時綁 IPv4/IPv6，避免 localhost 先解析到 ::1 時連線被拒而延遲
+  HOSTS: ['127.0.0.1', '::1'],
   getDllPath(dllKey) {
     if (process.env.WBASE_DLL_PATH && existsOnRealDisk(process.env.WBASE_DLL_PATH)) return process.env.WBASE_DLL_PATH;
     const info = (DLL_CONFIG.dlls || {})[dllKey];
@@ -114,12 +126,10 @@ function callDbfBridge(reqObj) {
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    let stdoutData = '';
-    let stderrData = '';
     let resolved = false;
 
-    child.stdout.on('data', (d) => { stdoutData += d.toString('utf8'); });
-    child.stderr.on('data', (d) => { stderrData += d.toString('utf8'); });
+    const getStdout = collectUtf8(child.stdout);
+    const getStderr = collectUtf8(child.stderr);
 
     child.on('error', (err) => {
       if (!resolved) {
@@ -131,7 +141,7 @@ function callDbfBridge(reqObj) {
     child.on('close', (code) => {
       if (!resolved) {
         resolved = true;
-        const out = stdoutData.trim();
+        const out = getStdout().trim();
         try {
           const parsed = JSON.parse(out);
           resolve(parsed);
@@ -141,7 +151,7 @@ function callDbfBridge(reqObj) {
           } else {
             resolve({
               success: false,
-              error: `DBFBridge 輸出非合法 JSON (Exit code ${code}): ${out || stderrData}`
+              error: `DBFBridge 輸出非合法 JSON (Exit code ${code}): ${out || getStderr()}`
             });
           }
         }
@@ -221,12 +231,10 @@ function callViaBridge(dllKey, funcName, args) {
     }
     // 使用 Base64 編碼傳遞 JSON 參數，徹底避免 Windows 命令行引號與反斜線轉義問題
     const argsJson = Buffer.from(JSON.stringify(args), 'utf8').toString('base64');
-    const dllPath = (CONFIG.getDllPath(dllKey) || dllKey).replace(/\\/g, '/');
+    const dllPath = CONFIG.getDllPath(dllKey).replace(/\\/g, '/');
     const cmdArgs = ['--dll', dllPath, '--func', funcName, '--args', argsJson, '--dllkey', dllKey];
 
     let resolved = false;
-    let stdoutData = '';
-    let stderrData = '';
 
     try {
       const child = spawn(bridgePath, cmdArgs, {
@@ -236,8 +244,8 @@ function callViaBridge(dllKey, funcName, args) {
         stdio: ['ignore', 'pipe', 'pipe']
       });
 
-      child.stdout?.on('data', (d) => { stdoutData += d.toString(); });
-      child.stderr?.on('data', (d) => { stderrData += d.toString(); });
+      const getStdout = collectUtf8(child.stdout);
+      const getStderr = collectUtf8(child.stderr);
       child.stdout?.on('error', (e) => { console.warn('[child stdout]', e.message); });
       child.stderr?.on('error', (e) => { console.warn('[child stderr]', e.message); });
 
@@ -250,12 +258,12 @@ function callViaBridge(dllKey, funcName, args) {
       child.on('close', (code) => {
         if (resolved) return;
         resolved = true;
-        const out = stdoutData.trim();
+        const out = getStdout().trim();
         if (out.includes('OK:')) {
           const m = out.match(/OK:(-?\d+)/);
           resolve({ success: true, mode: 'bridge', retCode: m ? parseInt(m[1]) : 0, raw: out });
         } else {
-          resolve({ success: false, mode: 'bridge', error: out || stderrData || `Exit code: ${code}` });
+          resolve({ success: false, mode: 'bridge', error: out || getStderr() || `Exit code: ${code}` });
         }
       });
 
@@ -285,7 +293,18 @@ function callViaBridge(dllKey, funcName, args) {
   });
 }
 
+// 只允許呼叫 dlls.json 明確登記的 DLL 與函數，呼叫端傳入的名稱絕不當成檔案路徑
+function isAllowedDllCall(dllKey, funcName) {
+  const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+  const dlls = DLL_CONFIG.dlls || {};
+  return typeof dllKey === 'string' && typeof funcName === 'string' &&
+    hasOwn(dlls, dllKey) && hasOwn(dlls[dllKey].functions || {}, funcName);
+}
+
 async function genericCall(dllKey, funcName, args) {
+  if (!isAllowedDllCall(dllKey, funcName)) {
+    return { success: false, errorType: 'FORBIDDEN', error: `未開放的 DLL 函數: ${dllKey}.${funcName}` };
+  }
   if (CONFIG.MODE === 'bridge') return await callViaBridge(dllKey, funcName, args);
   return callViaKoffi(dllKey, funcName, args);
 }
@@ -339,6 +358,21 @@ function buildWhereClause(keyField, keyValue) {
   return parseSingle(keyField, keyValue);
 }
 
+// 別名、欄位名與鍵值運算式會直接組進 VFP 腳本，必須限制為識別字，否則等於可執行任意 VFP 指令
+const VFP_NAME = '[\\p{L}_][\\p{L}\\p{N}_]*';
+const VFP_IDENTIFIER = new RegExp(`^${VFP_NAME}$`, 'u');
+const VFP_KEY_TERM = `(?:${VFP_NAME}|RECNO\\(\\))`;
+const VFP_KEY_EXPR = new RegExp(`^(?:${VFP_KEY_TERM}|(?:ALLTRIM|STR|VAL|TRANSFORM)\\(${VFP_KEY_TERM}\\))$`, 'u');
+
+function validateDbfWrite(cAlias, keyField, fields) {
+  if (!VFP_IDENTIFIER.test(cAlias)) return `不合法的 DBF 名稱: ${cAlias}`;
+  const badKey = String(keyField).split(',').map((k) => k.trim()).find((k) => !VFP_KEY_EXPR.test(k));
+  if (badKey !== undefined) return `不合法的鍵值欄位: ${badKey}`;
+  const badField = Object.keys(fields).find((k) => !VFP_IDENTIFIER.test(k));
+  if (badField !== undefined) return `不合法的欄位名稱: ${badField}`;
+  return null;
+}
+
 async function executeDbfWrite(payload) {
   const operation = (payload.operation || 'UPDATE').toUpperCase();
   const dbfPath = payload.dbfPath || 'C:\\w3000\\comm';
@@ -348,6 +382,10 @@ async function executeDbfWrite(payload) {
   const fields = payload.fields || {};
 
   const cAlias = path.basename(dbfName, path.extname(dbfName));
+  const invalid = validateDbfWrite(cAlias, keyField, fields);
+  if (invalid) {
+    return { success: false, errorType: 'INVALID_REQUEST', error: invalid };
+  }
   const fullPath = path.join(dbfPath, cAlias + (cAlias.toLowerCase().endsWith('.dbf') ? '' : '.dbf'));
   if (!fs.existsSync(fullPath)) {
     return { success: false, error: `找不到 DBF 檔案: ${fullPath}` };
@@ -423,16 +461,84 @@ async function executeDbfWrite(payload) {
   };
 }
 
-// ========== HTTP + WS ==========
-const server = http.createServer(async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  const reqHeaders = req.headers['access-control-request-headers'];
-  res.setHeader('Access-Control-Allow-Headers', reqHeaders ? `${reqHeaders}, *` : '*');
-  res.setHeader('Access-Control-Max-Age', '86400');
-  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+// ========== 存取控制 ==========
+// 正式環境的前端由 http://<主機>:5007 提供，主機位址無法事先得知，因此放行內網位址與單段主機名；
+// 其他網域 (如 ngrok、企業內網 FQDN) 請以逗號分隔設定於環境變數 WX3000_AGENT_ALLOWED_ORIGINS
+const EXTRA_ALLOWED_ORIGINS = new Set(
+  (process.env.WX3000_AGENT_ALLOWED_ORIGINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+);
 
+function isAllowedOrigin(origin) {
+  if (EXTRA_ALLOWED_ORIGINS.has(String(origin).toLowerCase())) return true;
+  let parsed;
+  try { parsed = new URL(origin); } catch (e) { return false; }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  const host = parsed.hostname.toLowerCase();
+  if (host === '[::1]') return true;
+  if (net.isIPv4(host)) return /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+  return /^[a-z0-9-]+$/.test(host); // localhost 與 SERVER01 這類單段主機名
+}
+
+function isLoopbackHost(hostHeader) {
+  const host = String(hostHeader || '').replace(/:\d+$/, '').toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+}
+
+// 無副作用且瀏覽器跨站也讀不到回應的端點 (Electron file:// 頁面的 GET 不帶 Origin，需要放行)
+const READ_ONLY_PATHS = new Set(['/', '/test.html', '/mac', '/config', '/dllList', '/api/check-drive', '/api/dbf/check_drive']);
+
+// 回傳拒絕原因；可放行時回傳 null
+function authorizeRequest(req, pathname) {
+  // 防 DNS rebinding：對瀏覽器而言 evil.com:18889 是同源，只有 Host 看得出來
+  if (!isLoopbackHost(req.headers.host)) return 'Host 不允許';
+
+  const origin = req.headers.origin;
+  const site = req.headers['sec-fetch-site'];
+
+  // DBF 端點只供本機後端與診斷腳本使用，這些呼叫端不會帶瀏覽器標頭
+  if (pathname.startsWith('/api/dbf/') && !READ_ONLY_PATHS.has(pathname) && (origin !== undefined || site !== undefined)) {
+    return '此端點不開放瀏覽器呼叫';
+  }
+
+  if (origin !== undefined) return isAllowedOrigin(origin) ? null : 'Origin 不允許';
+
+  // 沒有 Origin 的跨站請求：瀏覽器的 POST 一定帶 Origin，所以這只會是 Electron file:// 頁面 (webSecurity: false)；
+  // GET 則可能是惡意網頁的 <img>，只放行唯讀端點
+  if (site === 'cross-site' || site === 'same-site') {
+    const isSafeRead = (req.method === 'GET' || req.method === 'HEAD') && READ_ONLY_PATHS.has(pathname);
+    const isElectronPost = req.method === 'POST';
+    if (!isSafeRead && !isElectronPost) return '拒絕跨站請求';
+  }
+  return null;
+}
+
+// 可由 HTTP 轉送給 DBFBridge 的動作白名單；EXEC_VFP 只能由 executeDbfWrite 內部使用
+const DBF_BRIDGE_ACTIONS = new Set(['PING', 'CHECKSUM', 'READ', 'GET_PG_SCRIPT']);
+
+function buildDbfBridgeRequest(action, payload) {
+  if (!DBF_BRIDGE_ACTIONS.has(action)) return null;
+  return { ...payload, action }; // action 放最後，呼叫端的 payload 不可覆寫
+}
+
+// ========== HTTP + WS ==========
+const handleRequest = async (req, res) => {
   const url = new URL(req.url, `http://localhost:${CONFIG.PORT}`);
+
+  const denied = authorizeRequest(req, url.pathname);
+  if (denied) {
+    res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: false, errorType: 'FORBIDDEN', error: denied }));
+    return;
+  }
+
+  res.setHeader('Vary', 'Origin');
+  if (req.headers.origin !== undefined) {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'Content-Type');
+    res.setHeader('Access-Control-Max-Age', '86400');
+  }
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
   if (url.pathname === '/mac') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -491,17 +597,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      let body = '';
-      req.on('data', chunk => body += chunk);
+      const getBody = collectUtf8(req);
       req.on('end', async () => {
         try {
-          const payload = JSON.parse(body || '{}');
-          if (dbfAction === 'CALL') {
-            const result = await callDbfBridge(payload);
-            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-            res.end(JSON.stringify(result));
-            return;
-          }
+          const payload = JSON.parse(getBody() || '{}');
 
           if (dbfAction === 'WRITE') {
             const result = await executeDbfWrite(payload);
@@ -510,7 +609,12 @@ const server = http.createServer(async (req, res) => {
             return;
           }
 
-          const reqPayload = { action: dbfAction, ...payload };
+          const reqPayload = buildDbfBridgeRequest(dbfAction, payload);
+          if (!reqPayload) {
+            res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ success: false, error: `未知的 DBF 動作: ${dbfAction}` }));
+            return;
+          }
           const result = await callDbfBridge(reqPayload);
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify(result));
@@ -525,11 +629,10 @@ const server = http.createServer(async (req, res) => {
 
   // 相容 POST /report, /waccrep3101_b, /wbase320_buyinv 及 /wbase350_buyinv_list
   if ((url.pathname === '/report' || url.pathname === '/waccrep3101_b' || url.pathname === '/wbase320_buyinv' || url.pathname === '/wbase350_buyinv_list') && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
+    const getBody = collectUtf8(req);
     req.on('end', async () => {
       try {
-        const data = JSON.parse(body || '{}');
+        const data = JSON.parse(getBody() || '{}');
         const funcName = data.func || (url.pathname.replace('/', '') || 'waccrep3101_b');
         let targetPath = data.path || '';
 
@@ -615,11 +718,10 @@ const server = http.createServer(async (req, res) => {
   }
   // 通用 POST /api/call
   if (url.pathname === '/api/call' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
+    const getBody = collectUtf8(req);
     req.on('end', async () => {
       try {
-        const data = JSON.parse(body);
+        const data = JSON.parse(getBody());
         let callArgs = data.args || [];
 
         // 若請求帶有 jsonData，自動將資料寫入本機暫存 JSON 檔案，並將路徑帶入 args 最後一個參數
@@ -672,16 +774,20 @@ const server = http.createServer(async (req, res) => {
     if (fs.existsSync(p)) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(fs.readFileSync(p)); return; }
   }
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Not Found');
-});
+};
 
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ noServer: true });
 wss.on('connection', (ws) => {
   ws.on('message', async (msg) => {
     try {
       const data = JSON.parse(msg.toString());
       if (data.cmd === 'mac') ws.send(JSON.stringify({ cmd: 'mac', success: true, macs: getMacs() }));
       if (data.cmd === 'dllList') ws.send(JSON.stringify({ cmd: 'dllList', ...DLL_CONFIG }));
-      if (data.cmd === 'setMode') { CONFIG.MODE = data.mode; ws.send(JSON.stringify({ cmd: 'setMode', success: true, mode: CONFIG.MODE })); }
+      if (data.cmd === 'setMode') {
+        const validMode = data.mode === 'bridge' || data.mode === 'koffi';
+        if (validMode) CONFIG.MODE = data.mode;
+        ws.send(JSON.stringify({ cmd: 'setMode', success: validMode, mode: CONFIG.MODE }));
+      }
       if (data.cmd === 'call') {
         const r = await genericCall(data.dll, data.func, data.args || []);
         ws.send(JSON.stringify({ cmd: 'call', ...r }));
@@ -690,14 +796,40 @@ wss.on('connection', (ws) => {
         const r = await genericCall('wbaseRP', 'waccrep3101_b', [data.hs_chk, data.top_mag, data.left_mag, data.PrtIndex, data.IsPrint, data.path]);
         ws.send(JSON.stringify({ cmd: 'wbaseReport', ...r }));
       }
-      if (data.cmd === 'dbf' || data.cmd === 'dbf_call') {
-        const r = await callDbfBridge(data.payload || data);
-        ws.send(JSON.stringify({ cmd: data.cmd, ...r }));
-      }
     } catch (e) { ws.send(JSON.stringify({ success: false, error: e.message })); }
   });
 });
 
-server.listen(CONFIG.PORT, () => {
-  console.log(`Wx3000Agent v26 generic http://localhost:${CONFIG.PORT} MODE=${CONFIG.MODE}`);
-});
+function startServers() {
+  for (const host of CONFIG.HOSTS) {
+    const server = http.createServer(handleRequest);
+    server.on('upgrade', (req, socket, head) => {
+      const { pathname } = new URL(req.url, `http://localhost:${CONFIG.PORT}`);
+      if (authorizeRequest(req, pathname)) {
+        socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
+        return;
+      }
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+    });
+    server.on('error', (err) => {
+      console.error(`[LISTEN] ${host}:${CONFIG.PORT} 監聽失敗: ${err.message}`);
+    });
+    server.listen(CONFIG.PORT, host, () => {
+      console.log(`Wx3000Agent v26 generic http://${net.isIPv6(host) ? `[${host}]` : host}:${CONFIG.PORT} MODE=${CONFIG.MODE}`);
+    });
+  }
+}
+
+if (require.main === module || process.pkg) startServers();
+
+module.exports = {
+  collectUtf8,
+  isAllowedDllCall,
+  genericCall,
+  validateDbfWrite,
+  executeDbfWrite,
+  isAllowedOrigin,
+  authorizeRequest,
+  buildDbfBridgeRequest,
+  handleRequest
+};

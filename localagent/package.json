@@ -3,6 +3,9 @@
   "version": "22.0.0",
   "main": "agent.js",
   "bin": "agent.js",
+  "scripts": {
+    "test": "node --test agent.test.js"
+  },
   "pkg": {
     "assets": [
       "test.html",

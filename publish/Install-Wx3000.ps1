@@ -214,9 +214,8 @@ WshShell.Run Chr(34) & "$targetExe" & Chr(34), 0, False
     $runKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
     Set-ItemProperty -Path $runKeyPath -Name "Wx3000LocalAgent" -Value "wscript.exe `"$vbsLauncher`"" -ErrorAction SilentlyContinue
 
-    # 開放防火牆 LocalAgent Port 18889 (供本機與區網診斷)
+    # LocalAgent 只監聽本機，不需對外開放；移除舊版安裝時建立的防火牆規則
     Remove-NetFirewallRule -DisplayName "Wx3000 LocalAgent (Port $AgentPort)" -ErrorAction SilentlyContinue
-    New-NetFirewallRule -DisplayName "Wx3000 LocalAgent (Port $AgentPort)" -Direction Inbound -LocalPort $AgentPort -Protocol TCP -Action Allow -Profile Any | Out-Null
 
     # 立即啟動
     Start-Process -FilePath "wscript.exe" -ArgumentList "`"$vbsLauncher`"" -WorkingDirectory $destAgentDir

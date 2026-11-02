@@ -15,13 +15,25 @@
 
 ---
 
+## 🔒 存取限制
+
+- **只監聽本機** (`127.0.0.1` 與 `::1`)，不需也不應開放防火牆。後端 `LocalAgent:Url` 必須指向同一台機器。
+- **`/api/dbf/*` 不開放瀏覽器**：只有本機後端與診斷腳本可呼叫，帶 `Origin` 或 `Sec-Fetch-Site` 的請求一律回 403。
+- **報表端點的瀏覽器來源**：放行 localhost、內網 IP (10/8、172.16/12、192.168/16) 與單段主機名 (如 `SERVER01`)。其他網域 (ngrok、企業內網 FQDN) 請設定環境變數 `WX3000_AGENT_ALLOWED_ORIGINS`，多筆以逗號分隔，例如 `https://erp.example.com`。
+- **DLL 白名單**：`/api/call`、`/report` 與 WebSocket 只能呼叫 `dlls.json` 登記的 DLL 與函數，新增報表函數時必須同步登記。
+- **Electron 限制**：目前 `file://` 頁面 (`webSecurity: false`) 的請求不帶 `Origin`，因此無 `Origin` 的跨站 POST 會放行。若日後開啟 `webSecurity`，請將實際 Origin 加入放行規則。
+
+修改後請執行 `npm test` (`localagent/agent.test.js`)。
+
 ## 🔌 主要 API 端點
 
 ### 1. 地端 VFP DBF 資料庫橋接 (`/api/dbf/*`)
 - 內建單一執行緒 Promise 串列隊列 (`dbfQueue`)，確保高併發請求下不會發生 DBF 檔案鎖定衝突。
 - `GET /api/dbf/ping`：檢測 `DBFBridge.exe` 與 VFP COM 元件狀態。
 - `GET` / `POST /api/dbf/checksum`：高速計算地端 `.dbf` 檔案之 `SHA256:FileSize` 校驗碼。
-- `POST /api/dbf/call`：執行 `SYNC_TABLE`、`WRITE_RECORD`（含 `HEX_FIELDS` 二進位密碼欄位支援）、`READ_RECORD`。
+- `POST /api/dbf/get_pg_script`：產生 DBF 轉 PostgreSQL 的結構 (`STRUCT`) 或資料 (`DATA`) 腳本。
+- `POST /api/dbf/write`：新增、修改、刪除 DBF 記錄（別名、欄位名與鍵值運算式會先經過識別字檢查）。
+- `POST /api/dbf/read`：讀取單筆 DBF 記錄。
 
 ### 2. 原生 FastReport 報表 DLL 橋接 (`/report`, `/api/call`)
 - 當前端傳入 `jsonData` 時，自動於 `%TEMP%/Wx3000/` 產生暫存 JSON 檔並將路徑傳遞給 `wbaseRP.dll`。

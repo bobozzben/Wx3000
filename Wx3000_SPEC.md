@@ -97,7 +97,7 @@ Wx3000/
    - 每次 API 讀取前，後端向 `LocalAgent` (`POST /api/dbf/checksum`) 取得地端 `.dbf` 的即時 `SHA256:FileSize` 校驗碼。
    - 與 PostgreSQL `dictionary.w3000_dbf` 中記錄的 `file_checksum` 比對：相符則直接由 PostgreSQL 高速查詢（Fast-path ~2ms）；不符則自動觸發 32-bit `DBFBridge.exe` (`SYNC_TABLE`) 將最新 DBF 結構與內容重灌至 PostgreSQL。
 3. **權威雙寫與鎖定保護 (`WriteRecordAsync`)**：
-   - 當前端執行新增 (`INSERT`)、修改 (`UPDATE`)、刪除 (`DELETE`) 時，後端**優先呼叫 `LocalAgent` (`/api/dbf/call`) 寫入地端 DBF**。
+   - 當前端執行新增 (`INSERT`)、修改 (`UPDATE`)、刪除 (`DELETE`) 時，後端**優先呼叫 `LocalAgent` (`/api/dbf/write`) 寫入地端 DBF**。
    - 若另一台傳統 FoxPro 工作站正鎖定該筆紀錄 (`RLOCK`)，回傳 `LOCK_TIMEOUT` (HTTP `409 Conflict`)，後端立即中止操作並向前端顯示明確提示，**絕不單邊寫入 PostgreSQL**。
 
 ### 3.2 前端核心盲打與輔助組件
