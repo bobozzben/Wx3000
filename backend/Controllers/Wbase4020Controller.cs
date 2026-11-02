@@ -564,6 +564,12 @@ namespace Wx3000.Backend.Controllers
             }
         }
 
+        private ObjectResult StockModeWriteFailure(DbfWriteResult writeRes, string context)
+        {
+            var status = writeRes.ErrorType == "LOCK_TIMEOUT" ? StatusCodes.Status409Conflict : StatusCodes.Status500InternalServerError;
+            return StatusCode(status, new { error = $"{context}: {writeRes.Error ?? writeRes.Message}", message = context });
+        }
+
         // PUT: api/wbase4020/stock-mode/{no}
         [HttpPut("stock-mode/{no}")]
         public async Task<IActionResult> UpdateStockMode(string no, [FromBody] AccStDto model)
@@ -581,7 +587,8 @@ namespace Wx3000.Backend.Controllers
                 ["acctype"] = acctypeCode
             };
             var writeRes1 = await _dbfSyncService.WriteRecordAsync(DbfPath, "acc_st", "UPDATE", "no", trimmedNo, fieldsAccSt);
-            if (!writeRes1.Success)
+            // 只有確定查無記錄才新增；鎖定逾時等其他失敗若也新增，會產生重複的 no
+            if (!writeRes1.Success && writeRes1.ErrorType == "RECORD_NOT_FOUND")
             {
                 var fieldsAccStInsert = new Dictionary<string, object?>
                 {
@@ -591,7 +598,11 @@ namespace Wx3000.Backend.Controllers
                     ["acctype"] = acctypeCode,
                     ["serial"] = model.Serial ?? 0
                 };
-                writeRes1 = await _dbfSyncService.WriteRecordAsync(DbfPath, "acc_st", "APPEND", "no", trimmedNo, fieldsAccStInsert);
+                writeRes1 = await _dbfSyncService.WriteRecordAsync(DbfPath, "acc_st", "INSERT", "no", trimmedNo, fieldsAccStInsert);
+            }
+            if (!writeRes1.Success)
+            {
+                return StockModeWriteFailure(writeRes1, "寫入 acc_st.dbf 失敗");
             }
 
             // 2. 原生 VFP 規範：連動更新 customer.dbf 的 stock 與 acctype
@@ -601,13 +612,23 @@ namespace Wx3000.Backend.Controllers
                 ["acctype"] = acctypeCode
             };
             var custRecno = await GetCustomerRecordNumber(trimmedNo);
+            DbfWriteResult writeRes2;
             if (custRecno.HasValue && custRecno.Value > 0)
             {
-                await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "RECNO()", custRecno.Value.ToString(), fieldsCustomer);
+                writeRes2 = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "RECNO()", custRecno.Value.ToString(), fieldsCustomer);
+                if (!writeRes2.Success)
+                {
+                    writeRes2 = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fieldsCustomer);
+                }
             }
             else
             {
-                await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fieldsCustomer);
+                writeRes2 = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fieldsCustomer);
+            }
+            if (!writeRes2.Success)
+            {
+                // PostgreSQL 與 Checksum 都還沒更新，下次查詢會從 DBF 重新同步；重送一次即可補上 customer
+                return StockModeWriteFailure(writeRes2, "acc_st.dbf 已寫入，但連動更新 customer.dbf 失敗");
             }
 
             // 3. 同步至 PostgreSQL

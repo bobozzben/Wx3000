@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { callWbaseListReport, type WbaseReportParams, type WbaseReportResult } from './localagent';
 
 export interface FeeSummary {
   seq?: number;
@@ -99,33 +100,12 @@ export const fetchPrintFeeSummaries = async (
 
 export const printFeeSummaryList = fetchPrintFeeSummaries;
 
-export interface Waccrep3106bParams {
-  dllPath?: string;
-  hs_chk?: number;
-  top_mag?: number;
-  left_mag?: number;
-  PrtIndex?: number;
-  IsPrint?: number;
-  path?: string;
-}
-
-export const callWaccrep3106b = async (
-  params: Waccrep3106bParams = {}
-): Promise<{ success: boolean; result: string; raw?: string; error?: string }> => {
-  const response = await axios.post(
-    'http://localhost:5009/report',
-    {
-      dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
-      hs_chk: params.hs_chk ?? 0.125,
-      top_mag: params.top_mag ?? 0.0,
-      left_mag: params.left_mag ?? 0.0,
-      PrtIndex: params.PrtIndex ?? 0,
-      IsPrint: params.IsPrint ?? 0,
-      path: params.path ?? '',
-    },
-    {
-      headers: { 'Content-Type': 'application/json' },
-    }
+export const callWbase1080Report = (
+  rows: FeeSummary[],
+  params?: WbaseReportParams
+): Promise<WbaseReportResult> =>
+  callWbaseListReport(
+    'wbase1080_feesummary_list',
+    rows.map((r) => ({ summaryCode: r.summaryCode, summaryName: r.summaryName, content: r.content })),
+    params
   );
-  return response.data;
-};

@@ -2,15 +2,15 @@ import { create } from 'zustand';
 import type {
   NoteItem,
   NoteItemPrintFilter,
-  Waccrep3106bParams,
 } from '../../services/wbase1070';
+import type { WbaseReportParams } from '../../services/localagent';
 import {
   getNoteItemList,
   saveNoteItem,
   batchSaveNoteItems,
   deleteNoteItem,
   printNoteItemList,
-  callWaccrep3106b,
+  callWbase1070Report,
 } from '../../services/wbase1070';
 
 interface Wbase1070State {
@@ -38,7 +38,7 @@ interface Wbase1070State {
   openPrint: () => void;
   closePrint: () => void;
   fetchPrintDataList: (filter: NoteItemPrintFilter) => Promise<NoteItem[]>;
-  triggerReport: (params?: Waccrep3106bParams) => Promise<boolean>;
+  triggerReport: (params?: WbaseReportParams) => Promise<boolean>;
 }
 
 export const useWbase1070 = create<Wbase1070State>((set, get) => ({
@@ -166,7 +166,11 @@ export const useWbase1070 = create<Wbase1070State>((set, get) => ({
   triggerReport: async (params) => {
     set({ loading: true });
     try {
-      await callWaccrep3106b(params);
+      const res = await callWbase1070Report(get().printData, params);
+      if (!res.success) {
+        set({ errorToast: res.error || '呼叫 DLL 報表失敗', loading: false });
+        return false;
+      }
       set({ loading: false });
       return true;
     } catch (e: any) {

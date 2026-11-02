@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useWbase1030 } from './useWbase1030';
 import type { EmpItem, EmpPrintFilter } from '../../services/wbase1030';
 import {
+  FoxProDllPrintButton,
   FoxProPrintModal,
   type FoxProPrintColumn,
   type XlsxFieldItem,
@@ -72,7 +73,7 @@ const KEYIN_XLSX_FIELDS: XlsxFieldItem[] = [
  * 條件篩選、網頁直接列印（排除所有輸入框與按鈕）與「匯出 xlsx 設定」欄位自訂匯出。
  */
 export const Wbase1030Print: React.FC = () => {
-  const { isPrintOpen, closePrint, fetchPrintData, printData, loading } =
+  const { isPrintOpen, closePrint, fetchPrintData, printData, triggerReportDll, loading } =
     useWbase1030();
 
   const [filter, setFilter] = useState<EmpPrintFilter>({
@@ -92,6 +93,10 @@ export const Wbase1030Print: React.FC = () => {
   const handleQuery = async () => {
     await fetchPrintData(filter);
     setHasSearched(true);
+  };
+
+  const handleDllPrint = async () => {
+    if (await triggerReportDll()) closePrint();
   };
 
   return (
@@ -119,6 +124,9 @@ export const Wbase1030Print: React.FC = () => {
       xlsxStorageKey="wbase1030_xlsx_export_config"
       xlsxFields={KEYIN_XLSX_FIELDS}
       xlsxFileName="建檔人員清冊"
+      extraActions={
+        <FoxProDllPrintButton onClick={handleDllPrint} disabled={loading || printData.length === 0} />
+      }
     />
   );
 };

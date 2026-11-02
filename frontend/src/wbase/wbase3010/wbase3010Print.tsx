@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWbase3010 } from './useWbase3010';
 import type { TicketPlaceItem, TicketPlacePrintFilter } from '../../services/wbase3010';
-import { FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxProGrid/FoxProPrintModal';
+import { FoxProDllPrintButton, FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxProGrid/FoxProPrintModal';
 
 /**
  * 統一發票購買地點清冊總表列印欄位定義
@@ -53,7 +53,7 @@ const TICKET_PLACE_PRINT_COLUMNS: FoxProPrintColumn<TicketPlaceItem>[] = [
  * 條件篩選與網頁直接列印（排除所有輸入框與按鈕）。
  */
 export const Wbase3010Print: React.FC = () => {
-  const { isPrintOpen, closePrint, fetchPrintDataList, printData, loading } =
+  const { isPrintOpen, closePrint, fetchPrintDataList, printData, triggerReport, loading } =
     useWbase3010();
 
   const [filter, setFilter] = useState<TicketPlacePrintFilter>({
@@ -73,6 +73,10 @@ export const Wbase3010Print: React.FC = () => {
   const handleQuery = async () => {
     await fetchPrintDataList(filter);
     setHasSearched(true);
+  };
+
+  const handleDllPrint = async () => {
+    if (await triggerReport()) closePrint();
   };
 
   return (
@@ -98,6 +102,9 @@ export const Wbase3010Print: React.FC = () => {
       loading={loading}
       hasSearched={hasSearched}
       emptyText="⚠️ 該區間內查無任何購買地點資料"
+      extraActions={
+        <FoxProDllPrintButton onClick={handleDllPrint} disabled={loading || printData.length === 0} />
+      }
     />
   );
 };

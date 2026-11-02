@@ -19,7 +19,12 @@ Uses
   //End;
 
 Exports
-  waccrep3101_b,
+  waccrep3101_b,  // 建檔人員清冊
+  wbase1050_taxno_list,  // 基本稅務人員清冊
+  wbase1060_recitem_list,  // 基本收費項目清冊
+  wbase1070_recnote_list,  // 收費備註名冊
+  wbase1080_feesummary_list,  // 基本收費摘要清冊
+  wbase3010_ticketplace_list,  // 統一發票購買地點清冊
   wbase320_buyinv,  // 預購統一發票列印
   wbase350_buyinv_list;  // 統一發票購買清單
 

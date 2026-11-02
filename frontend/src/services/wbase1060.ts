@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { callWbaseListReport, type WbaseReportParams, type WbaseReportResult } from './localagent';
 
 /**
  * recitem.dbf 3 個欄位名稱與抬頭定義:
@@ -152,35 +153,12 @@ export const fetchPrintFeeItems = async (
 export const printFeeItemList = fetchPrintFeeItems;
 export const fetchFeePrintData = fetchPrintFeeItems;
 
-export interface Waccrep3106bParams {
-  dllPath?: string;
-  hs_chk?: number;
-  top_mag?: number;
-  left_mag?: number;
-  PrtIndex?: number;
-  IsPrint?: number;
-  path?: string;
-}
-
-export const callWaccrep3106b = async (
-  params: Waccrep3106bParams = {}
-): Promise<{ success: boolean; result: string; raw?: string; error?: string }> => {
-  const response = await axios.post(
-    'http://localhost:5009/report',
-    {
-      dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
-      hs_chk: params.hs_chk ?? 0.125,
-      top_mag: params.top_mag ?? 0.0,
-      left_mag: params.left_mag ?? 0.0,
-      PrtIndex: params.PrtIndex ?? 0,
-      IsPrint: params.IsPrint ?? 0,
-      path: params.path ?? '',
-    },
-    {
-      headers: { 'Content-Type': 'application/json' },
-    }
+export const callWbase1060Report = (
+  rows: FeeItem[],
+  params?: WbaseReportParams
+): Promise<WbaseReportResult> =>
+  callWbaseListReport(
+    'wbase1060_recitem_list',
+    rows.map((r) => ({ itemno: r.itemno, item: r.item, amt: r.amt })),
+    params
   );
-  return response.data;
-};
-
-export const triggerFeeReportDll = callWaccrep3106b;

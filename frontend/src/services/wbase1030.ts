@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { localagentApi } from './localagent';
+import { callWbaseListReport, type WbaseReportParams, type WbaseReportResult } from './localagent';
 import {
   isValidEmail,
   EMAIL_WARNING_TEXT,
@@ -419,68 +419,22 @@ export const fetchPrintEmps = async (query: PrintRangeQuery): Promise<EmpItem[]>
 
 export const printEmpList = fetchPrintEmps;
 
-export interface Waccrep3101bParams {
-  dllPath?: string;
-  hs_chk?: number;
-  top_mag?: number;
-  left_mag?: number;
-  PrtIndex?: number;
-  IsPrint?: number;
-  path?: string;
-}
-
-export const callWaccrep3101b = async (
-  params: Waccrep3101bParams = {}
-): Promise<{ success: boolean; result: string; raw?: string; error?: string }> => {
-  const payload = {
-    dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
-    hs_chk: params.hs_chk ?? 0.125,
-    top_mag: params.top_mag ?? 0.0,
-    left_mag: params.left_mag ?? 0.0,
-    PrtIndex: params.PrtIndex ?? 0,
-    IsPrint: params.IsPrint ?? 0,
-    path: params.path ?? '',
-  };
-
-  try {
-    const response = await localagentApi.post('/report', payload, {
-      timeout: 10000,
-    });
-    return response.data;
-  } catch (err: any) {
-    console.warn('POST /report failed, attempting fallback to POST /api/call...', err?.message);
-    try {
-      const fallbackRes = await localagentApi.post(
-        '/api/call',
-        {
-          dll: 'wbaseRP',
-          func: 'waccrep3101_b',
-          args: [
-            payload.hs_chk,
-            payload.top_mag,
-            payload.left_mag,
-            payload.PrtIndex,
-            payload.IsPrint,
-            payload.path,
-          ],
-        },
-        {
-          timeout: 10000,
-        }
-      );
-      return {
-        success: fallbackRes.data?.success ?? true,
-        result: String(fallbackRes.data?.retCode ?? '0'),
-        raw: JSON.stringify(fallbackRes.data),
-      };
-    } catch (fallbackErr: any) {
-      console.error('LocalAgent error:', fallbackErr);
-      throw new Error(
-        '無法連線至 LocalAgent 本地列印元件 (http://localhost:5009)，請確認 LocalAgent 服務已啟動。'
-      );
-    }
-  }
-};
-
-export type Waccrep3106bParams = Waccrep3101bParams;
-export const callWaccrep3106b = callWaccrep3101b;
+/**
+ * EmpItem 帶有解密後的密碼與一站式驗證碼，只能傳清冊需要的欄位，否則會寫進本機暫存檔
+ */
+export const callWaccrep3101b = (
+  rows: EmpItem[],
+  params?: WbaseReportParams
+): Promise<WbaseReportResult> =>
+  callWbaseListReport(
+    'waccrep3101_b',
+    rows.map((r) => ({
+      no: r.no,
+      name: r.name,
+      tel: r.tel,
+      phone: r.phone,
+      addr: r.addr,
+      memo: r.memo,
+    })),
+    params
+  );
