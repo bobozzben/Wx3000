@@ -239,7 +239,7 @@ function Publish-Wx3000Release {
 
     # 報表元件要從與發佈版本相同的原始碼編譯，因此本機必須就是 GitHub main 的最新提交
     Write-Host "[步驟 1/7] 檢查本機與 GitHub main 是否一致..." -ForegroundColor Cyan
-    git -C $RootDir fetch origin main --tags 2>&1 | Out-Host
+    git -C $RootDir fetch origin main --tags | Out-Host
     $head = git -C $RootDir rev-parse HEAD
     $remoteMain = git -C $RootDir rev-parse origin/main
     if ($head -ne $remoteMain) {
@@ -313,8 +313,8 @@ function Publish-Wx3000Release {
 
     if (-not $remoteTag) {
         Write-Host "[步驟 4/7] 建立並推送 tag $tag ..." -ForegroundColor Cyan
-        if (-not $tagCommit) { git -C $RootDir tag $tag $head 2>&1 | Out-Host }
-        git -C $RootDir push origin "refs/tags/$tag" 2>&1 | Out-Host
+        if (-not $tagCommit) { git -C $RootDir tag $tag $head | Out-Host }
+        git -C $RootDir push origin "refs/tags/$tag" | Out-Host
         if ($LASTEXITCODE -ne 0) {
             Write-Host "[錯誤] 推送 tag 失敗，請檢查上方訊息。" -ForegroundColor Red
             return $false
@@ -352,14 +352,14 @@ function Publish-Wx3000Release {
     }
 
     Write-Host "[步驟 6/7] 上傳報表元件至草稿 Release ..." -ForegroundColor Cyan
-    gh release upload $tag $reportZip --repo $repo --clobber 2>&1 | Out-Host
+    gh release upload $tag $reportZip --repo $repo --clobber | Out-Host
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[錯誤] 上傳報表元件失敗，草稿尚未發佈。重新執行此選項並輸入 $tag 即可接續。" -ForegroundColor Red
         return $false
     }
 
     Write-Host "[步驟 7/7] 正式發佈 $tag ..." -ForegroundColor Cyan
-    gh release edit $tag --repo $repo --draft=false --latest 2>&1 | Out-Host
+    gh release edit $tag --repo $repo --draft=false --latest | Out-Host
     $latest = gh api "repos/$repo/releases/latest" --jq .tag_name 2>$null
     if ($LASTEXITCODE -ne 0 -or $latest -ne $tag) {
         Write-Host "[錯誤] 發佈後的最新版本是 $latest 而不是 $tag，請到 https://github.com/$repo/releases 確認。" -ForegroundColor Red
