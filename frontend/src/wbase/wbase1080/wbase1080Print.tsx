@@ -24,15 +24,7 @@ export const Wbase1080Print: React.FC = () => {
   };
 
   const handlePrintTrigger = async () => {
-    const success = await triggerReport({
-      dllPath: 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
-      hs_chk: 0.125,
-      top_mag: 0.0,
-      left_mag: 0.0,
-      PrtIndex: 0,
-      IsPrint: 1,
-      path: '',
-    });
+    const success = await triggerReport();
     if (success) {
       closePrint();
     }
@@ -170,10 +162,10 @@ export const Wbase1080Print: React.FC = () => {
             <button
               type="button"
               onClick={handlePrintTrigger}
-              disabled={!printData || printData.length === 0}
+              disabled={loading || !printData || printData.length === 0}
               className="px-5 py-1.5 bg-blue-800 hover:bg-blue-700 text-white font-bold rounded text-sm shadow transition border border-blue-600 disabled:opacity-50"
             >
-              驅動 DLL 報表列印
+              DLL 報表預覽列印
             </button>
           </div>
         </div>

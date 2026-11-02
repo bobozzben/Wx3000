@@ -16,8 +16,17 @@ Procedure WriteStrToFile(WriteStr, FileName: string; ClearFile: boolean = False)
 Procedure WriteStrToFile_Debug(WriteStr: string; FileName: string = 'C:\BENDEBUG.TXT\myLOG_Lazarus.txt'; ClearFile: boolean = False);
 
 
-//Function waccrep3101_b(): integer; stdcall;
 Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+
+Function wbase1050_taxno_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+
+Function wbase1060_recitem_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+
+Function wbase1070_recnote_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+
+Function wbase1080_feesummary_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+
+Function wbase3010_ticketplace_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
 
 Function wbase320_buyinv(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
 
@@ -28,8 +37,16 @@ Implementation
 Uses
   wbase_unit1, util_frxprintpreviewform, frxClass, frxVariables;
 
+Type
+  TReportColumn = Record
+    FieldName: String; // 範本 [MTable."欄位"] 使用的名稱
+    JsonKey: String;
+    Size: Integer;     // ftString 以 byte 計，中文 UTF-8 一字佔 3 byte
+    IsAmount: Boolean;
+  End;
+
 Var
-  frmRpt: TfrmfrxRpt1; // 日記帳
+  frmRpt: TfrmfrxRpt1;
 
 Function GetJsonString(Obj: TJSONObject; Const Keys: Array Of String; Const DefaultVal: String = ''): String;
 Var
@@ -152,80 +169,214 @@ End;
 
 
 
-Function Try_Connect(): boolean; // 重新連線
+Function TextCol(Const AFieldName, AJsonKey: String; ASize: Integer = 1024): TReportColumn;
 Begin
-  Result := False;
-  // 開始連線 TZConnection
-  With frmRpt.ZConnection1 Do Begin
-    // 連線參數
-    HostName := '192.168.5.51';
-    Port := 5432; // 注音=ㄅㄨˋ
-    Database := 'a3000';
-    User := 'postgres';
-    Password := '0000';
-    protocol := 'postgresql';
-    LibraryLocation := 'C:\A3000\WHAN\PG16DLL\libpq.dll';
-    DisConnect; // 斷線
-    Try
-      Connect;    // 再連線
-    Finally
-
-    End;
-    If Not Connected Then ShowMessage('尚未與資料庫連線，無法登入。');
-    Result := Connected; // 返回連線成功
-  End;
+  Result.FieldName := AFieldName;
+  Result.JsonKey := AJsonKey;
+  Result.Size := ASize;
+  Result.IsAmount := False;
 End;
 
-
-//Function waccrep3101_b(): integer; stdcall;
-//Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer): integer; stdcall;
-Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+Function AmountCol(Const AFieldName, AJsonKey: String): TReportColumn;
 Begin
-  //  Application.Handle := vMainAppHandle;
+  Result := TextCol(AFieldName, AJsonKey, 64);
+  Result.IsAmount := True;
+End;
+
+// 金額可能有小數 (numeric(20,4))，不可四捨五入成整數
+Function GetJsonAmountText(Obj: TJSONObject; Const Key: String): String;
+Var
+  val: TJSONData;
+  amt: Double;
+  FS: TFormatSettings;
+Begin
+  amt := 0;
+  val := Obj.Find(Key);
+  If (val <> nil) And (val.JSONType <> jtNull) Then amt := val.AsFloat;
+  FS := DefaultFormatSettings;
+  FS.ThousandSeparator := ',';
+  FS.DecimalSeparator := '.';
+  Result := FormatFloat('#,##0.####', amt, FS);
+End;
+
+// 主檔清冊共用流程: 讀 JSON 暫存檔 -> 建記憶體資料集 -> 套範本 -> 依 IsPrint 預覽或列印
+Function RunListReport(Const ReportName, FormCaption: String; Const Columns: Array Of TReportColumn; Const top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer;
+Var
+  JsonFileStr, CellText: String;
+  Parser: TJSONParser;
+  JsonData: TJSONData;
+  JsonArray: TJSONArray;
+  RowObj: TJSONObject;
+  SL: TStringList;
+  BufDataSet: TBufDataset;
+  TargetReport: TfrxReport;
+  i, c: Integer;
+Begin
+  WriteStrToFile_Debug(ReportName + ' fpath: ' + string(fpath));
+
   Result := 0;
-  //{$IfDef CPU64}
-  //ShowMessage('目前主程式是：64位元 (x64)');
-  //{$Else}
-  //ShowMessage('目前主程式是：32位元 (x86)');
-  //{$EndIf}
+  JsonData := nil;
+  BufDataSet := nil;
 
   Try
-    // Showmessage('OK');
     Try
-      WriteStrToFile_Debug('Application.Name: ' + Application.Name);
+      If (fpath = '') Or (Not FileExists(string(fpath))) Then Begin
+        ShowMessage('報表暫存資料檔不存在: ' + string(fpath));
+        Result := 1;
+        Exit;
+      End;
+
+      SL := TStringList.Create;
+      Try
+        SL.DefaultEncoding := TEncoding.UTF8;
+        SL.LoadFromFile(string(fpath));
+        JsonFileStr := SL.Text;
+      Finally
+        SL.Free;
+      End;
+
+      Parser := TJSONParser.Create(JsonFileStr, True);
+      Try
+        JsonData := Parser.Parse;
+      Finally
+        Parser.Free;
+      End;
+
+      If Not (JsonData Is TJSONArray) Then Begin
+        ShowMessage('報表資料格式錯誤，必須是資料列陣列。');
+        Result := 1;
+        Exit;
+      End;
+      JsonArray := TJSONArray(JsonData);
+
+      // 建立記憶體資料集 TBufDataset
+      BufDataSet := TBufDataset.Create(nil);
+      For c := Low(Columns) To High(Columns) Do
+        BufDataSet.FieldDefs.Add(Columns[c].FieldName, ftString, Columns[c].Size);
+      BufDataSet.CreateDataset;
+      BufDataSet.Open;
+
+      For i := 0 To JsonArray.Count - 1 Do Begin
+        If JsonArray.Types[i] = jtObject Then Begin
+          RowObj := JsonArray.Objects[i];
+          BufDataSet.Append;
+          For c := Low(Columns) To High(Columns) Do Begin
+            If Columns[c].IsAmount Then
+              CellText := GetJsonAmountText(RowObj, Columns[c].JsonKey)
+            Else
+              CellText := GetJsonString(RowObj, [Columns[c].JsonKey]);
+            // TStringField 超長會直接截斷，寧可報錯也不要印出少字的清冊
+            If Length(CellText) > Columns[c].Size Then
+              Raise Exception.CreateFmt('第 %d 筆的「%s」內容過長', [i + 1, Columns[c].FieldName]);
+            BufDataSet.FieldByName(Columns[c].FieldName).AsString := CellText;
+          End;
+          BufDataSet.Post;
+        End;
+      End;
+
+      WriteStrToFile_Debug('BufDataSet records: ' + IntToStr(BufDataSet.RecordCount));
+
+      If BufDataSet.RecordCount = 0 Then Begin
+        ShowMessage('沒有可列印的資料。');
+        Result := 1;
+        Exit;
+      End;
 
       frmRpt := Application.FindComponent('frmfrxRpt1') As TfrmfrxRpt1;
       If frmRpt = nil Then Begin
         WriteStrToFile_Debug('Create Form TfrmfrxRpt1: ');
         frmRpt := TfrmfrxRpt1.Create(Application);
-        // 關鍵修正 1：明確將 Parent 設定為 nil，避免被誤當成 Child control
         frmRpt.Parent := nil;
         frmRpt.FormStyle := fsNormal;
         frmRpt.ParentWindow := 0;
-
       End;
-      frmRpt.Caption := '日記帳';
-      Try_Connect;
-      frmRpt.ZQuery1.Connection := frmRpt.ZConnection1;  //SELECT * FROM e3000__comm."建檔人員" ORDER BY "建檔人員編號" ASC
-      frmRpt.ZQuery1.SQL.Add(Format('Select * from "%s"."%s" Order by "%s" ', ['e3000__comm', '建檔人員', '建檔人員編號']));
-      frmRpt.ZQuery1.active := True;
-      If frmRpt.ZQuery1.active Then Begin
-        WriteStrToFile_Debug('Pg Open ');
-      End;
-      bbShowPreviewForm_Preview(frmRpt, frmRpt.frxReport1_, [frmRpt.frxDBDataset1], [frmRpt.ZQuery1], '', '', '', 0, 0, 0, 0);
-      // frmRpt.ShowModal;
-      FreeAndNil(frmRpt);
+      frmRpt.Caption := FormCaption;
 
+      TargetReport := frmRpt.FindComponent(ReportName) As TfrxReport;
+      If TargetReport = nil Then
+        Raise Exception.Create('找不到報表範本: ' + ReportName);
+
+      SetReportVariable(TargetReport, '總筆數', IntToStr(BufDataSet.RecordCount));
+      // 共用預覽流程沒有套用邊界，而且 3020 預設傳 10/10，只能在清冊這裡調整
+      AdjPageMargins(TargetReport, top_mag, left_mag);
+
+      WriteStrToFile_Debug('bbShowPreviewForm_Preview: ');
+      bbShowPreviewForm_Preview(frmRpt, TargetReport, [frmRpt.frxDBDataset1], [BufDataSet], '', '', '', top_mag, left_mag, PrtIndex, IsPrint);
     Finally
-
-      frmRpt.Free;
+      FreeAndNil(frmRpt);
+      FreeAndNil(BufDataSet);
+      FreeAndNil(JsonData);
     End;
   Except
     On E: Exception Do Begin
       Result := 1;
-      ShowMessage('錯誤訊息:' + E.Message + #10 + '類別:' + E.ClassName);
+      ShowMessage(FormCaption + '列印錯誤:' + E.Message + #10 + '類別:' + E.ClassName);
     End;
   End;
+End;
+
+
+// 建檔人員清冊。不可加入密碼、一站式驗證碼等欄位
+Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+Begin
+  Result := RunListReport('frxReport_1030_keyin', '建檔人員清冊', [
+    TextCol('編號', 'no'),
+    TextCol('姓名', 'name'),
+    TextCol('電話', 'tel'),
+    TextCol('手機', 'phone'),
+    TextCol('住址', 'addr'),
+    TextCol('備註', 'memo')
+  ], top_mag, left_mag, PrtIndex, IsPrint, fpath);
+End;
+
+Function wbase1050_taxno_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+Begin
+  Result := RunListReport('frxReport_1050_taxno', '基本稅務人員清冊', [
+    TextCol('代號', 'no'),
+    TextCol('姓名', 'name'),
+    TextCol('單位', 'department'),
+    TextCol('電話', 'tel'),
+    TextCol('助理人員', 'helpman'),
+    TextCol('住址', 'addr'),
+    TextCol('備註', 'memo')
+  ], top_mag, left_mag, PrtIndex, IsPrint, fpath);
+End;
+
+Function wbase1060_recitem_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+Begin
+  Result := RunListReport('frxReport_1060_recitem', '基本收費項目清冊', [
+    TextCol('項目', 'itemno'),
+    TextCol('項目名稱', 'item'),
+    AmountCol('收費金額', 'amt')
+  ], top_mag, left_mag, PrtIndex, IsPrint, fpath);
+End;
+
+Function wbase1070_recnote_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+Begin
+  Result := RunListReport('frxReport_1070_recnote', '收費備註名冊', [
+    TextCol('編號', 'noteno'),
+    TextCol('備註內容', 'note', 8192)
+  ], top_mag, left_mag, PrtIndex, IsPrint, fpath);
+End;
+
+Function wbase1080_feesummary_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+Begin
+  Result := RunListReport('frxReport_1080_feesummary', '基本收費摘要清冊', [
+    TextCol('摘要代號', 'summaryCode'),
+    TextCol('摘要說明', 'summaryName'),
+    TextCol('摘要內容', 'content', 8192)
+  ], top_mag, left_mag, PrtIndex, IsPrint, fpath);
+End;
+
+Function wbase3010_ticketplace_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+Begin
+  Result := RunListReport('frxReport_3010_ticketplace', '統一發票購買地點清冊', [
+    TextCol('編號', 'placeCode'),
+    TextCol('購買地點', 'placeName'),
+    TextCol('連絡人', 'contactPerson'),
+    TextCol('連絡電話', 'contactTel'),
+    TextCol('購買地址', 'placeAddress')
+  ], top_mag, left_mag, PrtIndex, IsPrint, fpath);
 End;
 
 

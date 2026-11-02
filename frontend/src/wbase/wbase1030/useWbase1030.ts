@@ -2,15 +2,15 @@ import { create } from 'zustand';
 import type {
   EmpItem,
   EmpPrintFilter,
-  Waccrep3106bParams,
 } from '../../services/wbase1030';
+import type { WbaseReportParams } from '../../services/localagent';
 import {
   getEmpList,
   createEmp,
   updateEmp,
   deleteEmp,
   printEmpList,
-  callWaccrep3106b,
+  callWaccrep3101b,
   validateEmpRow,
   canDeleteEmp,
 } from '../../services/wbase1030';
@@ -43,7 +43,7 @@ interface Wbase1030State {
   closePrint: () => void;
   fetchPrintDataList: (filter: EmpPrintFilter) => Promise<EmpItem[]>;
   fetchPrintData: (filter: EmpPrintFilter) => Promise<EmpItem[]>;
-  triggerReportDll: (params?: Waccrep3106bParams) => Promise<boolean>;
+  triggerReportDll: (params?: WbaseReportParams) => Promise<boolean>;
 }
 
 export const useWbase1030 = create<Wbase1030State>((set, get) => ({
@@ -222,13 +222,17 @@ export const useWbase1030 = create<Wbase1030State>((set, get) => ({
   triggerReportDll: async (params) => {
     set({ loading: true });
     try {
-      await callWaccrep3106b(params);
+      const res = await callWaccrep3101b(get().printData, params);
+      if (!res.success) {
+        set({ errorToast: res.error || '呼叫 DLL 報表失敗', loading: false });
+        return false;
+      }
       set({ showAutoCloseToast: true, loading: false });
       setTimeout(() => set({ showAutoCloseToast: false }), 2000);
       return true;
     } catch (e) {
       console.error('Trigger DLL report error:', e);
-      set({ errorToast: '呼叫 DLL 報表失敗', loading: false });
+      set({ errorToast: e instanceof Error ? e.message : '呼叫 DLL 報表失敗', loading: false });
       return false;
     }
   },

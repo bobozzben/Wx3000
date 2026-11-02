@@ -221,6 +221,13 @@ function callViaKoffi(dllKey, funcName, args) {
   }
 }
 
+// 預覽關閉後 Bridge 還要輸出 OK:n，管線只能 unref 不能關閉，否則它會寫入失敗而異常結束
+function releasePreviewChild(child) {
+  child.stdout?.unref?.();
+  child.stderr?.unref?.();
+  child.unref();
+}
+
 function callViaBridge(dllKey, funcName, args) {
   return new Promise((resolve) => {
     const bridgePath = CONFIG.getBridgePath();
@@ -267,19 +274,13 @@ function callViaBridge(dllKey, funcName, args) {
         }
       });
 
-      // 若為預覽模式 (IsPrint = 0)，進程啟動成功且穩定運作 600ms 後即先行回覆前端成功，並徹底釋放進程與管線
+      // 若為預覽模式 (IsPrint = 0)，進程啟動成功且穩定運作 600ms 後即先行回覆前端成功
       const isPreview = Array.isArray(args) && args.length >= 5 && Number(args[4]) === 0;
       if (isPreview) {
         setTimeout(() => {
           if (!resolved && !child.killed && child.exitCode === null) {
             resolved = true;
-            try {
-              child.stdout?.removeAllListeners();
-              child.stderr?.removeAllListeners();
-              child.stdout?.destroy();
-              child.stderr?.destroy();
-              child.unref();
-            } catch (e) {}
+            releasePreviewChild(child);
             resolve({ success: true, mode: 'bridge', message: '報表預覽視窗已成功開啟', pid: child.pid });
           }
         }, 600);
@@ -831,5 +832,6 @@ module.exports = {
   isAllowedOrigin,
   authorizeRequest,
   buildDbfBridgeRequest,
+  releasePreviewChild,
   handleRequest
 };

@@ -17,7 +17,72 @@
             "int",
             "str"
           ],
-          "comment": "hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path - 已移除 handle",
+          "comment": "建檔人員清冊: hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path (JSON 暫存檔)",
+          "bringToFront": true
+        },
+        "wbase1050_taxno_list": {
+          "ret": "int",
+          "params": [
+            "double",
+            "double",
+            "double",
+            "int",
+            "int",
+            "str"
+          ],
+          "comment": "基本稅務人員清冊: hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path (JSON 暫存檔)",
+          "bringToFront": true
+        },
+        "wbase1060_recitem_list": {
+          "ret": "int",
+          "params": [
+            "double",
+            "double",
+            "double",
+            "int",
+            "int",
+            "str"
+          ],
+          "comment": "基本收費項目清冊: hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path (JSON 暫存檔)",
+          "bringToFront": true
+        },
+        "wbase1070_recnote_list": {
+          "ret": "int",
+          "params": [
+            "double",
+            "double",
+            "double",
+            "int",
+            "int",
+            "str"
+          ],
+          "comment": "收費備註名冊: hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path (JSON 暫存檔)",
+          "bringToFront": true
+        },
+        "wbase1080_feesummary_list": {
+          "ret": "int",
+          "params": [
+            "double",
+            "double",
+            "double",
+            "int",
+            "int",
+            "str"
+          ],
+          "comment": "基本收費摘要清冊: hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path (JSON 暫存檔)",
+          "bringToFront": true
+        },
+        "wbase3010_ticketplace_list": {
+          "ret": "int",
+          "params": [
+            "double",
+            "double",
+            "double",
+            "int",
+            "int",
+            "str"
+          ],
+          "comment": "統一發票購買地點清冊: hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path (JSON 暫存檔)",
           "bringToFront": true
         },
         "wbase320_buyinv": {

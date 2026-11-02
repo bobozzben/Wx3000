@@ -2,15 +2,15 @@ import { create } from 'zustand';
 import type {
   TicketPlaceItem,
   TicketPlacePrintFilter,
-  Waccrep3106bParams,
 } from '../../services/wbase3010';
+import type { WbaseReportParams } from '../../services/localagent';
 import {
   getTicketPlaceList,
   saveTicketPlace,
   batchSaveTicketPlaces,
   deleteTicketPlace,
   printTicketPlaceList,
-  callWaccrep3106b,
+  callWbase3010Report,
 } from '../../services/wbase3010';
 
 interface Wbase3010State {
@@ -38,7 +38,7 @@ interface Wbase3010State {
   openPrint: () => void;
   closePrint: () => void;
   fetchPrintDataList: (filter: TicketPlacePrintFilter) => Promise<TicketPlaceItem[]>;
-  triggerReport: (params?: Waccrep3106bParams) => Promise<boolean>;
+  triggerReport: (params?: WbaseReportParams) => Promise<boolean>;
 }
 
 export const useWbase3010 = create<Wbase3010State>((set, get) => ({
@@ -156,7 +156,11 @@ export const useWbase3010 = create<Wbase3010State>((set, get) => ({
   triggerReport: async (params) => {
     set({ loading: true });
     try {
-      await callWaccrep3106b(params);
+      const res = await callWbase3010Report(get().printData, params);
+      if (!res.success) {
+        set({ errorToast: res.error || '呼叫 DLL 報表失敗', loading: false });
+        return false;
+      }
       set({ showAutoCloseToast: true, loading: false });
       setTimeout(() => set({ showAutoCloseToast: false }), 2000);
       return true;

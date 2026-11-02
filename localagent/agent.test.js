@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
+const { spawn } = require('child_process');
 const { PassThrough } = require('stream');
 const {
   collectUtf8,
@@ -11,6 +12,7 @@ const {
   isAllowedOrigin,
   authorizeRequest,
   buildDbfBridgeRequest,
+  releasePreviewChild,
   handleRequest
 } = require('./agent');
 
@@ -86,6 +88,9 @@ test('isAllowedDllCall only accepts functions registered in dlls.json', () => {
   assert.equal(isAllowedDllCall('wbaseRP', 'waccrep3101_b'), true);
   assert.equal(isAllowedDllCall('wbaseRP', 'wbase320_buyinv'), true);
   assert.equal(isAllowedDllCall('wbaseRP', 'wbase350_buyinv_list'), true);
+  for (const func of ['wbase1050_taxno_list', 'wbase1060_recitem_list', 'wbase1070_recnote_list', 'wbase1080_feesummary_list', 'wbase3010_ticketplace_list']) {
+    assert.equal(isAllowedDllCall('wbaseRP', func), true, func);
+  }
   assert.equal(isAllowedDllCall('\\\\evil\\share\\x.dll', 'DllMain'), false);
   assert.equal(isAllowedDllCall('C:/Windows/System32/kernel32.dll', 'WinExec'), false);
   assert.equal(isAllowedDllCall('wbaseRP', 'report'), false);
@@ -98,6 +103,23 @@ test('genericCall refuses unregistered DLLs without spawning anything', async ()
   const result = await genericCall('\\\\evil\\share\\x.dll', 'DllMain', []);
   assert.equal(result.success, false);
   assert.equal(result.errorType, 'FORBIDDEN');
+});
+
+test('releasePreviewChild leaves the pipes open so the bridge can still report when the preview closes', async () => {
+  // unref 之後事件迴圈可能沒有其他工作，測試期間要自己撐住
+  const keepAlive = setInterval(() => {}, 1000);
+  try {
+    const script = "setTimeout(() => process.stdout.write('OK:0\\n', (err) => process.exit(err ? 1 : 0)), 200); process.stdout.on('error', () => process.exit(1));";
+    const child = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const getStdout = collectUtf8(child.stdout);
+    collectUtf8(child.stderr);
+    releasePreviewChild(child);
+    const code = await new Promise((resolve) => child.on('close', resolve));
+    assert.equal(code, 0);
+    assert.equal(getStdout().trim(), 'OK:0');
+  } finally {
+    clearInterval(keepAlive);
+  }
 });
 
 test('buildDbfBridgeRequest cannot be steered to EXEC_VFP', () => {

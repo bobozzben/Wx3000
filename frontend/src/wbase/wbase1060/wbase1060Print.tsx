@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWbase1060 } from './useWbase1060';
 import type { FeeItem, FeeItemPrintFilter } from '../../services/wbase1060';
-import { FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxProGrid/FoxProPrintModal';
+import { FoxProDllPrintButton, FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxProGrid/FoxProPrintModal';
 
 /**
  * 基本收費項目清冊總表列印欄位定義
@@ -39,7 +39,7 @@ const RECITEM_PRINT_COLUMNS: FoxProPrintColumn<FeeItem>[] = [
  * 條件篩選與網頁直接列印（排除所有輸入框與按鈕）。
  */
 export const Wbase1060Print: React.FC = () => {
-  const { isPrintOpen, closePrint, fetchPrintDataList, printData, loading } =
+  const { isPrintOpen, closePrint, fetchPrintDataList, printData, triggerReport, loading } =
     useWbase1060();
 
   const [filter, setFilter] = useState<FeeItemPrintFilter>({
@@ -59,6 +59,10 @@ export const Wbase1060Print: React.FC = () => {
   const handleQuery = async () => {
     await fetchPrintDataList(filter);
     setHasSearched(true);
+  };
+
+  const handleDllPrint = async () => {
+    if (await triggerReport()) closePrint();
   };
 
   return (
@@ -83,6 +87,9 @@ export const Wbase1060Print: React.FC = () => {
       loading={loading}
       hasSearched={hasSearched}
       emptyText="⚠️ 該區間內查無收費項目資料"
+      extraActions={
+        <FoxProDllPrintButton onClick={handleDllPrint} disabled={loading || printData.length === 0} />
+      }
     />
   );
 };

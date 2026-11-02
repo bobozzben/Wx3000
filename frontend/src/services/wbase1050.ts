@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { callWbaseListReport, type WbaseReportParams, type WbaseReportResult } from './localagent';
 
 /**
  * taxno.dbf 7 個欄位名稱與抬頭定義:
@@ -155,36 +156,12 @@ export const fetchPrintTaxOfficers = async (
 
 export const printTaxOfficerList = fetchPrintTaxOfficers;
 
-export interface Waccrep3105bParams {
-  dllPath?: string;
-  hs_chk?: number;
-  top_mag?: number;
-  left_mag?: number;
-  PrtIndex?: number;
-  IsPrint?: number;
-  path?: string;
-}
-
-export const callWaccrep3105b = async (
-  params: Waccrep3105bParams = {}
-): Promise<{ success: boolean; result: string; raw?: string; error?: string }> => {
-  const response = await axios.post(
-    'http://localhost:18889/report',
-    {
-      dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
-      hs_chk: params.hs_chk ?? 0.125,
-      top_mag: params.top_mag ?? 0.0,
-      left_mag: params.left_mag ?? 0.0,
-      PrtIndex: params.PrtIndex ?? 0,
-      IsPrint: params.IsPrint ?? 0,
-      path: params.path ?? '',
-    },
-    {
-      headers: { 'Content-Type': 'application/json' },
-    }
+export const callWbase1050Report = (
+  rows: TaxOfficerItem[],
+  params?: WbaseReportParams
+): Promise<WbaseReportResult> =>
+  callWbaseListReport(
+    'wbase1050_taxno_list',
+    rows.map((r) => ({ no: r.no, name: r.name, department: r.department, tel: r.tel, helpman: r.helpman, addr: r.addr, memo: r.memo })),
+    params
   );
-  return response.data;
-};
-
-export type Waccrep3106bParams = Waccrep3105bParams;
-export const callWaccrep3106b = callWaccrep3105b;

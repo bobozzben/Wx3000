@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { callWbaseListReport, type WbaseReportParams, type WbaseReportResult } from './localagent';
 
 export interface TicketPlaceItem {
   placeCode: string;     // 編號 (購票地點代號)
@@ -104,35 +105,12 @@ export const fetchPrintTicketPlaces = async (
 export const printTicketPlaceList = fetchPrintTicketPlaces;
 export const fetchTicketPlacePrintData = fetchPrintTicketPlaces;
 
-export interface Waccrep3106bParams {
-  dllPath?: string;
-  hs_chk?: number;
-  top_mag?: number;
-  left_mag?: number;
-  PrtIndex?: number;
-  IsPrint?: number;
-  path?: string;
-}
-
-export const callWaccrep3106b = async (
-  params: Waccrep3106bParams = {}
-): Promise<{ success: boolean; result: string; raw?: string; error?: string }> => {
-  const response = await axios.post(
-    'http://localhost:18889/report',
-    {
-      dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
-      hs_chk: params.hs_chk ?? 0.125,
-      top_mag: params.top_mag ?? 0.0,
-      left_mag: params.left_mag ?? 0.0,
-      PrtIndex: params.PrtIndex ?? 0,
-      IsPrint: params.IsPrint ?? 0,
-      path: params.path ?? '',
-    },
-    {
-      headers: { 'Content-Type': 'application/json' },
-    }
+export const callWbase3010Report = (
+  rows: TicketPlaceItem[],
+  params?: WbaseReportParams
+): Promise<WbaseReportResult> =>
+  callWbaseListReport(
+    'wbase3010_ticketplace_list',
+    rows.map((r) => ({ placeCode: r.placeCode, placeName: r.placeName, contactPerson: r.contactPerson, contactTel: r.contactTel, placeAddress: r.placeAddress })),
+    params
   );
-  return response.data;
-};
-
-export const triggerTicketPlaceReportDll = callWaccrep3106b;
