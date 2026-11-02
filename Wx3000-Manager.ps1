@@ -76,6 +76,147 @@ function Start-Wx3000ApiSafely {
     }
 }
 
+function Find-LazBuild {
+    if ($env:LAZBUILD -and (Test-Path $env:LAZBUILD)) { return $env:LAZBUILD }
+    $cmd = Get-Command "lazbuild" -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    foreach ($candidate in @("C:\fpcupdeluxe\lazarus\lazbuild.exe", "C:\lazarus\lazbuild.exe", "C:\Program Files\Lazarus\lazbuild.exe")) {
+        if (Test-Path $candidate) { return $candidate }
+    }
+    return $null
+}
+
+# 讀取 PE 檔匯出表的函數名稱 (支援 32/64-bit)
+function Get-DllExportNames([string]$Path) {
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+    $sectionCount = [BitConverter]::ToUInt16($bytes, $peOffset + 6)
+    $optionalSize = [BitConverter]::ToUInt16($bytes, $peOffset + 20)
+    $optional = $peOffset + 24
+    $isPe32Plus = [BitConverter]::ToUInt16($bytes, $optional) -eq 0x20B
+    $exportRva = [BitConverter]::ToUInt32($bytes, $(if ($isPe32Plus) { $optional + 112 } else { $optional + 96 }))
+    if ($exportRva -eq 0) { return @() }
+    $sectionTable = $optional + $optionalSize
+    $toOffset = {
+        param([long]$Rva)
+        for ($i = 0; $i -lt $sectionCount; $i++) {
+            $section = $sectionTable + $i * 40
+            $virtualAddress = [long][BitConverter]::ToUInt32($bytes, $section + 12)
+            $size = [Math]::Max([long][BitConverter]::ToUInt32($bytes, $section + 8), [long][BitConverter]::ToUInt32($bytes, $section + 16))
+            if ($Rva -ge $virtualAddress -and $Rva -lt $virtualAddress + $size) {
+                return [int]($Rva - $virtualAddress + [BitConverter]::ToUInt32($bytes, $section + 20))
+            }
+        }
+        return -1
+    }
+    $exportDir = & $toOffset $exportRva
+    $nameCount = [BitConverter]::ToUInt32($bytes, $exportDir + 24)
+    $nameTable = & $toOffset ([BitConverter]::ToUInt32($bytes, $exportDir + 32))
+    for ($i = 0; $i -lt $nameCount; $i++) {
+        $nameOffset = & $toOffset ([BitConverter]::ToUInt32($bytes, $nameTable + $i * 4))
+        $end = [Array]::IndexOf($bytes, [byte]0, $nameOffset)
+        [Text.Encoding]::ASCII.GetString($bytes, $nameOffset, $end - $nameOffset)
+    }
+}
+
+# 以 Lazarus 編譯 64-bit 報表 DLL，確認 dlls.json 登記的函數都有匯出後，才覆蓋 localagent\wbase\wbaseRP.dll
+function Build-WbaseReportDll {
+    $lazbuild = Find-LazBuild
+    if (-not $lazbuild) {
+        Write-Host "[錯誤] 找不到 lazbuild.exe，請安裝 Lazarus，或設定環境變數 LAZBUILD 指向 lazbuild.exe。" -ForegroundColor Red
+        return $false
+    }
+    $projectFile = Join-Path $RootDir "report\wbase\wbaseRP.lpi"
+    $builtDll = Join-Path $RootDir "report\wbase\wbaseRP.dll"
+    $targetDll = Join-Path $RootDir "localagent\wbase\wbaseRP.dll"
+    $startTime = Get-Date
+
+    # 沿用專案現行的 Debug 建置模式，與目前發佈的 DLL 相同
+    Write-Host "[步驟 1/3] 使用 $lazbuild 編譯 64-bit wbaseRP.dll ..." -ForegroundColor Cyan
+    & $lazbuild --bm=Debug --cpu=x86_64 --os=win64 --no-write-project $projectFile | Out-Host
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $builtDll) -or (Get-Item $builtDll).LastWriteTime -lt $startTime) {
+        Write-Host "[錯誤] wbaseRP.dll 編譯失敗，請檢查上方 Lazarus 編譯訊息！" -ForegroundColor Red
+        return $false
+    }
+
+    Write-Host "[步驟 2/3] 檢查 dlls.json 登記的報表函數是否都已匯出..." -ForegroundColor Cyan
+    $dllConfig = Get-Content -Path (Join-Path $RootDir "localagent\dlls.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    $required = @($dllConfig.dlls.wbaseRP.functions.PSObject.Properties.Name)
+    $exported = @(Get-DllExportNames $builtDll)
+    $missing = @($required | Where-Object { $exported -notcontains $_ })
+    if ($missing.Count -gt 0) {
+        Write-Host "[錯誤] 新的 wbaseRP.dll 缺少函數: $($missing -join ', ')，未覆蓋 localagent\wbase。" -ForegroundColor Red
+        return $false
+    }
+    Write-Host "      已匯出 $($exported.Count) 個函數: $($exported -join ', ')" -ForegroundColor Gray
+
+    Write-Host "[步驟 3/3] 複製至 $targetDll ..." -ForegroundColor Cyan
+    try {
+        Copy-Item -Path $builtDll -Destination $targetDll -Force -ErrorAction Stop
+    } catch {
+        Write-Host "[錯誤] 無法覆蓋 $targetDll，請關閉報表預覽視窗與 LocalAgent 後重試: $($_.Exception.Message)" -ForegroundColor Red
+        return $false
+    }
+    Write-Host "[完成] wbaseRP.dll 已更新至 $targetDll" -ForegroundColor Green
+    return $true
+}
+
+# 以 Release 模式編譯 64-bit WbaseBridge (Debug 模式的 heaptrc 會把記憶體傾印混進輸出)，
+# 試跑確認能載入 wbaseRP.dll 後，覆蓋 build.ps1 優先打包的 bridge\lazarus\WbaseBridge.exe
+function Build-WbaseBridge {
+    $lazbuild = Find-LazBuild
+    if (-not $lazbuild) {
+        Write-Host "[錯誤] 找不到 lazbuild.exe，請安裝 Lazarus，或設定環境變數 LAZBUILD 指向 lazbuild.exe。" -ForegroundColor Red
+        return $false
+    }
+    $bridgeDir = Join-Path $RootDir "localagent\bridge\lazarus"
+    $projectFile = Join-Path $bridgeDir "WbaseBridge_Generic.lpi"
+    $builtExe = Join-Path $bridgeDir "WbaseBridge_Generic.exe"
+    $reportDll = Join-Path $RootDir "localagent\wbase\wbaseRP.dll"
+    $startTime = Get-Date
+
+    Write-Host "[步驟 1/3] 使用 $lazbuild 編譯 64-bit WbaseBridge (Release) ..." -ForegroundColor Cyan
+    & $lazbuild --bm=Release --cpu=x86_64 --os=win64 --no-write-project $projectFile | Out-Host
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $builtExe) -or (Get-Item $builtExe).LastWriteTime -lt $startTime) {
+        Write-Host "[錯誤] WbaseBridge 編譯失敗，請檢查上方 Lazarus 編譯訊息！" -ForegroundColor Red
+        return $false
+    }
+
+    # 以不存在的函數名稱試跑：能載入報表 DLL 並回報找不到函數，代表位元數與相依元件正確，且不會開啟預覽視窗
+    Write-Host "[步驟 2/3] 試跑新 WbaseBridge 載入 wbaseRP.dll ..." -ForegroundColor Cyan
+    $probe = New-Object System.Diagnostics.Process
+    $probe.StartInfo.FileName = $builtExe
+    $probe.StartInfo.Arguments = "--dll `"$reportDll`" --func __wx3000_probe__ --args [1,0,0,0,1,0]"
+    $probe.StartInfo.UseShellExecute = $false
+    $probe.StartInfo.RedirectStandardOutput = $true
+    $probe.StartInfo.CreateNoWindow = $true
+    [void]$probe.Start()
+    $probeOutput = $probe.StandardOutput.ReadToEndAsync()
+    if (-not $probe.WaitForExit(30000)) {
+        $probe.Kill()
+        Write-Host "[錯誤] WbaseBridge 試跑逾時，未覆蓋現有版本。" -ForegroundColor Red
+        return $false
+    }
+    $output = $probeOutput.Result.Trim()
+    if ($probe.ExitCode -ne 4 -or $output -notmatch 'GetProcAddress __wx3000_probe__') {
+        Write-Host "[錯誤] WbaseBridge 試跑結果異常 (Exit=$($probe.ExitCode)): $output，未覆蓋現有版本。" -ForegroundColor Red
+        return $false
+    }
+    Write-Host "      試跑正常: $output" -ForegroundColor Gray
+
+    Write-Host "[步驟 3/3] 覆蓋 bridge\lazarus\WbaseBridge.exe 與 localagent\WbaseBridge.exe ..." -ForegroundColor Cyan
+    try {
+        foreach ($target in @((Join-Path $bridgeDir "WbaseBridge.exe"), (Join-Path $RootDir "localagent\WbaseBridge.exe"))) {
+            Copy-Item -Path $builtExe -Destination $target -Force -ErrorAction Stop
+        }
+    } catch {
+        Write-Host "[錯誤] 無法覆蓋 WbaseBridge.exe，請關閉報表預覽視窗與 LocalAgent 後重試: $($_.Exception.Message)" -ForegroundColor Red
+        return $false
+    }
+    Write-Host "[完成] WbaseBridge.exe 已更新" -ForegroundColor Green
+    return $true
+}
+
 :MenuLoop while ($true) {
     Clear-Host
     $apiStatus = Get-ServiceStatusText "Wx3000Api"
@@ -96,13 +237,14 @@ function Start-Wx3000ApiSafely {
     Write-Host "   [4] 桌面端 (Electron) - 開啟主程序源碼 / 啟動 Electron 熱重載開發模式"
     Write-Host ""
     Write-Host " 【二、編譯與打包部署 (Build & Package -> 統一輸出至 Wx3000\publish\...)】" -ForegroundColor Magenta
-    Write-Host "   [A] ★ 全部一鍵打包 (5~10 全套)  ➔ 依序重編 5~10 所有模組至 Wx3000\publish\" -ForegroundColor Green
+    Write-Host "   [A] ★ 全部一鍵打包 (5~10、13)   ➔ 依序重編 5~10 與 13 所有模組至 Wx3000\publish\" -ForegroundColor Green
     Write-Host "   [5] ★ 全端伺服器一鍵發佈        ➔ Wx3000\publish\Wx3000_Server\" -ForegroundColor Yellow
     Write-Host "   [6] 僅打包【前端靜態網頁】      ➔ Wx3000\publish\frontend\dist\"
     Write-Host "   [7] 僅打包【後端單一執行檔】    ➔ Wx3000\publish\backend\Release\Wx3000.Backend.exe"
     Write-Host "   [8] 打包【LocalAgent 執行檔】   ➔ Wx3000\publish\localagent\dist\"
     Write-Host "   [9] 打包【Electron 快速免安裝】 ➔ Wx3000\publish\frontend\Electron\release\win-unpacked\"
     Write-Host "  [10] 打包【Electron 正式安裝包】 ➔ Wx3000\publish\frontend\Electron\release\"
+    Write-Host "  [13] 編譯【報表 DLL 與橋接程式】 ➔ wbaseRP.dll + WbaseBridge.exe (Lazarus，完成後請執行 [8])"
     Write-Host ""
     Write-Host " 【三、服務管理與產出目錄 (Services & Folders)】" -ForegroundColor Cyan
     Write-Host "  [11] 管理 Wx3000Api Windows 服務 (安裝 / 啟動 / 停止 / 檢查區網 IP)"
@@ -110,7 +252,7 @@ function Start-Wx3000ApiSafely {
     Write-Host "   [Q] 離開程式 (Quit)"
     Write-Host "==================================================================================" -ForegroundColor Cyan
 
-    $rawChoice = Read-Host "請輸入選項代號 [1-12, A 或 Q]"
+    $rawChoice = Read-Host "請輸入選項代號 [1-13, A 或 Q]"
     $choice = if ($rawChoice) { $rawChoice.Trim().ToUpper() } else { "" }
 
     switch ($choice) {
@@ -182,13 +324,13 @@ function Start-Wx3000ApiSafely {
             Write-Host ""
             $publishRoot = Join-Path $RootDir "publish"
             Write-Host "==================================================================================" -ForegroundColor Green
-            Write-Host "  === [A] 開始執行【全部打包 (5~10 全套重編)】 ➔ $publishRoot\ ===" -ForegroundColor Green
+            Write-Host "  === [A] 開始執行【全部打包 (5~10 與 13 全套重編)】 ➔ $publishRoot\ ===" -ForegroundColor Green
             Write-Host "==================================================================================" -ForegroundColor Green
 
             # --- [5] 全端伺服器一鍵發佈 ---
             Write-Host ""
             $serverTargetDir = Join-Path $publishRoot "Wx3000_Server"
-            Write-Host ">>> [進度 1/6 - 項目 5] 全端伺服器一鍵發佈 ➔ $serverTargetDir\api" -ForegroundColor Yellow
+            Write-Host ">>> [進度 1/7 - 項目 5] 全端伺服器一鍵發佈 ➔ $serverTargetDir\api" -ForegroundColor Yellow
             Stop-Wx3000ApiSafely
             pnpm publish:server
             if ($LASTEXITCODE -ne 0) {
@@ -201,7 +343,7 @@ function Start-Wx3000ApiSafely {
             # --- [6] 僅打包前端靜態網頁 ---
             Write-Host ""
             $feTargetDir = Join-Path $publishRoot "frontend\dist"
-            Write-Host ">>> [進度 2/6 - 項目 6] 同步前端靜態網頁 ➔ $feTargetDir\" -ForegroundColor Magenta
+            Write-Host ">>> [進度 2/7 - 項目 6] 同步前端靜態網頁 ➔ $feTargetDir\" -ForegroundColor Magenta
             if (Test-Path $feTargetDir) {
                 Remove-Item -Path "$feTargetDir\*" -Recurse -Force -ErrorAction SilentlyContinue
             } else {
@@ -212,7 +354,7 @@ function Start-Wx3000ApiSafely {
             # --- [7] 僅打包後端單一執行檔 ---
             Write-Host ""
             $beTargetDir = Join-Path $publishRoot "backend\Release"
-            Write-Host ">>> [進度 3/6 - 項目 7] 打包後端單一執行檔 ➔ $beTargetDir\Wx3000.Backend.exe" -ForegroundColor Magenta
+            Write-Host ">>> [進度 3/7 - 項目 7] 打包後端單一執行檔 ➔ $beTargetDir\Wx3000.Backend.exe" -ForegroundColor Magenta
             New-Item -ItemType Directory -Force -Path $beTargetDir | Out-Null
             dotnet publish backend/Wx3000.Backend.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o "$beTargetDir"
             if ($LASTEXITCODE -ne 0) {
@@ -221,10 +363,21 @@ function Start-Wx3000ApiSafely {
                 continue
             }
 
+            # --- [13] 編譯報表 DLL 與橋接程式 (須在 [8] 之前，打包時才會帶入新版) ---
+            Write-Host ""
+            Write-Host ">>> [進度 4/7 - 項目 13] 編譯報表 wbaseRP.dll 與 WbaseBridge.exe" -ForegroundColor Magenta
+            if (-not (Find-LazBuild)) {
+                Write-Host "[略過] 本機沒有 lazbuild.exe，沿用現有的 wbaseRP.dll 與 WbaseBridge.exe。" -ForegroundColor Yellow
+            } elseif (-not ((Build-WbaseReportDll) -and (Build-WbaseBridge))) {
+                Write-Host "[錯誤] 項目 [13] 報表 DLL 或橋接程式編譯失敗，中止全部打包流程！" -ForegroundColor Red
+                Pause-Return
+                continue
+            }
+
             # --- [8] 打包 LocalAgent 執行檔 ---
             Write-Host ""
             $agentTargetDir = Join-Path $publishRoot "localagent\dist"
-            Write-Host ">>> [進度 4/6 - 項目 8] 打包 LocalAgent 執行檔 (Level 1) ➔ $agentTargetDir\" -ForegroundColor Magenta
+            Write-Host ">>> [進度 5/7 - 項目 8] 打包 LocalAgent 執行檔 (Level 1) ➔ $agentTargetDir\" -ForegroundColor Magenta
             $localAgentDir = Join-Path $RootDir "localagent"
             & "$localAgentDir\build.ps1" -Level 1 -TargetDir $agentTargetDir -NoPause
             if ($LASTEXITCODE -ne 0) {
@@ -237,7 +390,7 @@ function Start-Wx3000ApiSafely {
             Write-Host ""
             $outReleaseDir = Join-Path $publishRoot "frontend\Electron\release"
             $outUnpackedDir = Join-Path $outReleaseDir "win-unpacked"
-            Write-Host ">>> [進度 5/6 - 項目 9] 打包 Electron 快速免安裝版 ➔ $outUnpackedDir\" -ForegroundColor Magenta
+            Write-Host ">>> [進度 6/7 - 項目 9] 打包 Electron 快速免安裝版 ➔ $outUnpackedDir\" -ForegroundColor Magenta
             Push-Location (Join-Path $RootDir "frontend")
             try {
                 $env:ELECTRON_BUILDER_BINARIES_MIRROR = "https://npmmirror.com/mirrors/electron-builder-binaries/"
@@ -248,7 +401,7 @@ function Start-Wx3000ApiSafely {
                 }
 
                 Write-Host ""
-                Write-Host ">>> [進度 6/6 - 項目 10] 打包 Electron 正式安裝包 ➔ $outReleaseDir\" -ForegroundColor Magenta
+                Write-Host ">>> [進度 7/7 - 項目 10] 打包 Electron 正式安裝包 ➔ $outReleaseDir\" -ForegroundColor Magenta
                 npx electron-builder --win --x64 --config.directories.output="$outReleaseDir"
                 if ($LASTEXITCODE -ne 0) {
                     throw "Electron 正式安裝包打包失敗"
@@ -263,10 +416,12 @@ function Start-Wx3000ApiSafely {
 
             Write-Host ""
             Write-Host "==================================================================================" -ForegroundColor Green
-            Write-Host "  🎉 [完成] 項目 5 ~ 10 已全部重新編譯並打包完畢！" -ForegroundColor Green
+            Write-Host "  🎉 [完成] 項目 5 ~ 10 與 13 已全部重新編譯並打包完畢！" -ForegroundColor Green
             Write-Host "  - [5] 伺服器發佈包   : $serverTargetDir\api" -ForegroundColor White
             Write-Host "  - [6] 前端靜態網頁   : $feTargetDir" -ForegroundColor White
             Write-Host "  - [7] 後端單一執行檔 : $beTargetDir\Wx3000.Backend.exe" -ForegroundColor White
+            Write-Host "  - [13] 報表 DLL      : $(Join-Path $RootDir 'localagent\wbase\wbaseRP.dll')" -ForegroundColor White
+            Write-Host "  - [13] 橋接程式      : $(Join-Path $RootDir 'localagent\bridge\lazarus\WbaseBridge.exe')" -ForegroundColor White
             Write-Host "  - [8] LocalAgent     : $agentTargetDir" -ForegroundColor White
             Write-Host "  - [9] Electron 免安裝: $outUnpackedDir" -ForegroundColor White
             Write-Host "  - [10] Electron 安裝包: $outReleaseDir" -ForegroundColor White
@@ -462,6 +617,14 @@ function Start-Wx3000ApiSafely {
                 }
                 Invoke-Item $target
             }
+        }
+        "13" {
+            Write-Host ""
+            Write-Host "=== [13] 編譯【報表 wbaseRP.dll 與 WbaseBridge.exe】 ===" -ForegroundColor Magenta
+            if ((Build-WbaseReportDll) -and (Build-WbaseBridge)) {
+                Write-Host "請接著執行 [8] 打包 LocalAgent，隨身碟安裝檔才會帶入新版報表 DLL 與橋接程式。" -ForegroundColor Yellow
+            }
+            Pause-Return
         }
         { $_ -in "Q", "QUIT", "EXIT" } {
             Write-Host "感謝使用，再見！" -ForegroundColor Cyan
