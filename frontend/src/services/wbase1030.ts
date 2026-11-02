@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { localagentApi } from './localagent';
+import { localagentApi, normalizeReportResult, type WbaseReportResult } from './localagent';
 import {
   isValidEmail,
   EMAIL_WARNING_TEXT,
@@ -431,8 +431,9 @@ export interface Waccrep3101bParams {
 
 export const callWaccrep3101b = async (
   params: Waccrep3101bParams = {}
-): Promise<{ success: boolean; result: string; raw?: string; error?: string }> => {
+): Promise<WbaseReportResult> => {
   const payload = {
+    func: 'waccrep3101_b',
     dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
     hs_chk: params.hs_chk ?? 0.125,
     top_mag: params.top_mag ?? 0.0,
@@ -446,7 +447,7 @@ export const callWaccrep3101b = async (
     const response = await localagentApi.post('/report', payload, {
       timeout: 10000,
     });
-    return response.data;
+    return normalizeReportResult(response.data);
   } catch (err: any) {
     console.warn('POST /report failed, attempting fallback to POST /api/call...', err?.message);
     try {
@@ -468,11 +469,7 @@ export const callWaccrep3101b = async (
           timeout: 10000,
         }
       );
-      return {
-        success: fallbackRes.data?.success ?? true,
-        result: String(fallbackRes.data?.retCode ?? '0'),
-        raw: JSON.stringify(fallbackRes.data),
-      };
+      return normalizeReportResult(fallbackRes.data);
     } catch (fallbackErr: any) {
       console.error('LocalAgent error:', fallbackErr);
       throw new Error(
