@@ -2,15 +2,15 @@ import { create } from 'zustand';
 import type {
   TaxOfficerItem,
   TaxOfficerPrintFilter,
-  Waccrep3106bParams,
 } from '../../services/wbase1050';
+import type { WbaseReportParams } from '../../services/localagent';
 import {
   getTaxOfficerList,
   createTaxOfficer,
   updateTaxOfficer,
   deleteTaxOfficer,
   printTaxOfficerList,
-  callWaccrep3106b,
+  callWbase1050Report,
 } from '../../services/wbase1050';
 
 interface Wbase1050State {
@@ -41,7 +41,7 @@ interface Wbase1050State {
   closePrint: () => void;
   fetchPrintDataList: (filter: TaxOfficerPrintFilter) => Promise<TaxOfficerItem[]>;
   fetchPrintData: (filter: TaxOfficerPrintFilter) => Promise<TaxOfficerItem[]>;
-  triggerReportDll: (params?: Waccrep3106bParams) => Promise<boolean>;
+  triggerReportDll: (params?: WbaseReportParams) => Promise<boolean>;
 }
 
 export const useWbase1050 = create<Wbase1050State>((set, get) => ({
@@ -171,7 +171,7 @@ export const useWbase1050 = create<Wbase1050State>((set, get) => ({
   triggerReportDll: async (params) => {
     set({ loading: true });
     try {
-      const res = await callWaccrep3106b(params);
+      const res = await callWbase1050Report(get().printData, params);
       if (!res.success) {
         set({ errorToast: res.error || '呼叫 DLL 報表失敗', loading: false });
         return false;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWbase1050 } from './useWbase1050';
 import type { TaxOfficerItem, TaxOfficerPrintFilter } from '../../services/wbase1050';
-import { FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxProGrid/FoxProPrintModal';
+import { FoxProDllPrintButton, FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxProGrid/FoxProPrintModal';
 
 /**
  * 稅務人員清冊總表列印欄位定義
@@ -58,7 +58,7 @@ const TAXNO_PRINT_COLUMNS: FoxProPrintColumn<TaxOfficerItem>[] = [
  * 條件篩選與網頁直接列印（排除所有輸入框與按鈕）。
  */
 export const Wbase1050Print: React.FC = () => {
-  const { isPrintOpen, closePrint, fetchPrintData, printData, loading } =
+  const { isPrintOpen, closePrint, fetchPrintData, printData, triggerReportDll, loading } =
     useWbase1050();
 
   const [filter, setFilter] = useState<TaxOfficerPrintFilter>({
@@ -78,6 +78,10 @@ export const Wbase1050Print: React.FC = () => {
   const handleQuery = async () => {
     await fetchPrintData(filter);
     setHasSearched(true);
+  };
+
+  const handleDllPrint = async () => {
+    if (await triggerReportDll()) closePrint();
   };
 
   return (
@@ -102,6 +106,9 @@ export const Wbase1050Print: React.FC = () => {
       loading={loading}
       hasSearched={hasSearched}
       emptyText="⚠️ 該區間內查無稅務人員資料"
+      extraActions={
+        <FoxProDllPrintButton onClick={handleDllPrint} disabled={loading || printData.length === 0} />
+      }
     />
   );
 };

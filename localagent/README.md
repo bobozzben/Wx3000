@@ -37,7 +37,7 @@
 
 ### 2. 原生 FastReport 報表 DLL 橋接 (`/report`, `/api/call`)
 - 當前端傳入 `jsonData` 時，自動於 `%TEMP%/Wx3000/` 產生暫存 JSON 檔並將路徑傳遞給 `wbaseRP.dll`。
-- `POST /report` / `POST /waccrep3101_b`：建檔人員清冊報表預覽（`wbase1030`）。`POST /report` 必須在內容帶 `func`。其他主檔清冊在 `wbaseRP.dll` 尚無對應函數。
+- `POST /report`：內容帶 `func` 與 `jsonData` 呼叫主檔清冊，`IsPrint=0` 預覽、`IsPrint=1` 直接送預設印表機。`waccrep3101_b` (1030 建檔人員)、`wbase1050_taxno_list`、`wbase1060_recitem_list`、`wbase1070_recnote_list`、`wbase1080_feesummary_list`、`wbase3010_ticketplace_list`。這些函數只吃 JSON 資料，不帶 `jsonData` 或 `path` 會回傳錯誤。
 - `POST /wbase320_buyinv`：發票預購表報表預覽與列印（`wbase3020_buyinv_print`）。
 - `POST /wbase350_buyinv_list`：統購發票清單列印（支援 `rep_type=1` A4 發票清單、`rep_type=2` 中一刀發票領取簽收單）。
 

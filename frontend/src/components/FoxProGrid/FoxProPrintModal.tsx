@@ -64,6 +64,24 @@ export interface FoxProPrintModalProps<T extends Record<string, any>> {
 }
 
 /**
+ * 透過 LocalAgent 開啟 wbaseRP.dll 原生報表預覽，由預覽視窗決定是否送印。放在 extraActions
+ */
+export const FoxProDllPrintButton: React.FC<{ onClick: () => void; disabled?: boolean }> = ({
+  onClick,
+  disabled,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className="flex items-center space-x-1.5 px-4 py-1.5 bg-blue-800 hover:bg-blue-700 text-white font-bold rounded text-sm border border-blue-600 transition disabled:opacity-50 cursor-pointer"
+  >
+    <Printer className="w-4 h-4" />
+    <span>DLL 報表預覽列印</span>
+  </button>
+);
+
+/**
  * FoxProPrintModal (統一列印母版組件)
  * 標準化全系統 F7/F8 列印預覽視窗、網頁直接列印與 Excel (.xlsx) 動態欄位自訂匯出功能。
  * 遵循 FoxPro 高對比視覺標準，並保證列印時排除輸入框、按鈕與遮罩。

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { reportFunctionMissing, type WbaseReportResult } from './localagent';
+import { callWbaseListReport, type WbaseReportParams, type WbaseReportResult } from './localagent';
 
 export interface FeeSummary {
   seq?: number;
@@ -100,16 +100,12 @@ export const fetchPrintFeeSummaries = async (
 
 export const printFeeSummaryList = fetchPrintFeeSummaries;
 
-export interface Waccrep3106bParams {
-  dllPath?: string;
-  hs_chk?: number;
-  top_mag?: number;
-  left_mag?: number;
-  PrtIndex?: number;
-  IsPrint?: number;
-  path?: string;
-}
-
-export const callWaccrep3106b = async (
-  _params: Waccrep3106bParams = {}
-): Promise<WbaseReportResult> => reportFunctionMissing('基本收費摘要清冊');
+export const callWbase1080Report = (
+  rows: FeeSummary[],
+  params?: WbaseReportParams
+): Promise<WbaseReportResult> =>
+  callWbaseListReport(
+    'wbase1080_feesummary_list',
+    rows.map((r) => ({ summaryCode: r.summaryCode, summaryName: r.summaryName, content: r.content })),
+    params
+  );

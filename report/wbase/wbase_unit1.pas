@@ -6,7 +6,7 @@ interface
 
 uses
   Interfaces, Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls,
-  ComCtrls, ExtCtrls, ZConnection, ZDataset, frxClass, frxDesgn, frxDBSet,Buttons,
+  ComCtrls, ExtCtrls, frxClass, frxDesgn, frxDBSet,Buttons,
   frxPreview;
 
 type
@@ -17,11 +17,14 @@ type
     frxDBDataset1: TfrxDBDataset;
     frxDesigner1: TfrxDesigner;
     frxReport_3501_buyinv: TfrxReport;
-    frxReport1_: TfrxReport;
+    frxReport_1030_keyin: TfrxReport;
+    frxReport_1050_taxno: TfrxReport;
+    frxReport_1060_recitem: TfrxReport;
+    frxReport_1070_recnote: TfrxReport;
+    frxReport_1080_feesummary: TfrxReport;
+    frxReport_3010_ticketplace: TfrxReport;
     frxReport_3502_buyinv: TfrxReport;
     frxReport_320_buyinv: TfrxReport;
-    ZConnection1: TZConnection;
-    ZQuery1: TZQuery;
   private
 
   public

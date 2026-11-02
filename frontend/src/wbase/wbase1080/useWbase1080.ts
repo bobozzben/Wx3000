@@ -2,15 +2,15 @@ import { create } from 'zustand';
 import type {
   FeeSummary,
   FeeSummaryPrintFilter,
-  Waccrep3106bParams,
 } from '../../services/wbase1080';
+import type { WbaseReportParams } from '../../services/localagent';
 import {
   getFeeSummaryList,
   saveFeeSummary,
   batchSaveFeeSummaries,
   deleteFeeSummary,
   printFeeSummaryList,
-  callWaccrep3106b,
+  callWbase1080Report,
 } from '../../services/wbase1080';
 
 interface Wbase1080State {
@@ -39,7 +39,7 @@ interface Wbase1080State {
   closePrint: () => void;
   fetchPrintDataList: (filter: FeeSummaryPrintFilter) => Promise<FeeSummary[]>;
   fetchPrintData: (filter: FeeSummaryPrintFilter) => Promise<FeeSummary[]>;
-  triggerReport: (params?: Waccrep3106bParams) => Promise<boolean>;
+  triggerReport: (params?: WbaseReportParams) => Promise<boolean>;
 }
 
 export const useWbase1080 = create<Wbase1080State>((set, get) => ({
@@ -162,7 +162,7 @@ export const useWbase1080 = create<Wbase1080State>((set, get) => ({
   triggerReport: async (params) => {
     set({ loading: true });
     try {
-      const res = await callWaccrep3106b(params);
+      const res = await callWbase1080Report(get().printData, params);
       if (!res.success) {
         set({ errorToast: res.error || '呼叫 DLL 報表失敗', loading: false });
         return false;

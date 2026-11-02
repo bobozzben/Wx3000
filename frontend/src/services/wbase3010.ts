@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { reportFunctionMissing, type WbaseReportResult } from './localagent';
+import { callWbaseListReport, type WbaseReportParams, type WbaseReportResult } from './localagent';
 
 export interface TicketPlaceItem {
   placeCode: string;     // 編號 (購票地點代號)
@@ -105,18 +105,12 @@ export const fetchPrintTicketPlaces = async (
 export const printTicketPlaceList = fetchPrintTicketPlaces;
 export const fetchTicketPlacePrintData = fetchPrintTicketPlaces;
 
-export interface Waccrep3106bParams {
-  dllPath?: string;
-  hs_chk?: number;
-  top_mag?: number;
-  left_mag?: number;
-  PrtIndex?: number;
-  IsPrint?: number;
-  path?: string;
-}
-
-export const callWaccrep3106b = async (
-  _params: Waccrep3106bParams = {}
-): Promise<WbaseReportResult> => reportFunctionMissing('統一發票購買地點清冊');
-
-export const triggerTicketPlaceReportDll = callWaccrep3106b;
+export const callWbase3010Report = (
+  rows: TicketPlaceItem[],
+  params?: WbaseReportParams
+): Promise<WbaseReportResult> =>
+  callWbaseListReport(
+    'wbase3010_ticketplace_list',
+    rows.map((r) => ({ placeCode: r.placeCode, placeName: r.placeName, contactPerson: r.contactPerson, contactTel: r.contactTel, placeAddress: r.placeAddress })),
+    params
+  );

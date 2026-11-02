@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { reportFunctionMissing, type WbaseReportResult } from './localagent';
+import { callWbaseListReport, type WbaseReportParams, type WbaseReportResult } from './localagent';
 
 export interface NoteItem {
   noteno: string;      // 編號 (DBF: noteno)
@@ -139,16 +139,12 @@ export const fetchPrintNoteItems = async (
 
 export const printNoteItemList = fetchPrintNoteItems;
 
-export interface Waccrep3106bParams {
-  dllPath?: string;
-  hs_chk?: number;
-  top_mag?: number;
-  left_mag?: number;
-  PrtIndex?: number;
-  IsPrint?: number;
-  path?: string;
-}
-
-export const callWaccrep3106b = async (
-  _params: Waccrep3106bParams = {}
-): Promise<WbaseReportResult> => reportFunctionMissing('收費備註名冊');
+export const callWbase1070Report = (
+  rows: NoteItem[],
+  params?: WbaseReportParams
+): Promise<WbaseReportResult> =>
+  callWbaseListReport(
+    'wbase1070_recnote_list',
+    rows.map((r) => ({ noteno: r.noteno, note: r.note })),
+    params
+  );

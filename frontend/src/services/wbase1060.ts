@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { reportFunctionMissing, type WbaseReportResult } from './localagent';
+import { callWbaseListReport, type WbaseReportParams, type WbaseReportResult } from './localagent';
 
 /**
  * recitem.dbf 3 個欄位名稱與抬頭定義:
@@ -153,18 +153,12 @@ export const fetchPrintFeeItems = async (
 export const printFeeItemList = fetchPrintFeeItems;
 export const fetchFeePrintData = fetchPrintFeeItems;
 
-export interface Waccrep3106bParams {
-  dllPath?: string;
-  hs_chk?: number;
-  top_mag?: number;
-  left_mag?: number;
-  PrtIndex?: number;
-  IsPrint?: number;
-  path?: string;
-}
-
-export const callWaccrep3106b = async (
-  _params: Waccrep3106bParams = {}
-): Promise<WbaseReportResult> => reportFunctionMissing('基本收費項目清冊');
-
-export const triggerFeeReportDll = callWaccrep3106b;
+export const callWbase1060Report = (
+  rows: FeeItem[],
+  params?: WbaseReportParams
+): Promise<WbaseReportResult> =>
+  callWbaseListReport(
+    'wbase1060_recitem_list',
+    rows.map((r) => ({ itemno: r.itemno, item: r.item, amt: r.amt })),
+    params
+  );
