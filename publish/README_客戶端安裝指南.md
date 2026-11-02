@@ -89,20 +89,20 @@ publish\
 
 > ⚠️ GitHub 線上更新會依本機已安裝的元件更新：主機更新後端、網頁與 `LocalAgent`，員工工作站只更新 `LocalAgent`。**主機與每台工作站都要各自啟用每日排程**：主選單 `[1]`、`[2]` 安裝時會自動啟用，其他已安裝的電腦請用維護選單 `[7]`。更新時會關閉開啟中的報表預覽，並停止後端服務數十秒。
 >
-> 線上更新不含桌面端與 `DBFBridge.exe`、`WbaseBridge.exe`、`wbaseRP.dll` 等橋接程式和報表 DLL，這些請用維護選單 `[3]`、`[4]` 從隨身碟更新。
+> 線上更新會一併更新報表 DLL (`wbaseRP.dll`) 與報表橋接程式 (`WbaseBridge.exe`)，但不含桌面端、`DBFBridge.exe` 與 VFP 執行元件，這些請用維護選單 `[3]`、`[4]` 從隨身碟更新。
 >
 > 從舊版升級時，舊的更新工具不會更新 `LocalAgent`。請先在每台電腦以新版隨身碟執行一次維護選單 `[3]`，才能發佈新版本。
 
 ### 2. 自動更新選單功能說明
 - **`[1] ★ 立即連線 GitHub 檢查並自動熱更新`**：
   - 自動向 GitHub Releases (`bobozzben/Wx3000`) 查詢最新版本標籤（如 `v1.0.2`），並與本機 `C:\Wx3000\version.txt` 比對。
-  - 若發現新版本，自動下載本機需要的 `Wx3000_Server_v*.zip`、`Wx3000_LocalAgent_v*.zip` ➔ 自動備份舊版至 `C:\Wx3000\Backup\`（各保留最近 3 份）➔ 停止 `Wx3000Api` 服務與 `LocalAgent` ➔ 覆蓋新檔（自動保護保留本機 `appsettings.Production.json`）➔ 重啟並驗證狀態。
+  - 若發現新版本，自動下載本機需要的 `Wx3000_Server_v*.zip`、`Wx3000_LocalAgent_v*.zip`、`Wx3000_ReportBin_v*.zip` ➔ 自動備份舊版至 `C:\Wx3000\Backup\`（各保留最近 3 份）➔ 停止 `Wx3000Api` 服務與 `LocalAgent` ➔ 覆蓋新檔（自動保護保留本機 `appsettings.Production.json`）➔ 重啟並驗證狀態。
   - **防呆自動回滾（Auto-Rollback）**：若更新後後端或 `LocalAgent` 啟動異常，會自動從 `Backup` 一併還原兩者並重啟，確保系統不中斷。
   - **不降版**：本機版本比 GitHub 最新版本新時不會更新。以隨身碟安裝的元件沒有版本紀錄，若檔案建置時間晚於最新 Release 的發佈時間，會直接記錄為該版本而不重新下載。需要回到舊版時請用 `[2]` 強制更新。
 - **`[2] 強制重新下載並覆蓋安裝最新 Release 版本`**：忽略版號比對，強制重抓最新 Release 覆蓋安裝。
 - **`[3] ★ 啟用/設定【Windows 每日凌晨自動更新排程】`**：
   - 一鍵在 Windows 工作排程器註冊 `Wx3000_DailyAutoUpdate`（以 `SYSTEM` 最高權限於每天凌晨預設 `03:00` 背景執行 `Update-Wx3000.ps1 -Silent`）。
-  - 設定完成後，開發團隊只需在 GitHub 推送新版本 Tag（如 `git tag v1.0.3 && git push origin v1.0.3`），客戶主機即會在半夜自動完成升級！
+  - 設定完成後，開發團隊只需在開發機執行 `Wx3000-Manager.bat` 選單 **`[14]` 發佈新版本到 GitHub**，客戶主機即會在半夜自動完成升級！（直接推送 tag 只會建立草稿，不會被自動更新抓到。）
 - **`[4] 停用/移除【Windows 每日自動更新排程】`**：隨時取消自動排程。
 - **`[5] 檢視本機更新歷史紀錄`**：查看 `C:\Wx3000\update.log` 歷次自動更新與版號升級紀錄。
 - **`[6] 設定 GitHub 倉庫名稱或私有倉庫 Token`**：若未來倉庫改為 Private，可在此填入唯讀 Token（儲存於 `C:\Wx3000\updater.config.json`）。

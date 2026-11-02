@@ -330,6 +330,15 @@ function Invoke-GitHubReleaseUpdate([switch]$ForceUpdate) {
                 return $false
             }
             $newAgentSourceDir = $newAgentExe.DirectoryName
+
+            # 報表 DLL 與橋接程式由發佈者在本機編譯後附在 Release，有附上就一起覆蓋 (同樣先備份、失敗還原)
+            $reportAsset = $release.assets | Where-Object { $_.name -like "Wx3000_ReportBin*.zip" } | Select-Object -First 1
+            if ($reportAsset) {
+                $reportZip = Join-Path $tempDir $reportAsset.name
+                Write-UpdateLog "正在下載報表元件更新包: $($reportAsset.name) ($([math]::Round($reportAsset.size / 1MB, 2)) MB) ..." "Yellow"
+                Save-ReleaseAsset $reportAsset $reportZip $cfg
+                Expand-Archive -Path $reportZip -DestinationPath $newAgentSourceDir -Force
+            }
         }
 
         # 備份現有版本 (各僅保留最近 3 份備份以免佔用硬碟空間)
