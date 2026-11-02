@@ -44,7 +44,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ISystemParamService, SystemParamService>();
 
 // Register LocalAgent DBF Sync Service
-var localAgentUrl = builder.Configuration["LocalAgent:Url"] ?? "http://localhost:18889";
+var localAgentUrl = builder.Configuration["LocalAgent:Url"] ?? "http://localhost:5009";
 builder.Services.AddHttpClient<IDbfSyncService, DbfSyncService>(client =>
 {
     client.BaseAddress = new Uri(localAgentUrl);

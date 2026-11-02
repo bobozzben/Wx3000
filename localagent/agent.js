@@ -59,7 +59,7 @@ try {
 
 const CONFIG = {
   MODE: process.env.WBASE_MODE || 'bridge',
-  PORT: 18889,
+  PORT: 5009,
   // 只監聽本機。同時綁 IPv4/IPv6，避免 localhost 先解析到 ::1 時連線被拒而延遲
   HOSTS: ['127.0.0.1', '::1'],
   getDllPath(dllKey) {
@@ -489,7 +489,7 @@ const READ_ONLY_PATHS = new Set(['/', '/test.html', '/mac', '/config', '/dllList
 
 // 回傳拒絕原因；可放行時回傳 null
 function authorizeRequest(req, pathname) {
-  // 防 DNS rebinding：對瀏覽器而言 evil.com:18889 是同源，只有 Host 看得出來
+  // 防 DNS rebinding：對瀏覽器而言 evil.com:5009 是同源，只有 Host 看得出來
   if (!isLoopbackHost(req.headers.host)) return 'Host 不允許';
 
   const origin = req.headers.origin;

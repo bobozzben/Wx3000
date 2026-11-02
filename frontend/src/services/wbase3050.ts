@@ -191,7 +191,7 @@ export const callLocalagentWbase350BuyinvList = async (
     console.error('callLocalagentWbase350BuyinvList error:', err);
     return {
       success: false,
-      error: err?.response?.data?.error || err?.message || '呼叫 LocalAgent 本地列印服務失敗 (http://localhost:18889)',
+      error: err?.response?.data?.error || err?.message || '呼叫 LocalAgent 本地列印服務失敗 (http://localhost:5009)',
     };
   }
 };

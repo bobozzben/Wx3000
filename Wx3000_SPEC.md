@@ -14,7 +14,7 @@
 | **桌面端 (Desktop)** | **Electron** (`frontend/electron/main.cjs`) — 支援獨立桌面視窗、`electron-updater` 自動更新、動態切換後端伺服器 IP 與資料磁碟機，並完整保留 `F1`~`F12` 功能鍵 |
 | **後端 (Backend)** | **C# .NET 8 (ASP.NET Core Web API)**<br>- 預設監聽埠號：`http://0.0.0.0:5007`<br>- 可發佈為獨立單一執行檔 (`publish/backend/Release/Wx3000.Backend.exe`) 或完整伺服器包 (`publish/Wx3000_Server/api`，內含 `wwwroot` 靜態前端)<br>- 支援註冊為 Windows 服務 (`Wx3000Api`) |
 | **資料庫與雙向同步** | 1. **PostgreSQL 16**：`Host=localhost;Port=54320;Database=w3000;Username=postgres;Password=Pg_W3000`<br>2. **Visual FoxPro DBF**：`<Drive>:\w3000\comm\*.dbf`（透過 `ISystemConfigService` 動態映射至 PostgreSQL Schema `"<drive>:/w3000/comm"`，以 `dictionary.w3000_dbf` 記錄 SHA256 Checksum 進行即時雙向同步） |
-| **本機代理 (LocalAgent)** | **Node.js (`localagent/agent.js`, Port `18889`, Windows Service `Wx3000Agent`)**<br>- **DBF 橋接**：透過 **32-bit `DBFBridge.exe`** 呼叫 32-bit `w3000_dbf.dll` (VFP COM) 執行 Checksum 計算、RLOCK 鎖定檢測與寫入<br>- **報表橋接**：透過 **64-bit `WbaseBridge.exe`** 或 `Koffi` 呼叫 64-bit Lazarus 編譯之 `wbaseRP.dll` 執行 FastReport 預覽與列印 |
+| **本機代理 (LocalAgent)** | **Node.js (`localagent/agent.js`, Port `5009`, Windows Service `Wx3000Agent`)**<br>- **DBF 橋接**：透過 **32-bit `DBFBridge.exe`** 呼叫 32-bit `w3000_dbf.dll` (VFP COM) 執行 Checksum 計算、RLOCK 鎖定檢測與寫入<br>- **報表橋接**：透過 **64-bit `WbaseBridge.exe`** 或 `Koffi` 呼叫 64-bit Lazarus 編譯之 `wbaseRP.dll` 執行 FastReport 預覽與列印 |
 
 ---
 
@@ -77,7 +77,7 @@ Wx3000/
 │       ├── wtaxop/                # 進銷存單據作業模組 (PurchaseOrder)
 │       ├── services/              # Axios API、apiConfig、addressService、validation.ts
 │       └── data/                  # 台灣縣市鄉鎮郵遞區號 (taiwanDistricts.ts) 與路名庫 (taiwan_roads.json)
-├── localagent/                    # 本機代理服務 (Port: 18889)
+├── localagent/                    # 本機代理服務 (Port: 5009)
 │   ├── agent.js                   # 整合 DBFBridge 隊列與報表 DLL 呼叫之 HTTP/WS Server
 │   ├── dlls.json                  # 報表 DLL 函數簽名設定檔
 │   └── bridge/lazarus/            # DBFBridge.lpr/.exe (32-bit) & WbaseBridge_Generic.lpr/.exe (64-bit)

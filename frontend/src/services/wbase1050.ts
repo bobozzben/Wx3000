@@ -169,7 +169,7 @@ export const callWaccrep3105b = async (
   params: Waccrep3105bParams = {}
 ): Promise<{ success: boolean; result: string; raw?: string; error?: string }> => {
   const response = await axios.post(
-    'http://localhost:18889/report',
+    'http://localhost:5009/report',
     {
       dllPath: params.dllPath || 'F:\\ADSProject\\Wx3000\\report\\wbase\\wbaseRP.dll',
       hs_chk: params.hs_chk ?? 0.125,

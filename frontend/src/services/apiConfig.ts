@@ -218,9 +218,9 @@ export const checkDriveDirectory = async (
     // 後端尚未啟動或端點不可用，進入備用 LocalAgent 檢測
   }
 
-  // 2. 備用呼叫地端 LocalAgent (http://localhost:18889/api/check-drive)
+  // 2. 備用呼叫地端 LocalAgent (http://localhost:5009/api/check-drive)
   try {
-    const agentRes = await axios.get<DriveCheckResult>('http://localhost:18889/api/check-drive', {
+    const agentRes = await axios.get<DriveCheckResult>('http://localhost:5009/api/check-drive', {
       params: { drive: normDrive },
       timeout: 2000,
     });
@@ -296,7 +296,7 @@ export const initApiConfig = () => {
         config.headers['X-Data-Drive'] = getDataDrive();
       }
     } else {
-      // 外部服務 (例如 LocalAgent http://localhost:18889)，徹底清除 X-Data-Drive 防止觸發跨域 CORS Preflight 攔截
+      // 外部服務 (例如 LocalAgent http://localhost:5009)，徹底清除 X-Data-Drive 防止觸發跨域 CORS Preflight 攔截
       if (config.headers) {
         if (typeof (config.headers as any).delete === 'function') {
           (config.headers as any).delete('X-Data-Drive');

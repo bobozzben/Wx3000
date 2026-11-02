@@ -6,7 +6,7 @@ param(
     [string]$DbfPath = 'C:\w3000\comm',
     [string]$DbfName = 'keyin',
     [string]$ApiUrl = 'http://localhost:5007/api/wbase1030',
-    [string]$LocalAgentUrl = 'http://localhost:18889/api/dbf'
+    [string]$LocalAgentUrl = 'http://localhost:5009/api/dbf'
 )
 
 $ErrorActionPreference = 'Stop'

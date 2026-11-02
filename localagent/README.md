@@ -1,6 +1,6 @@
 # Wx3000 LocalAgent (本機 DBF 雙向同步與原生報表 DLL 橋接服務)
 
-`localagent` 為運行於客戶端或伺服器本機的輕量級 Node.js 背景代理服務（預設監聽 `http://localhost:18889`，支援 HTTP 與 WebSocket，Windows 服務名稱：`Wx3000Agent`），負責解決瀏覽器/現代後端無法直接操作地端 **32-bit Visual FoxPro COM (`w3000_dbf.dll`)** 與 **64-bit Lazarus FastReport 報表 (`wbaseRP.dll`)** 的跨架構橋接問題。
+`localagent` 為運行於客戶端或伺服器本機的輕量級 Node.js 背景代理服務（預設監聽 `http://localhost:5009`，支援 HTTP 與 WebSocket，Windows 服務名稱：`Wx3000Agent`），負責解決瀏覽器/現代後端無法直接操作地端 **32-bit Visual FoxPro COM (`w3000_dbf.dll`)** 與 **64-bit Lazarus FastReport 報表 (`wbaseRP.dll`)** 的跨架構橋接問題。
 
 ---
 
@@ -46,7 +46,7 @@
 ## 📦 啟動與打包指令
 
 ```powershell
-# 1. 開發模式直接啟動 (預設監聽 http://localhost:18889)
+# 1. 開發模式直接啟動 (預設監聽 http://localhost:5009)
 node agent.js
 
 # 2. 打包為獨立執行檔 (自動輸出並同步至 ..\publish\localagent\dist\)

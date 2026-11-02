@@ -21,7 +21,8 @@ Set-Location $SourceRoot
 $InstallRoot = "C:\Wx3000"
 $ApiServiceName = "Wx3000Api"
 $ApiPort = 5007
-$AgentPort = 18889
+$AgentPort = 5009
+$UpdaterTaskName = "Wx3000_DailyAutoUpdate"
 
 function Pause-Menu {
     Write-Host ""
@@ -69,6 +70,17 @@ function Create-Shortcut([string]$ShortcutPath, [string]$TargetPath, [string]$Wo
     $shortcut.WorkingDirectory = $WorkingDir
     $shortcut.Description = $Description
     $shortcut.Save()
+}
+
+# 將 GitHub 自動更新工具複製到安裝根目錄，供日後排程或一鍵更新使用
+function Copy-UpdaterScripts {
+    New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
+    foreach ($updaterFile in @("Update-Wx3000.bat", "Update-Wx3000.ps1")) {
+        $srcUpdater = Join-Path $SourceRoot $updaterFile
+        if (Test-Path $srcUpdater) {
+            Copy-Item -Path $srcUpdater -Destination (Join-Path $InstallRoot $updaterFile) -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 # ==============================================================================
@@ -121,13 +133,7 @@ function Install-ServerComponent {
         Write-Host "      已同步最新前端靜態網頁至 $destWwwroot" -ForegroundColor Green
     }
 
-    # 同步將 GitHub 自動更新工具複製到 C:\Wx3000\ 供日後排程或一鍵更新使用
-    foreach ($updaterFile in @("Update-Wx3000.bat", "Update-Wx3000.ps1")) {
-        $srcUpdater = Join-Path $SourceRoot $updaterFile
-        if (Test-Path $srcUpdater) {
-            Copy-Item -Path $srcUpdater -Destination (Join-Path $InstallRoot $updaterFile) -Force -ErrorAction SilentlyContinue
-        }
-    }
+    Copy-UpdaterScripts
 
     # 3. 註冊 Windows Service
     $exePath = Join-Path $destServerApi "Wx3000.Backend.exe"
@@ -198,6 +204,7 @@ function Install-LocalAgentComponent {
     Write-Host "[2/3] 正在複製 LocalAgent 檔案至本機: $destAgentDir ..." -ForegroundColor Gray
     New-Item -ItemType Directory -Force -Path $destAgentDir | Out-Null
     Copy-Item -Path "$srcAgentDir\*" -Destination $destAgentDir -Recurse -Force
+    Copy-UpdaterScripts
 
     # 3. 建立背景無視窗啟動器並加入 Windows 登入自動啟動 (確保 FastReport 報表預覽視窗可正常彈出於使用者桌面)
     Write-Host "[3/3] 設定開機自動背景啟動並立即啟動 LocalAgent (Port $AgentPort)..." -ForegroundColor Gray
@@ -215,7 +222,7 @@ WshShell.Run Chr(34) & "$targetExe" & Chr(34), 0, False
     Set-ItemProperty -Path $runKeyPath -Name "Wx3000LocalAgent" -Value "wscript.exe `"$vbsLauncher`"" -ErrorAction SilentlyContinue
 
     # LocalAgent 只監聽本機，不需對外開放；移除舊版安裝時建立的防火牆規則
-    Remove-NetFirewallRule -DisplayName "Wx3000 LocalAgent (Port $AgentPort)" -ErrorAction SilentlyContinue
+    Remove-NetFirewallRule -DisplayName "Wx3000 LocalAgent (Port 18889)" -ErrorAction SilentlyContinue
 
     # 立即啟動
     Start-Process -FilePath "wscript.exe" -ArgumentList "`"$vbsLauncher`"" -WorkingDirectory $destAgentDir
@@ -315,7 +322,196 @@ function Show-LanConnectionGuide {
 }
 
 # ==============================================================================
-# 主選單迴圈
+# 維護功能：更新前端網頁、解除安裝、GitHub 線上更新 (呼叫 Update-Wx3000.ps1)
+# ==============================================================================
+function Update-WwwrootComponent {
+    Write-Host ""
+    Write-Host ">>> 開始更新【前端靜態網頁 wwwroot】..." -ForegroundColor Cyan
+    $srcFrontDist = Join-Path $SourceRoot "frontend\dist"
+    if (-not (Test-Path (Join-Path $srcFrontDist "index.html"))) {
+        $srcFrontDist = Join-Path $SourceRoot "Wx3000_Server\api\wwwroot"
+    }
+    $destWwwroot = Join-Path $InstallRoot "Server\api\wwwroot"
+    if (-not (Test-Path (Join-Path $srcFrontDist "index.html"))) {
+        Write-Host "[錯誤] 隨身碟中找不到前端網頁檔 (frontend\dist\index.html)！" -ForegroundColor Red
+    } else {
+        New-Item -ItemType Directory -Force -Path $destWwwroot | Out-Null
+        Copy-Item -Path "$srcFrontDist\*" -Destination $destWwwroot -Recurse -Force
+        Write-Host "[成功] 前端網頁已更新至 $destWwwroot (使用者按 Ctrl+R 即可載入新畫面)！" -ForegroundColor Green
+    }
+}
+
+function Uninstall-Wx3000Component {
+    Write-Host ""
+    $confirm = Read-Host "確定要停止並移除本機的 Wx3000Api 服務與 LocalAgent 自啟動嗎？[Y/N]"
+    if ($confirm -match "^[Yy]") {
+        Stop-Service -Name $ApiServiceName -Force -ErrorAction SilentlyContinue
+        sc.exe delete $ApiServiceName | Out-Null
+        Stop-Process -Name "Wx3000.Backend", "Wx3000Agent", "Wx3000Agent_L2", "Wx3000 ERP Client" -Force -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "Wx3000LocalAgent" -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $UpdaterTaskName -Confirm:$false -ErrorAction SilentlyContinue
+        Write-Host "[完成] 已移除 Wx3000Api 服務、LocalAgent 開機自啟動與每日自動更新排程。" -ForegroundColor Green
+        Write-Host "(程式檔案仍保留於 $InstallRoot，如需徹底刪除可手動刪除該資料夾)" -ForegroundColor Gray
+    }
+}
+
+function Get-InstalledVersion {
+    $versionFile = Join-Path $InstallRoot "version.txt"
+    if (Test-Path $versionFile) {
+        return (Get-Content -Path $versionFile -Raw -Encoding UTF8).Trim()
+    }
+    return "尚未紀錄版本"
+}
+
+function Get-InstalledAgentVersion {
+    $versionFile = Join-Path $InstallRoot "agent_version.txt"
+    if (Test-Path $versionFile) {
+        return (Get-Content -Path $versionFile -Raw -Encoding UTF8).Trim()
+    }
+    return "尚未紀錄版本"
+}
+
+function Get-AutoUpdateStatus {
+    $task = Get-ScheduledTask -TaskName $UpdaterTaskName -ErrorAction SilentlyContinue
+    if ($task) { return "已啟用 (狀態: $($task.State))" }
+    return "未啟用"
+}
+
+function Invoke-Updater([string]$UpdaterAction) {
+    $updaterScript = Join-Path $SourceRoot "Update-Wx3000.ps1"
+    if (-not (Test-Path $updaterScript)) {
+        $updaterScript = Join-Path $InstallRoot "Update-Wx3000.ps1"
+    }
+    if (Test-Path $updaterScript) {
+        & $updaterScript -Action $UpdaterAction -InstallRoot $InstallRoot
+    } else {
+        Write-Host "[錯誤] 找不到 Update-Wx3000.ps1 腳本！" -ForegroundColor Red
+    }
+}
+
+# ==============================================================================
+# 第二層：系統檢測與維護工具
+# ==============================================================================
+function Show-MaintenanceMenu {
+    :MaintenanceLoop while ($true) {
+        Clear-Host
+        $apiStatus = Get-ApiServiceStatus
+        $agentStatus = Get-LocalAgentStatus
+        $installedVersion = Get-InstalledVersion
+        $installedAgentVersion = Get-InstalledAgentVersion
+        $autoUpdateStatus = Get-AutoUpdateStatus
+
+        Write-Host "==============================================================================" -ForegroundColor Cyan
+        Write-Host "                       Wx3000 ERP 系統檢測與維護工具                          " -ForegroundColor Cyan
+        Write-Host "==============================================================================" -ForegroundColor Cyan
+        Write-Host " 本機安裝目標路徑      : $InstallRoot" -ForegroundColor Gray
+        Write-Host " 後端服務 (Wx3000Api)  : $apiStatus" -ForegroundColor Green
+        Write-Host " 本機代理 (LocalAgent) : $agentStatus" -ForegroundColor Green
+        Write-Host " 本機目前紀錄版本      : 後端 $installedVersion / LocalAgent $installedAgentVersion" -ForegroundColor Yellow
+        Write-Host " 每日自動更新排程      : $autoUpdateStatus" -ForegroundColor Cyan
+        Write-Host "------------------------------------------------------------------------------" -ForegroundColor DarkGray
+        Write-Host " 【單獨元件安裝與更新 (使用隨身碟內的檔案)】" -ForegroundColor Magenta
+        Write-Host "   [1]  後端伺服器服務 Wx3000Api (複製至 $InstallRoot\Server)"
+        Write-Host "   [2]  前端網頁檔 wwwroot       (從 frontend\dist 更新至 Server)"
+        Write-Host "   [3]  LocalAgent 本機代理      (複製至 $InstallRoot\LocalAgent)"
+        Write-Host "   [4]  Electron 桌面端程式      (複製至 $InstallRoot\Client + 桌面捷徑)"
+        Write-Host ""
+        Write-Host " 【GitHub 線上更新 (更新本機已安裝的後端與 LocalAgent，桌面端請用 [4])】" -ForegroundColor Yellow
+        Write-Host "   [5]  立即檢查並更新"
+        Write-Host "   [6]  強制重新下載並覆蓋最新版本"
+        Write-Host "   [7]  啟用/設定每日自動更新排程"
+        Write-Host "   [8]  停用每日自動更新排程"
+        Write-Host "   [9]  檢視更新紀錄"
+        Write-Host "   [10] 設定 GitHub 倉庫或私有倉庫 Token"
+        Write-Host ""
+        Write-Host " 【系統檢測與設定】" -ForegroundColor Cyan
+        Write-Host "   [11] 顯示區網連線資訊與 IP"
+        Write-Host "   [12] 更改本機安裝目標路徑"
+        Write-Host "   [13] 解除安裝本機 Wx3000 服務與開機自啟動項目"
+        Write-Host ""
+        Write-Host "   [B]  返回主選單"
+        Write-Host "==============================================================================" -ForegroundColor Cyan
+
+        $rawChoice = Read-Host "請輸入選項代號 [1-13 或 B]"
+        $choice = if ($rawChoice) { $rawChoice.Trim().ToUpper() } else { "" }
+
+        switch ($choice) {
+            "1" {
+                Install-ServerComponent | Out-Null
+                Show-LanConnectionGuide
+                Pause-Menu
+            }
+            "2" {
+                Update-WwwrootComponent
+                Pause-Menu
+            }
+            "3" {
+                Install-LocalAgentComponent | Out-Null
+                Pause-Menu
+            }
+            "4" {
+                Install-ElectronClientComponent | Out-Null
+                Pause-Menu
+            }
+            "5" {
+                Invoke-Updater "Check"
+                Pause-Menu
+            }
+            "6" {
+                Invoke-Updater "ForceUpdate"
+                Pause-Menu
+            }
+            "7" {
+                Invoke-Updater "EnableSchedule"
+                Pause-Menu
+            }
+            "8" {
+                Invoke-Updater "DisableSchedule"
+                Pause-Menu
+            }
+            "9" {
+                Invoke-Updater "ShowLog"
+                Pause-Menu
+            }
+            "10" {
+                Invoke-Updater "Configure"
+                Pause-Menu
+            }
+            "11" {
+                Show-LanConnectionGuide
+                Write-Host ""
+                Write-Host "【本機所有網路介面卡 IP 列表】:" -ForegroundColor Cyan
+                foreach ($ip in (Get-LanIpAddresses)) {
+                    Write-Host "  - $($ip.InterfaceAlias) : http://$($ip.IPAddress):$ApiPort" -ForegroundColor White
+                }
+                Pause-Menu
+            }
+            "12" {
+                Write-Host ""
+                $newPath = Read-Host "請輸入新的本機安裝根目錄 (例如 D:\Wx3000，直接按 Enter 維持 $InstallRoot)"
+                if ($newPath.Trim() -ne "") {
+                    $script:InstallRoot = $newPath.Trim()
+                    Write-Host "已將安裝目標路徑更改為: $InstallRoot" -ForegroundColor Green
+                }
+                Pause-Menu
+            }
+            "13" {
+                Uninstall-Wx3000Component
+                Pause-Menu
+            }
+            "B" {
+                break MaintenanceLoop
+            }
+            default {
+                Write-Host "無效的選項，請重新輸入。" -ForegroundColor Red
+                Start-Sleep -Seconds 1
+            }
+        }
+    }
+}
+
+# ==============================================================================
+# 第一層：主選單迴圈
 # ==============================================================================
 :MenuLoop while ($true) {
     Clear-Host
@@ -338,21 +534,13 @@ function Show-LanConnectionGuide {
     Write-Host "   [2] ★ 安裝【區網員工工作站】     (LocalAgent 本機印表代理 + Electron 桌面端)"
     Write-Host "         ➔ 適用於：區網內連線至主機的其他員工電腦" -ForegroundColor DarkGray
     Write-Host ""
-    Write-Host " 【二、單獨元件安裝與更新 (模組化維護)】" -ForegroundColor Magenta
-    Write-Host "   [3] 僅安裝/更新【後端伺服器服務 Wx3000Api】 (複製至 $InstallRoot\Server)"
-    Write-Host "   [4] 僅更新【前端網頁檔 wwwroot】           (從 frontend\dist 更新至 Server)"
-    Write-Host "   [5] 僅安裝/更新【LocalAgent 本機代理】     (複製至 $InstallRoot\LocalAgent)"
-    Write-Host "   [6] 僅安裝/更新【Electron 桌面端程式】     (複製至 $InstallRoot\Client + 桌面捷徑)"
+    Write-Host " 【二、系統檢測與維護工具】" -ForegroundColor Cyan
+    Write-Host "   [3] 進入維護選單 (單獨更新元件、GitHub 線上更新與排程、連線資訊、解除安裝)"
     Write-Host ""
-    Write-Host " 【三、系統檢測與維護工具】" -ForegroundColor Cyan
-    Write-Host "   [U] ★ 啟動【GitHub 雲端自動熱更新與每日排程設定】 (Update-Wx3000.ps1)" -ForegroundColor Yellow
-    Write-Host "   [7] 更改本機安裝目標路徑 (目前為: $InstallRoot)"
-    Write-Host "   [8] 檢查服務狀態、防火牆與顯示區網連線 IP"
-    Write-Host "   [9] 解除安裝本機 Wx3000 服務與開機自啟動項目"
     Write-Host "   [Q] 離開安裝程式"
     Write-Host "==============================================================================" -ForegroundColor Cyan
 
-    $rawChoice = Read-Host "請輸入選項代號 [1-9, U 或 Q]"
+    $rawChoice = Read-Host "請輸入選項代號 [1-3 或 Q]"
     $choice = if ($rawChoice) { $rawChoice.Trim().ToUpper() } else { "" }
 
     switch ($choice) {
@@ -379,78 +567,7 @@ function Show-LanConnectionGuide {
             Pause-Menu
         }
         "3" {
-            Install-ServerComponent | Out-Null
-            Show-LanConnectionGuide
-            Pause-Menu
-        }
-        "4" {
-            Write-Host ""
-            Write-Host ">>> 開始更新【前端靜態網頁 wwwroot】..." -ForegroundColor Cyan
-            $srcFrontDist = Join-Path $SourceRoot "frontend\dist"
-            if (-not (Test-Path (Join-Path $srcFrontDist "index.html"))) {
-                $srcFrontDist = Join-Path $SourceRoot "Wx3000_Server\api\wwwroot"
-            }
-            $destWwwroot = Join-Path $InstallRoot "Server\api\wwwroot"
-            if (-not (Test-Path (Join-Path $srcFrontDist "index.html"))) {
-                Write-Host "[錯誤] 隨身碟中找不到前端網頁檔 (frontend\dist\index.html)！" -ForegroundColor Red
-            } else {
-                New-Item -ItemType Directory -Force -Path $destWwwroot | Out-Null
-                Copy-Item -Path "$srcFrontDist\*" -Destination $destWwwroot -Recurse -Force
-                Write-Host "[成功] 前端網頁已更新至 $destWwwroot (使用者按 Ctrl+R 即可載入新畫面)！" -ForegroundColor Green
-            }
-            Pause-Menu
-        }
-        "5" {
-            Install-LocalAgentComponent | Out-Null
-            Pause-Menu
-        }
-        "6" {
-            Install-ElectronClientComponent | Out-Null
-            Pause-Menu
-        }
-        "7" {
-            Write-Host ""
-            $newPath = Read-Host "請輸入新的本機安裝根目錄 (例如 D:\Wx3000，直接按 Enter 維持 $InstallRoot)"
-            if ($newPath.Trim() -ne "") {
-                $InstallRoot = $newPath.Trim()
-                Write-Host "已將安裝目標路徑更改為: $InstallRoot" -ForegroundColor Green
-            }
-            Pause-Menu
-        }
-        "8" {
-            Show-LanConnectionGuide
-            Write-Host ""
-            Write-Host "【本機所有網路介面卡 IP 列表】:" -ForegroundColor Cyan
-            foreach ($ip in (Get-LanIpAddresses)) {
-                Write-Host "  - $($ip.InterfaceAlias) : http://$($ip.IPAddress):$ApiPort" -ForegroundColor White
-            }
-            Pause-Menu
-        }
-        "9" {
-            Write-Host ""
-            $confirm = Read-Host "確定要停止並移除本機的 Wx3000Api 服務與 LocalAgent 自啟動嗎？[Y/N]"
-            if ($confirm -match "^[Yy]") {
-                Stop-Service -Name $ApiServiceName -Force -ErrorAction SilentlyContinue
-                sc.exe delete $ApiServiceName | Out-Null
-                Stop-Process -Name "Wx3000.Backend", "Wx3000Agent", "Wx3000Agent_L2", "Wx3000 ERP Client" -Force -ErrorAction SilentlyContinue
-                Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "Wx3000LocalAgent" -ErrorAction SilentlyContinue
-                Unregister-ScheduledTask -TaskName "Wx3000_DailyAutoUpdate" -Confirm:$false -ErrorAction SilentlyContinue
-                Write-Host "[完成] 已移除 Wx3000Api 服務、LocalAgent 開機自啟動與每日自動更新排程。" -ForegroundColor Green
-                Write-Host "(程式檔案仍保留於 $InstallRoot，如需徹底刪除可手動刪除該資料夾)" -ForegroundColor Gray
-            }
-            Pause-Menu
-        }
-        "U" {
-            $updaterScript = Join-Path $SourceRoot "Update-Wx3000.ps1"
-            if (-not (Test-Path $updaterScript)) {
-                $updaterScript = Join-Path $InstallRoot "Update-Wx3000.ps1"
-            }
-            if (Test-Path $updaterScript) {
-                & $updaterScript -InstallRoot $InstallRoot
-            } else {
-                Write-Host "[錯誤] 找不到 Update-Wx3000.ps1 腳本！" -ForegroundColor Red
-                Pause-Menu
-            }
+            Show-MaintenanceMenu
         }
         { $_ -in "Q", "QUIT", "EXIT" } {
             Write-Host "安裝程式已結束。" -ForegroundColor Cyan

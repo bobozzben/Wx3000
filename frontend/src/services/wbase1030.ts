@@ -476,7 +476,7 @@ export const callWaccrep3101b = async (
     } catch (fallbackErr: any) {
       console.error('LocalAgent error:', fallbackErr);
       throw new Error(
-        '無法連線至 LocalAgent 本地列印元件 (http://localhost:18889)，請確認 LocalAgent 服務已啟動。'
+        '無法連線至 LocalAgent 本地列印元件 (http://localhost:5009)，請確認 LocalAgent 服務已啟動。'
       );
     }
   }

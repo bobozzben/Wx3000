@@ -30,7 +30,7 @@ $script:PgDb         = "w3000"
 $script:PgUser       = "postgres"
 $script:PgPass       = "Pg_W3000"
 $script:PgSchema     = "c:/w3000/comm"
-$script:AgentUrl     = "http://localhost:18889"
+$script:AgentUrl     = "http://localhost:5009"
 $script:ApiPort      = 5007             # 正式安裝版預設 5007 (開發版為 5000)
 $script:InstallRoot  = "C:\Wx3000"
 
@@ -312,19 +312,19 @@ function Invoke-Step2-DirectDbfBridgeTest {
 }
 
 # ==============================================================================
-# Step 3: 驗證 LocalAgent HTTP 服務 (Port 18889) /api/dbf/ping 與 /api/dbf/checksum
+# Step 3: 驗證 LocalAgent HTTP 服務 (Port 5009) /api/dbf/ping 與 /api/dbf/checksum
 # ==============================================================================
 function Invoke-Step3-LocalAgentHttpTest {
     Write-StepHeader "Step 3" "驗證 LocalAgent HTTP 服務 ($script:AgentUrl)"
 
-    # 3.1 檢查行程與 Port 18889
+    # 3.1 檢查行程與 Port 5009
     $agentProc = Get-Process -Name "Wx3000Agent", "Wx3000Agent_L2", "node" -ErrorAction SilentlyContinue
-    $portListen = Get-NetTCPConnection -LocalPort 18889 -State Listen -ErrorAction SilentlyContinue
+    $portListen = Get-NetTCPConnection -LocalPort 5009 -State Listen -ErrorAction SilentlyContinue
 
     if ($portListen) {
-        Write-Pass "LocalAgent 正在監聽 TCP Port 18889 (PID: $($portListen[0].OwningProcess))"
+        Write-Pass "LocalAgent 正在監聽 TCP Port 5009 (PID: $($portListen[0].OwningProcess))"
     } else {
-        Write-Fail "目前沒有任何程式監聽 TCP Port 18889 (LocalAgent 未啟動)！"
+        Write-Fail "目前沒有任何程式監聽 TCP Port 5009 (LocalAgent 未啟動)！"
         $agentDir = Find-LocalAgentDir
         $exePath = Join-Path $agentDir "Wx3000Agent.exe"
         if (Test-Path $exePath) {
@@ -688,7 +688,7 @@ function Stop-PortProcesses([int]$port) {
 
 function Invoke-Debug3-ForegroundConsole {
     Write-StepHeader "除錯 D3" "啟動前景 Console 即時除錯視窗 (觀看即時 Log 與 Exception StackTrace)"
-    Write-Host "  [1] 前景啟動 LocalAgent (Wx3000Agent.exe) - 觀察 Port 18889 與 DBFBridge 呼叫 Log"
+    Write-Host "  [1] 前景啟動 LocalAgent (Wx3000Agent.exe) - 觀察 Port 5009 與 DBFBridge 呼叫 Log"
     Write-Host "  [2] 前景啟動 後端伺服器 (Wx3000.Backend.exe) - 觀察 [DbfSync] 同步 Log 與資料庫錯誤"
     Write-Host "  [3] 結束前景除錯視窗，並恢復啟動背景 Wx3000Api 服務與 LocalAgent"
     Write-Host "  [Q] 取消返回"
@@ -701,14 +701,14 @@ function Invoke-Debug3-ForegroundConsole {
             Write-Fail "找不到 $exe"
             return
         }
-        Write-Host "正在停止背景 Wx3000Agent 行程並釋放 Port 18889..." -ForegroundColor Yellow
+        Write-Host "正在停止背景 Wx3000Agent 行程並釋放 Port 5009..." -ForegroundColor Yellow
         Stop-Service -Name "Wx3000Agent" -Force -ErrorAction SilentlyContinue
         Stop-Process -Name "Wx3000Agent", "Wx3000Agent_L2" -Force -ErrorAction SilentlyContinue
-        if (-not (Stop-PortProcesses 18889)) {
-            Write-Fail "無法釋放 TCP Port 18889，請確認是否有其他程式佔用！"
+        if (-not (Stop-PortProcesses 5009)) {
+            Write-Fail "無法釋放 TCP Port 5009，請確認是否有其他程式佔用！"
             return
         }
-        Write-Pass "TCP Port 18889 已完全釋放！"
+        Write-Pass "TCP Port 5009 已完全釋放！"
         Write-Host "正在開啟新 Console 視窗執行 $exe ..." -ForegroundColor Green
         Start-Process cmd.exe -ArgumentList "/k `"cd /d `"$agentDir`" && title Wx3000 LocalAgent Debug Console && `"$exe`"`""
     }
@@ -791,7 +791,7 @@ function Invoke-Debug3-ForegroundConsole {
     Write-Host "   [A] ★ 依序單步執行 [Step 1 ~ Step 6] 完整同步鏈路診斷 (推薦！)" -ForegroundColor Yellow
     Write-Host "   [1] Step 1 : 檢查 C:\W3000\COMM、LocalAgent 檔案與 VFP9 Runtime 相依 DLL"
     Write-Host "   [2] Step 2 : 單步直接執行 DBFBridge.exe (略過網路層，直接測 w3000_dbf.dll 載入)"
-    Write-Host "   [3] Step 3 : 測試 LocalAgent (Port 18889) /api/dbf/ping 與 Checksum 計算"
+    Write-Host "   [3] Step 3 : 測試 LocalAgent (Port 5009) /api/dbf/ping 與 Checksum 計算"
     Write-Host "   [4] Step 4 : 測試 LocalAgent 產出 PostgreSQL 建表 (STRUCT) 與資料 (DATA) 腳本"
     Write-Host "   [5] Step 5 : 檢查 PostgreSQL (Port 54320) 連線、dictionary.w3000_dbf 與資料表"
     Write-Host "   [6] Step 6 : 測試後端 API (Port $($script:ApiPort)) 端到端觸發同步並檢視回傳筆數"

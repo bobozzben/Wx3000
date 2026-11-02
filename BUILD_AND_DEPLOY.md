@@ -122,7 +122,7 @@ pnpm build:api
 ```powershell
 pnpm dev:agent
 ```
-- 預設監聽埠號：`http://localhost:18889`（同時支援 HTTP 與 WebSocket）
+- 預設監聽埠號：`http://localhost:5009`（同時支援 HTTP 與 WebSocket）
 
 ### 📦 重新打包成 EXE (選單 `[8]`)
 透過 `Wx3000-Manager.ps1` 選單 `[8]` 或切換至 `localagent` 目錄下執行批次檔：
@@ -180,9 +180,9 @@ pnpm build:electron
   ```
 
 ### 🛠️ 支援安裝角色與項目
-- **`[1]` 安裝【主機端 Server 全套】**：自動複製檔案至 `C:\Wx3000\`、註冊並啟動 `Wx3000Api` Windows 服務 (Port `5007`)、開放區網防火牆、設定 `LocalAgent` (Port `18889`) 開機背景自啟動，並建立桌面捷徑【Wx3000 雲端會計進銷存】。
+- **`[1]` 安裝【主機端 Server 全套】**：自動複製檔案至 `C:\Wx3000\`、註冊並啟動 `Wx3000Api` Windows 服務 (Port `5007`)、開放區網防火牆、設定 `LocalAgent` (Port `5009`) 開機背景自啟動，並建立桌面捷徑【Wx3000 雲端會計進銷存】。
 - **`[2]` 安裝【區網員工工作站】**：僅安裝本機 `LocalAgent`（供本機呼叫 FastReport 報表預覽直印）與 `Electron 桌面端`，啟動後按 `Ctrl + Shift + S` 指向主機區網 IP (`http://主機IP:5007`) 即可連線。
-- **`[3]` ~ `[6]` 單獨模組更新**：可針對後端 API、`wwwroot` 靜態網頁、`LocalAgent` 或 `Electron` 單獨熱更新。
+- **`[3]` 系統檢測與維護工具**：進入第二層選單，可單獨更新後端 API、`wwwroot` 靜態網頁、`LocalAgent` 或 `Electron`，並整合 GitHub 線上更新與每日排程 (`Update-Wx3000.ps1`)、區網連線資訊與解除安裝。
 
 ---
 
@@ -202,7 +202,7 @@ pnpm build:electron
 | :---: | :--- | :--- |
 | **`[1]` Step 1** | **地端檔案與 VFP9 Runtime 檢查** | 檢查 `C:\W3000\COMM\*.dbf`、`LocalAgent` 下的 `DBFBridge.exe` / `w3000_dbf.dll` / `w3000_dbf.VBR` / `vfpencryption.fll`，以及乾淨電腦最容易缺少的 **32-bit VFP9 執行期元件** (`vfp9r.dll`、`vfp9t.dll`、`msvcr71.dll`、`msvcp71.dll`、`gdiplus.dll`)。 |
 | **`[2]` Step 2** | **`DBFBridge.exe` 底層直接測試** | 略過 HTTP 網路層，直接傳遞 Base64 指令給 `DBFBridge.exe` 測試免註冊載入 `w3000_dbf.dll` 與計算 SHA256 Checksum。若缺少相依 DLL 會直接印出 Win32 Error Code（如 `Error 126`）。 |
-| **`[3]` Step 3** | **`LocalAgent` HTTP 服務測試** | 檢查 Port `18889` 監聽狀態（未啟動可一鍵啟動），並呼叫 `GET /api/dbf/ping` 與 `POST /api/dbf/checksum` 驗證代理服務通訊。 |
+| **`[3]` Step 3** | **`LocalAgent` HTTP 服務測試** | 檢查 Port `5009` 監聽狀態（未啟動可一鍵啟動），並呼叫 `GET /api/dbf/ping` 與 `POST /api/dbf/checksum` 驗證代理服務通訊。 |
 | **`[4]` Step 4** | **生成 PostgreSQL 腳本測試** | 呼叫 `POST /api/dbf/get_pg_script` 測試產出建表 (`STRUCT`) 與資料 (`DATA`) SQL 腳本，並預覽前 6 行 SQL 輸出。 |
 | **`[5]` Step 5** | **PostgreSQL 服務與字典表檢查** | 檢查 Port `54320`、`w3000` 資料庫是否存在（若無可一鍵建立）、查詢 `dictionary.w3000_dbf` 校驗碼紀錄與 `"c:/w3000/comm"` Schema 下的資料表清單。 |
 | **`[6]` Step 6** | **後端 API 端到端觸發同步** | 實際呼叫後端 `GET /api/wbase1050` (`taxno.dbf`) 與 `GET /api/wbase1020` (`comp.dbf`)，驗證 `DbfSyncService.EnsureTableSyncedAsync` 完整同步鏈路並檢視回傳筆數。 |

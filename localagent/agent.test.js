@@ -51,7 +51,7 @@ test('isAllowedOrigin accepts local and LAN frontends only', () => {
   }
 });
 
-const makeReq = (method, headers = {}) => ({ method, headers: { host: 'localhost:18889', ...headers } });
+const makeReq = (method, headers = {}) => ({ method, headers: { host: 'localhost:5009', ...headers } });
 
 test('authorizeRequest lets the real callers through', () => {
   // ASP.NET backend and PowerShell diagnostics send no browser headers
@@ -71,14 +71,14 @@ test('authorizeRequest blocks web pages and rebinding', () => {
   assert.ok(authorizeRequest(makeReq('POST', { origin: 'https://evil.example.com' }), '/api/call'));
   assert.ok(authorizeRequest(makeReq('POST', { origin: 'null' }), '/api/call'));
   assert.ok(authorizeRequest(makeReq('GET', { origin: 'https://evil.example.com' }), '/'));
-  // <img src="http://localhost:18889/api/call?..."> has no Origin
+  // <img src="http://localhost:5009/api/call?..."> has no Origin
   assert.ok(authorizeRequest(makeReq('GET', { 'sec-fetch-site': 'cross-site' }), '/api/call'));
   assert.ok(authorizeRequest(makeReq('GET', { 'sec-fetch-site': 'cross-site' }), '/report'));
   // DBF endpoints are never for browsers, even from an allowed origin
   assert.ok(authorizeRequest(makeReq('POST', { origin: 'http://localhost:5173' }), '/api/dbf/write'));
   assert.ok(authorizeRequest(makeReq('POST', { 'sec-fetch-site': 'cross-site' }), '/api/dbf/write'));
   // DNS rebinding
-  assert.ok(authorizeRequest({ method: 'GET', headers: { host: 'evil.example.com:18889' } }, '/config'));
+  assert.ok(authorizeRequest({ method: 'GET', headers: { host: 'evil.example.com:5009' } }, '/config'));
   assert.ok(authorizeRequest({ method: 'GET', headers: {} }, '/config'));
 });
 

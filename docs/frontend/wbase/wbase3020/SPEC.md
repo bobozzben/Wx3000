@@ -16,7 +16,7 @@
 2. **`wbase3020_buyinv_print` 發票預購表列印與 Excel 匯出作業（選單 `330`）**：
    - 支援依「地址縣市」或「購買地點 (`F2` 開窗)」分區、依「統一編號」或「稅籍編號」排序。
    - 整合 `<FormUtilSelectXlsxFieldsList />` 雙欄式動態欄位選擇器，可自訂匯出 Excel 欄位、標題與順序（持久化於 `localStorage`）。
-   - 支援呼叫 `LocalAgent` (`POST http://localhost:18889/wbase320_buyinv`) 驅動 Lazarus `wbaseRP.dll` 開啟原生 FastReport 預購表預覽或直接列印。
+   - 支援呼叫 `LocalAgent` (`POST http://localhost:5009/wbase320_buyinv`) 驅動 Lazarus `wbaseRP.dll` 開啟原生 FastReport 預購表預覽或直接列印。
 3. **混合雲地 DBF 雙向同步 (`Wbase3020Controller.cs`)**：
    - 與地端 `C:\w3000\comm\buyinv.dbf` 即時比對 Checksum 並執行權威雙寫。
 

@@ -220,7 +220,7 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
     } else {
       setStatusMessage(`⚠️ 報表呼叫失敗: ${res.error || 'LocalAgent 服務未啟動'}`);
       alert(
-        `[F7.列印失敗]\nLocalAgent 報表預覽呼叫未成功：\n${res.error || '請確認本機 LocalAgent (http://localhost:18889) 服務已啟動'}`
+        `[F7.列印失敗]\nLocalAgent 報表預覽呼叫未成功：\n${res.error || '請確認本機 LocalAgent (http://localhost:5009) 服務已啟動'}`
       );
     }
   }, [QueryData]);

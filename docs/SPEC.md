@@ -57,7 +57,7 @@
 ### 5. 後端、資料庫與地端代理規格 (Backend, DBF Sync & LocalAgent)
 
 - 📌 [C# ASP.NET Core API、PostgreSQL 與 VFP DBF 雙向同步規格 (`docs/backend/backend_SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/backend/backend_SPEC.md)
-  - 包含 C# .NET 8 服務 (`Port 5007`)、Windows Service (`Wx3000Api`)、`SystemConfigService` + `DynamicModelCacheKeyFactory` (動態磁碟機與 Schema 切換)、`DbfSyncService` (SHA256 Checksum 快照比對與 DBF 絕對權威雙寫)、`SystemParamService`、`LocalAgent` (`Port 18889`, 32-bit `DBFBridge.exe`, 64-bit `WbaseBridge.exe`) 與完整 API 路由表。
+  - 包含 C# .NET 8 服務 (`Port 5007`)、Windows Service (`Wx3000Api`)、`SystemConfigService` + `DynamicModelCacheKeyFactory` (動態磁碟機與 Schema 切換)、`DbfSyncService` (SHA256 Checksum 快照比對與 DBF 絕對權威雙寫)、`SystemParamService`、`LocalAgent` (`Port 5009`, 32-bit `DBFBridge.exe`, 64-bit `WbaseBridge.exe`) 與完整 API 路由表。
 - 📌 [開發編輯與打包部署速查指南 (`BUILD_AND_DEPLOY.md`)](file:///f:/ADSProject/Wx3000/BUILD_AND_DEPLOY.md)
   - 包含 `Wx3000-Manager.bat` 互動式選單、統一 `publish/` 輸出結構、客戶端安裝/更新/診斷腳本與 GitHub Actions 自動化發佈流程。
 
