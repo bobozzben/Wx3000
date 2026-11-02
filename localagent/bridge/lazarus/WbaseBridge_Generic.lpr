@@ -17,6 +17,15 @@ Type
 Var
   hLib: HMODULE;
 
+  // 呼叫端可能已經關閉管線 (例如 LocalAgent 在預覽期間重啟)，輸出失敗不可讓程序異常結束
+  Procedure WriteLine(Const s: string);
+  Begin
+    {$I-}
+    Writeln(s);
+    {$I+}
+    IOResult;
+  End;
+
   Function GetDllPathFromKey(dllKey: string; explicitPath: string): string;
   Var
     exePath, cleanExplicit: string;
@@ -229,21 +238,21 @@ Begin
         // 舊版轉 JSON
         argsJsonStr := Format('[%s,%s,%s,%s,%s,"%s"]', [ParamStr(1), ParamStr(2), ParamStr(3), ParamStr(4), ParamStr(5), StringReplace(ParamStr(6), '"', '\"', [rfReplaceAll])]);
       End Else Begin
-        Writeln('Usage: WbaseBridge.exe --dll <path> --func <name> --args "[...]"');
-        Writeln('   or: WbaseBridge.exe hs_chk top_mag left_mag PrtIndex IsPrint path  (legacy waccrep3101_b)');
+        WriteLine('Usage: WbaseBridge.exe --dll <path> --func <name> --args "[...]"');
+        WriteLine('   or: WbaseBridge.exe hs_chk top_mag left_mag PrtIndex IsPrint path  (legacy waccrep3101_b)');
         Halt(1);
       End;
     End;
 
     dllPath := GetDllPathFromKey(dllKey, dllPath);
     If Not FileExists(dllPath) Then Begin
-      Writeln('ERROR: DLL not found: ' + dllPath);
+      WriteLine('ERROR: DLL not found: ' + dllPath);
       Halt(2);
     End;
 
     hLib := LoadLibrary(PChar(dllPath));
     If hLib = 0 Then Begin
-      Writeln(Format('ERROR: LoadLibrary %s Code=%d', [dllPath, GetLastError]));
+      WriteLine(Format('ERROR: LoadLibrary %s Code=%d', [dllPath, GetLastError]));
       Halt(3);
     End;
 
@@ -254,7 +263,7 @@ Begin
       // 7參數版本 (包含 rep_type): double, double, double, int, int, int, str
       Pointer(p7) := GetProcAddress(hLib, PChar(funcName));
       If Not Assigned(p7) Then Begin
-        Writeln('ERROR: GetProcAddress ' + funcName);
+        WriteLine('ERROR: GetProcAddress ' + funcName);
         Halt(4);
       End;
 
@@ -283,13 +292,13 @@ Begin
         BringThread.WaitFor;
         BringThread.Free;
       End;
-      Writeln('OK:' + IntToStr(ret));
+      WriteLine('OK:' + IntToStr(ret));
 
     End Else If (funcName = 'waccrep3101_b') Or (funcName = 'wbase320_buyinv') Or (args.Count >= 5) Then Begin
       // 6參數標準報表版: double, double, double, int, int, str
       Pointer(p6) := GetProcAddress(hLib, PChar(funcName));
       If Not Assigned(p6) Then Begin
-        Writeln('ERROR: GetProcAddress ' + funcName);
+        WriteLine('ERROR: GetProcAddress ' + funcName);
         Halt(4);
       End;
 
@@ -317,20 +326,20 @@ Begin
         BringThread.WaitFor;
         BringThread.Free;
       End;
-      Writeln('OK:' + IntToStr(ret));
+      WriteLine('OK:' + IntToStr(ret));
 
     End Else If args.Count = 2 Then Begin
       // 2參數版: int, str 或 double, str
       Pointer(pIntStr) := GetProcAddress(hLib, PChar(funcName));
       If Not Assigned(pIntStr) Then Begin
-        Writeln('ERROR: GetProcAddress ' + funcName);
+        WriteLine('ERROR: GetProcAddress ' + funcName);
         Halt(4);
       End;
       ret := pIntStr(GetIntArg(args, 0, 0), ansistring(GetStrArg(args, 1, '')));
-      Writeln('OK:' + IntToStr(ret));
+      WriteLine('OK:' + IntToStr(ret));
 
     End Else Begin
-      Writeln('ERROR: Function ' + funcName + ' not implemented in generic dispatcher. 請在 WbaseBridge.lpr 加上對應分支');
+      WriteLine('ERROR: Function ' + funcName + ' not implemented in generic dispatcher. 請在 WbaseBridge.lpr 加上對應分支');
       Halt(5);
     End;
 
@@ -338,7 +347,7 @@ Begin
     args.Free;
   Except
     on E: Exception Do Begin
-      Writeln('ERROR:' + E.ClassName + ':' + E.Message);
+      WriteLine('ERROR:' + E.ClassName + ':' + E.Message);
       Halt(9);
     End;
   End;

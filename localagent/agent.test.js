@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
+const { spawn } = require('child_process');
 const { PassThrough } = require('stream');
 const {
   collectUtf8,
@@ -11,6 +12,7 @@ const {
   isAllowedOrigin,
   authorizeRequest,
   buildDbfBridgeRequest,
+  releasePreviewChild,
   handleRequest
 } = require('./agent');
 
@@ -101,6 +103,23 @@ test('genericCall refuses unregistered DLLs without spawning anything', async ()
   const result = await genericCall('\\\\evil\\share\\x.dll', 'DllMain', []);
   assert.equal(result.success, false);
   assert.equal(result.errorType, 'FORBIDDEN');
+});
+
+test('releasePreviewChild leaves the pipes open so the bridge can still report when the preview closes', async () => {
+  // unref 之後事件迴圈可能沒有其他工作，測試期間要自己撐住
+  const keepAlive = setInterval(() => {}, 1000);
+  try {
+    const script = "setTimeout(() => process.stdout.write('OK:0\\n', (err) => process.exit(err ? 1 : 0)), 200); process.stdout.on('error', () => process.exit(1));";
+    const child = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const getStdout = collectUtf8(child.stdout);
+    collectUtf8(child.stderr);
+    releasePreviewChild(child);
+    const code = await new Promise((resolve) => child.on('close', resolve));
+    assert.equal(code, 0);
+    assert.equal(getStdout().trim(), 'OK:0');
+  } finally {
+    clearInterval(keepAlive);
+  }
 });
 
 test('buildDbfBridgeRequest cannot be steered to EXEC_VFP', () => {
