@@ -17,6 +17,9 @@ import { Wbase3020Page } from '../wbase3020';
 import { Wbase3020_buyinv_print } from '../wbase3020/wbase3020_buyinv_print';
 import { Wbase3050_buylist_print, Wbase3050_buyinv_setamt } from '../wbase3050';
 import { Wbase3060 } from '../wbase3060';
+import { Wbase4010Page } from '../wbase4010';
+import { Wbase4020Page } from '../wbase4020';
+import { Wbase5010Index, type Wbase50TabType } from '../wbase5010';
 import { useTheme } from './ThemeContext';
 
 interface WbaseMainPageProps {
@@ -25,6 +28,9 @@ interface WbaseMainPageProps {
 
 export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }) => {
   const [activeModule, setActiveModule] = useState<string | null>(null);
+  const [wbase4010Mode, setWbase4010Mode] = useState<number>(1);
+  const [wbase4020Tab, setWbase4020Tab] = useState<'4020' | '4030' | '4040' | '4050' | '4060'>('4020');
+  const [wbase5010Tab, setWbase5010Tab] = useState<Wbase50TabType>('5010');
   const { isDark } = useTheme();
 
   // Trigger when a leaf menu item is selected/clicked
@@ -57,6 +63,60 @@ export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }
       setActiveModule('wbase3050_buyinv_setamt');
     } else if (item.code === 'wbase3060' || item.code === 'wbase3060_01') {
       setActiveModule('wbase3060_01');
+    } else if (item.code === 'wbase4010') {
+      setWbase4010Mode(1);
+      setActiveModule('wbase4010');
+    } else if (item.code === 'wbase4011') {
+      setWbase4010Mode(1);
+      setActiveModule('wbase4010');
+    } else if (item.code === 'wbase4012') {
+      setWbase4010Mode(2);
+      setActiveModule('wbase4010');
+    } else if (item.code === 'wbase4013') {
+      setWbase4010Mode(3);
+      setActiveModule('wbase4010');
+    } else if (item.code === 'wbase4014') {
+      setWbase4010Mode(4);
+      setActiveModule('wbase4010');
+    } else if (item.code === 'wbase4015') {
+      setWbase4010Mode(5);
+      setActiveModule('wbase4010');
+    } else if (item.code === 'wbase4016') {
+      setWbase4010Mode(6);
+      setActiveModule('wbase4010');
+    } else if (item.code === 'wbase4020') {
+      setWbase4020Tab('4020');
+      setActiveModule('wbase4020');
+    } else if (item.code === 'wbase4030') {
+      setWbase4020Tab('4030');
+      setActiveModule('wbase4020');
+    } else if (item.code === 'wbase4040') {
+      setWbase4020Tab('4040');
+      setActiveModule('wbase4020');
+    } else if (item.code === 'wbase4050') {
+      setWbase4020Tab('4050');
+      setActiveModule('wbase4020');
+    } else if (item.code === 'wbase4060') {
+      setWbase4020Tab('4060');
+      setActiveModule('wbase4020');
+    } else if (item.code === 'wbase5010') {
+      setWbase5010Tab('5010');
+      setActiveModule('wbase5010');
+    } else if (item.code === 'wbase5020') {
+      setWbase5010Tab('5020');
+      setActiveModule('wbase5010');
+    } else if (item.code === 'wbase5030') {
+      setWbase5010Tab('5030');
+      setActiveModule('wbase5010');
+    } else if (item.code === 'wbase5040') {
+      setWbase5010Tab('5040');
+      setActiveModule('wbase5010');
+    } else if (item.code === 'wbase5050') {
+      setWbase5010Tab('5050');
+      setActiveModule('wbase5010');
+    } else if (item.code === 'wbase5060') {
+      setWbase5010Tab('5060');
+      setActiveModule('wbase5010');
     } else if (item.code === 'A00') {
       // 結束離開 / 回主選單
       if (onBackToMainMenu) {
@@ -158,6 +218,12 @@ export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }
             <Wbase3050_buyinv_setamt onClose={() => setActiveModule(null)} />
           ) : activeModule === 'wbase3060' || activeModule === 'wbase3060_01' ? (
             <Wbase3060 onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase4010' ? (
+            <Wbase4010Page initialMode={wbase4010Mode} onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase4020' ? (
+            <Wbase4020Page initialTab={wbase4020Tab} onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase5010' ? (
+            <Wbase5010Index initialTab={wbase5010Tab} onClose={() => setActiveModule(null)} />
           ) : (
             <Wbase1030Page onBackToMenu={() => setActiveModule(null)} />
           )}

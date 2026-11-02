@@ -29,6 +29,7 @@ namespace Wx3000.Backend.Data
         public DbSet<NoteMaster> NoteMasters => Set<NoteMaster>();
         public DbSet<TicketPlaceMaster> TicketPlaceMasters => Set<TicketPlaceMaster>();
         public DbSet<InvoicePurchaseMaster> InvoicePurchaseMasters => Set<InvoicePurchaseMaster>();
+        public DbSet<AccountMaster> AccountMasters => Set<AccountMaster>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -45,6 +46,7 @@ namespace Wx3000.Backend.Data
             modelBuilder.Entity<NoteMaster>().ToTable("recnote", schema);
             modelBuilder.Entity<TicketPlaceMaster>().ToTable("place", schema);
             modelBuilder.Entity<InvoicePurchaseMaster>().ToTable("buyinv", schema);
+            modelBuilder.Entity<AccountMaster>().ToTable("xmaster", schema);
 
             modelBuilder.Entity<InvoicePurchaseMaster>()
                 .HasKey(i => new { i.Period, i.Times, i.CompanyCode });

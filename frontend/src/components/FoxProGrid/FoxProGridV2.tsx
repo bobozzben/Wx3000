@@ -96,6 +96,8 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
   storageKey?: string;
   /** Whether to show row index / 項次 column (default false) */
   showRowIndex?: boolean;
+  /** Direction to move cursor when pressing Enter in edit mode (default 'right') */
+  enterDirection?: 'right' | 'down';
 }
 
 const parseColWidth = (w?: string): number | undefined => {
@@ -131,6 +133,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
   gridId,
   storageKey,
   showRowIndex = false,
+  enterDirection = 'right',
 }: FoxProGridV2Props<T>) {
   const { isDark } = useTheme();
 
@@ -570,7 +573,16 @@ export function FoxProGridV2<T extends Record<string, any>>({
   const prevRowsLengthRef = useRef(rows.length);
   useEffect(() => {
     if (rows.length > prevRowsLengthRef.current) {
-      if (isAddingRowRef.current) {
+      const lastRow = rows[rows.length - 1];
+      const pkKey = pkColIndex >= 0 ? columns[pkColIndex]?.key : columns[0]?.key;
+      const lastRowPkVal = pkKey ? String(lastRow?.[pkKey] ?? '').trim() : '';
+      const isAppendedNewRow =
+        isAddingRowRef.current ||
+        (prevRowsLengthRef.current > 0 &&
+          rows.length === prevRowsLengthRef.current + 1 &&
+          (!lastRowPkVal || lastRowPkVal === '新科目'));
+
+      if (isAppendedNewRow) {
         isAddingRowRef.current = false;
         const newRowIdx = rows.length - 1;
         const initialCol = pkColIndex >= 0 ? pkColIndex : 0;
@@ -586,7 +598,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
       }
     }
     prevRowsLengthRef.current = rows.length;
-  }, [rows.length, pkColIndex]);
+  }, [rows, pkColIndex, columns]);
 
   // Helper to move cell focus
   const moveCell = useCallback(
@@ -718,7 +730,11 @@ export function FoxProGridV2<T extends Record<string, any>>({
           e.preventDefault();
           const success = commitEdit(r, c, editValue);
           if (success) {
-            moveCell(r, c, 0, 1);
+            if (e.key === 'Enter' && enterDirection === 'down') {
+              moveCell(r, c, 1, 0);
+            } else {
+              moveCell(r, c, 0, 1);
+            }
           }
           return;
         }
@@ -918,6 +934,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
     onShowSummary,
     onDeleteRow,
     currentSelectedRow,
+    enterDirection,
   ]);
 
   const handleModalSelect = (item: SearchItem) => {

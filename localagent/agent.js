@@ -314,19 +314,29 @@ function toVfpLiteral(val) {
 }
 
 function buildWhereClause(keyField, keyValue) {
+  const parseSingle = (k, v) => {
+    k = (k || '').trim();
+    v = (v || '').trim();
+    if (k.startsWith('ALLTRIM(') || k.startsWith('STR(') || k.startsWith('VAL(') || k.startsWith('TRANSFORM(')) {
+      return `${k} == ${toVfpLiteral(v)}`;
+    }
+    // 使用 ALLTRIM(TRANSFORM(field)) 能 100% 同時相容字串、數值、日期等所有資料型態
+    return `ALLTRIM(TRANSFORM(${k})) == ${toVfpLiteral(v)}`;
+  };
+
   if (keyField.includes(',')) {
-    const keys = keyField.split(',').map(s => s.trim());
-    const vals = (keyValue || '').split(',').map(s => s.trim());
+    const keys = keyField.split(',');
+    const vals = (keyValue || '').split(',');
     const conds = [];
     for (let i = 0; i < keys.length; i++) {
-      const k = keys[i];
+      const k = keys[i].trim();
       if (!k) continue;
-      const v = vals[i] || '';
-      conds.push(`ALLTRIM(${k}) = ${toVfpLiteral(v)}`);
+      const v = (vals[i] || '').trim();
+      conds.push(parseSingle(k, v));
     }
     return conds.join(' AND ');
   }
-  return `ALLTRIM(${keyField}) = ${toVfpLiteral(keyValue || '')}`;
+  return parseSingle(keyField, keyValue);
 }
 
 async function executeDbfWrite(payload) {
@@ -359,8 +369,9 @@ async function executeDbfWrite(payload) {
       `RETURN TRANSFORM(lnRec)`
     ].join('\r\n');
   } else if (operation === 'UPDATE') {
-    const sets = Object.entries(fields).map(([k, v]) => `${k} = ${toVfpLiteral(v)}`);
-    const cSet = sets.join(', ');
+    // 採用 FoxPro 原生 REPLACE [alias.]field WITH ...，徹底避免 SQL UPDATE 遇到保留字 (如 desc, order, date, status 等) 拋出語法錯誤 10
+    const replList = Object.entries(fields).map(([k, v]) => `${cAlias}.${k} WITH ${toVfpLiteral(v)}`);
+    const cReplace = replList.length > 0 ? `REPLACE ${replList.join(', ')}` : `* no fields to update`;
     script = [
       `USE "${vfpFullPath}" IN 0 ALIAS ${cAlias} SHARED AGAIN`,
       `SELECT ${cAlias}`,
@@ -370,7 +381,7 @@ async function executeDbfWrite(payload) {
       `  RETURN "RECORD_NOT_FOUND"`,
       `ENDIF`,
       `lnRec = RECNO("${cAlias}")`,
-      cSet ? `UPDATE ${cAlias} SET ${cSet} WHERE ${whereClause}` : `* no fields to update`,
+      cReplace,
       `USE IN ${cAlias}`,
       `RETURN TRANSFORM(lnRec)`
     ].join('\r\n');
@@ -384,7 +395,7 @@ async function executeDbfWrite(payload) {
       `  RETURN "RECORD_NOT_FOUND"`,
       `ENDIF`,
       `lnRec = RECNO("${cAlias}")`,
-      `DELETE FROM ${cAlias} WHERE ${whereClause}`,
+      `DELETE`,
       `USE IN ${cAlias}`,
       `RETURN TRANSFORM(lnRec)`
     ].join('\r\n');

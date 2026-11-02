@@ -158,7 +158,7 @@ namespace Wx3000.Backend.Data
                         linkmobile character varying(255) NOT NULL DEFAULT '',
                         memo01 character varying(255) NOT NULL DEFAULT '',
                         serial numeric(4,0) NOT NULL DEFAULT 0,
-                        CONSTRAINT PK_customer PRIMARY KEY (no)
+                        CONSTRAINT PK_customer PRIMARY KEY (_record_number)
                     );
 
                     -- 9. 購買地點 (place)

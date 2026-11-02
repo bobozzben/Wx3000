@@ -3,6 +3,11 @@
 ## 核心目標
 將 FoxPro (`.prg`, `.scx`, `.dbf` 相關邏輯) 或 Pascal (`.pas`, `.dpr`, `.lpr`) 的舊系統邏輯，翻新為現代化架構（如 C# .NET Core, TypeScript, Python 或 Go）。著重於將程序化邏輯解耦為現代物件導向/函數式架構，並落實強型別與現代異步設計。
 
+## 環境速記
+- Lazarus 4.6:`C:\fpcupdeluxe4\lazarus`(可編 32/64 bit);VFP9:`C:\Program Files (x86)\Microsoft Visual FoxPro 9`
+- FoxBin2PRG:`C:\Thor\Thor\Tools\Components\FoxBin2PRG\FoxBin2Prg.exe`(分析 .scx/.vcx)
+
+
 ## 角色分工與權限
 
 ### 1. 總化工頭 (Legacy System Architect)

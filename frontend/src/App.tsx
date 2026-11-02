@@ -76,17 +76,15 @@ function AppContent() {
 
   return (
     <div
-      className={`w-full h-screen h-dvh overflow-hidden flex flex-col font-mono select-none transition-colors duration-300 ${
-        isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
-      }`}
+      className={`w-full h-screen h-dvh overflow-hidden flex flex-col font-mono select-none transition-colors duration-300 ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
+        }`}
     >
       {/* 整合單一現代化頂部工具列 (Merged Unified Top Navigation Bar) */}
       <header
-        className={`px-3 sm:px-4 py-1 sm:py-1.5 border-b flex items-center justify-between gap-2 shadow-xs shrink-0 z-30 transition-colors ${
-          isDark
+        className={`px-3 sm:px-4 py-1 sm:py-1.5 border-b flex items-center justify-between gap-2 shadow-xs shrink-0 z-30 transition-colors ${isDark
             ? 'bg-slate-900 border-slate-800 text-slate-100'
             : 'bg-white border-slate-200 text-slate-800'
-        }`}
+          }`}
       >
         {/* Left: Brand Emblem + Title + Module Navigation Tabs */}
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 shrink-0">
@@ -99,18 +97,16 @@ function AppContent() {
 
           <div className="flex items-center space-x-1.5 sm:space-x-2">
             <span
-              className={`text-sm sm:text-base font-black tracking-wider ${
-                isDark ? 'text-white' : 'text-slate-900'
-              }`}
+              className={`text-sm sm:text-base font-black tracking-wider ${isDark ? 'text-white' : 'text-slate-900'
+                }`}
             >
               奇勝資訊
             </span>
             <span
-              className={`hidden md:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold tracking-wider border ${
-                isDark
+              className={`hidden md:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold tracking-wider border ${isDark
                   ? 'bg-blue-950/70 text-blue-300 border-blue-800/70'
                   : 'bg-blue-50 text-blue-700 border-blue-200'
-              }`}
+                }`}
             >
               Wx3000
             </span>
@@ -120,15 +116,14 @@ function AppContent() {
           <nav className="flex items-center space-x-1 sm:space-x-1.5 ml-1 sm:ml-2 shrink-0">
             <button
               onClick={() => setActiveTab('mainmenu')}
-              className={`flex items-center space-x-1 px-2 sm:px-2.5 py-1 rounded-lg font-bold text-xs transition border whitespace-nowrap cursor-pointer ${
-                activeTab === 'mainmenu'
+              className={`flex items-center space-x-1 px-2 sm:px-2.5 py-1 rounded-lg font-bold text-xs transition border whitespace-nowrap cursor-pointer ${activeTab === 'mainmenu'
                   ? isDark
                     ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
                     : 'bg-blue-50 text-blue-700 border-blue-300 shadow-xs'
                   : isDark
-                  ? 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-700'
-                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/80'
-              }`}
+                    ? 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-700'
+                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/80'
+                }`}
             >
               <Home className="w-3.5 h-3.5 shrink-0" />
               <span className="sm:hidden">主選單</span>
@@ -137,15 +132,14 @@ function AppContent() {
 
             <button
               onClick={() => setActiveTab('wbase')}
-              className={`flex items-center space-x-1 px-2 sm:px-2.5 py-1 rounded-lg font-bold text-xs transition border whitespace-nowrap cursor-pointer ${
-                activeTab === 'wbase'
+              className={`flex items-center space-x-1 px-2 sm:px-2.5 py-1 rounded-lg font-bold text-xs transition border whitespace-nowrap cursor-pointer ${activeTab === 'wbase'
                   ? isDark
                     ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
                     : 'bg-blue-50 text-blue-700 border-blue-300 shadow-xs'
                   : isDark
-                  ? 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-700'
-                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/80'
-              }`}
+                    ? 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-700'
+                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/80'
+                }`}
             >
               <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
               <span className="sm:hidden">基本資料</span>
@@ -154,29 +148,27 @@ function AppContent() {
 
             <button
               onClick={() => setActiveTab('purchase')}
-              className={`flex items-center space-x-1 px-2 sm:px-2.5 py-1 rounded-lg font-bold text-xs transition border whitespace-nowrap cursor-pointer ${
-                activeTab === 'purchase'
+              className={`flex items-center space-x-1 px-2 sm:px-2.5 py-1 rounded-lg font-bold text-xs transition border whitespace-nowrap cursor-pointer ${activeTab === 'purchase'
                   ? isDark
                     ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
                     : 'bg-blue-50 text-blue-700 border-blue-300 shadow-xs'
                   : isDark
-                  ? 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-700'
-                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/80'
-              }`}
+                    ? 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-700'
+                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/80'
+                }`}
             >
               <FileText className="w-3.5 h-3.5 shrink-0" />
               <span className="sm:hidden">進貨單</span>
-              <span className="hidden sm:inline">進貨單據</span>
+              <span className="hidden sm:inline"></span>
             </button>
           </nav>
 
           {isElectronApp() && (
             <span
-              className={`hidden xl:flex text-xs px-2 py-0.5 rounded-md items-center space-x-1 whitespace-nowrap shrink-0 border ${
-                isDark
+              className={`hidden xl:flex text-xs px-2 py-0.5 rounded-md items-center space-x-1 whitespace-nowrap shrink-0 border ${isDark
                   ? 'bg-slate-800 text-blue-300 border-slate-700'
                   : 'bg-slate-100 text-blue-800 border-slate-200'
-              }`}
+                }`}
             >
               <Monitor className="w-3 h-3 text-blue-500 shrink-0" />
               <span>桌面端</span>
@@ -186,11 +178,10 @@ function AppContent() {
 
         {/* Center: Client / Organization Title */}
         <div
-          className={`hidden md:flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs sm:text-sm font-extrabold tracking-wider ${
-            isDark
+          className={`hidden md:flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs sm:text-sm font-extrabold tracking-wider ${isDark
               ? 'bg-slate-800/80 border-slate-700/80 text-amber-300'
               : 'bg-blue-50/90 border-blue-200/80 text-blue-900'
-          }`}
+            }`}
         >
           <Building2
             className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-amber-400' : 'text-blue-600'}`}
@@ -205,11 +196,10 @@ function AppContent() {
             type="button"
             onClick={() => setIsServerModalOpen(true)}
             title={`伺服器: ${serverUrl} | 資料來源: ${dataDrive}:\\w3000 (Schema: ${getPgSchema()}) [點擊或按 Ctrl+Shift+S 設定]`}
-            className={`flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-2.5 py-1 rounded-lg border text-xs transition cursor-pointer whitespace-nowrap shrink-0 ${
-              isDark
+            className={`flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-2.5 py-1 rounded-lg border text-xs transition cursor-pointer whitespace-nowrap shrink-0 ${isDark
                 ? 'bg-slate-800/90 border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white'
                 : 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900'
-            }`}
+              }`}
           >
             <Server
               className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-amber-400' : 'text-blue-600'}`}
@@ -218,13 +208,12 @@ function AppContent() {
               {serverUrl.replace(/^https?:\/\//, '')}
             </span>
             <span
-              className={`w-2 h-2 rounded-full shrink-0 ${
-                isOnline === true
+              className={`w-2 h-2 rounded-full shrink-0 ${isOnline === true
                   ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]'
                   : isOnline === false
-                  ? 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'
-                  : 'bg-amber-400'
-              }`}
+                    ? 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]'
+                    : 'bg-amber-400'
+                }`}
               title={
                 isOnline === true ? '伺服器連線正常' : isOnline === false ? '伺服器未連線' : '檢查中'
               }
@@ -240,11 +229,10 @@ function AppContent() {
           <button
             type="button"
             onClick={toggleTheme}
-            className={`flex items-center space-x-1 px-2 sm:px-2.5 py-1 rounded-lg border text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
-              isDark
+            className={`flex items-center space-x-1 px-2 sm:px-2.5 py-1 rounded-lg border text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${isDark
                 ? 'bg-slate-800 border-slate-700 text-amber-300 hover:bg-slate-700'
                 : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200/80'
-            }`}
+              }`}
             title={isDark ? '切換至淺色主題' : '切換至深色主題'}
           >
             {isDark ? (
@@ -262,11 +250,10 @@ function AppContent() {
 
           {/* Admin Badge */}
           <div
-            className={`hidden lg:flex items-center space-x-1 px-2 py-1 rounded-lg border text-xs whitespace-nowrap shrink-0 ${
-              isDark
+            className={`hidden lg:flex items-center space-x-1 px-2 py-1 rounded-lg border text-xs whitespace-nowrap shrink-0 ${isDark
                 ? 'bg-slate-800/80 border-slate-700 text-slate-300'
                 : 'bg-slate-100 border-slate-200 text-slate-600'
-            }`}
+              }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
             <span>最高管理者</span>
