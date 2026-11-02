@@ -124,6 +124,8 @@ function Install-ServerComponent {
     } else {
         Copy-Item -Path "$SourceRoot\backend\Release\*" -Destination $destServerApi -Recurse -Force
     }
+    # 隨身碟版本不一定等於舊紀錄，清除後由更新工具依檔案建置時間判斷，避免排程降版
+    Remove-Item -Path (Join-Path $InstallRoot "version.txt") -Force -ErrorAction SilentlyContinue
 
     # 若隨身碟有最新 frontend\dist，同步更新至 wwwroot
     if (Test-Path (Join-Path $srcFrontDist "index.html")) {
@@ -204,6 +206,8 @@ function Install-LocalAgentComponent {
     Write-Host "[2/3] 正在複製 LocalAgent 檔案至本機: $destAgentDir ..." -ForegroundColor Gray
     New-Item -ItemType Directory -Force -Path $destAgentDir | Out-Null
     Copy-Item -Path "$srcAgentDir\*" -Destination $destAgentDir -Recurse -Force
+    # 隨身碟版本不一定等於舊紀錄，清除後由更新工具依檔案建置時間判斷，避免排程降版
+    Remove-Item -Path (Join-Path $InstallRoot "agent_version.txt") -Force -ErrorAction SilentlyContinue
     Copy-UpdaterScripts
 
     # 3. 建立背景無視窗啟動器並加入 Windows 登入自動啟動 (確保 FastReport 報表預覽視窗可正常彈出於使用者桌面)
@@ -389,6 +393,13 @@ function Invoke-Updater([string]$UpdaterAction) {
     }
 }
 
+# 角色安裝完成後一併啟用每日自動更新，主機與工作站都需要各自的排程
+function Enable-RoleAutoUpdate {
+    Write-Host ""
+    Write-Host ">>> 開始啟用【Windows 每日自動更新排程】..." -ForegroundColor Cyan
+    Invoke-Updater "EnableSchedule"
+}
+
 # ==============================================================================
 # 第二層：系統檢測與維護工具
 # ==============================================================================
@@ -530,9 +541,9 @@ function Show-MaintenanceMenu {
     Write-Host "------------------------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host " 【一、角色快速安裝 (推薦依電腦角色選擇)】" -ForegroundColor Yellow
     Write-Host "   [1] ★ 安裝【主機端 Server 全套】 (後端服務 + LocalAgent + Electron 桌面端)"
-    Write-Host "         ➔ 適用於：區網內的主機電腦，或單機版電腦" -ForegroundColor DarkGray
+    Write-Host "         ➔ 適用於：區網內的主機電腦，或單機版電腦 (並啟用每日自動更新排程)" -ForegroundColor DarkGray
     Write-Host "   [2] ★ 安裝【區網員工工作站】     (LocalAgent 本機印表代理 + Electron 桌面端)"
-    Write-Host "         ➔ 適用於：區網內連線至主機的其他員工電腦" -ForegroundColor DarkGray
+    Write-Host "         ➔ 適用於：區網內連線至主機的其他員工電腦 (並啟用每日自動更新排程)" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host " 【二、系統檢測與維護工具】" -ForegroundColor Cyan
     Write-Host "   [3] 進入維護選單 (單獨更新元件、GitHub 線上更新與排程、連線資訊、解除安裝)"
@@ -550,6 +561,7 @@ function Show-MaintenanceMenu {
             Install-ServerComponent | Out-Null
             Install-LocalAgentComponent | Out-Null
             Install-ElectronClientComponent | Out-Null
+            Enable-RoleAutoUpdate
             Show-LanConnectionGuide
             Pause-Menu
         }
@@ -558,6 +570,7 @@ function Show-MaintenanceMenu {
             Write-Host "=== 執行 [2] 區網員工工作站安裝 (LocalAgent + Electron 桌面端) ===" -ForegroundColor Yellow
             Install-LocalAgentComponent | Out-Null
             Install-ElectronClientComponent | Out-Null
+            Enable-RoleAutoUpdate
             Write-Host ""
             Write-Host "======================================================================" -ForegroundColor Green
             Write-Host "  員工工作站安裝完成！" -ForegroundColor Green
