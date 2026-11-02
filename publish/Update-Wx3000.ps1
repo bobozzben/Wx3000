@@ -155,6 +155,52 @@ function Wait-AgentListening([int]$TimeoutSeconds = 15) {
     return $false
 }
 
+function ConvertTo-UtcTime($Value) {
+    if ($Value -is [datetime]) { return $Value.ToUniversalTime() }
+    try {
+        return [DateTimeOffset]::Parse([string]$Value, [Globalization.CultureInfo]::InvariantCulture).UtcDateTime
+    } catch {
+        return $null
+    }
+}
+
+# 比較 vX.Y.Z 版號 (缺少的段數視為 0)：$A 較舊回傳 -1、相同 0、較新 1；無法解析時回傳 $null
+function Compare-ReleaseVersion([string]$A, [string]$B) {
+    $pattern = '^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?'
+    if (-not ($A -match $pattern)) { return $null }
+    $partsA = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3])
+    if (-not ($B -match $pattern)) { return $null }
+    $partsB = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3])
+    for ($i = 0; $i -lt 3; $i++) {
+        if ($partsA[$i] -lt $partsB[$i]) { return -1 }
+        if ($partsA[$i] -gt $partsB[$i]) { return 1 }
+    }
+    return 0
+}
+
+# 判斷元件是否需要更新，避免把本機降版：
+# 有版本紀錄時只在 GitHub 版本較新才更新；隨身碟安裝 (沒有版本紀錄) 時，
+# 若本機檔案的建置時間晚於這個 Release 的發佈時間，視為已是此版本並記錄下來
+function Test-NeedsUpdate([string]$Name, [string]$LocalVersion, [string]$VersionFilePath, [string]$BuildFile, [string]$RemoteTag, $PublishedUtc, [switch]$ForceUpdate) {
+    if ($ForceUpdate) { return $true }
+    if (Test-Path $VersionFilePath) {
+        if ($LocalVersion -eq $RemoteTag) { return $false }
+        $cmp = Compare-ReleaseVersion $RemoteTag $LocalVersion
+        if ($null -ne $cmp -and $cmp -lt 0) {
+            Write-UpdateLog "[略過] $Name 本機版本 ($LocalVersion) 比 GitHub 最新版本 ($RemoteTag) 新，不降版。" "Yellow"
+            return $false
+        }
+        return $true
+    }
+    $build = Get-Item -LiteralPath $BuildFile -ErrorAction SilentlyContinue
+    if ($PublishedUtc -and $build -and ($build.LastWriteTimeUtc -gt $PublishedUtc)) {
+        Set-Content -Path $VersionFilePath -Value $RemoteTag -Encoding UTF8
+        Write-UpdateLog "[略過] $Name 由隨身碟安裝，檔案建置時間晚於 $RemoteTag 發佈時間，記錄為 $RemoteTag 且不更新。" "Yellow"
+        return $false
+    }
+    return $true
+}
+
 function Save-ReleaseAsset($Asset, [string]$OutFile, $Cfg) {
     $dlHeaders = @{ "User-Agent" = "Wx3000-AutoUpdater" }
     if ($Cfg.GitHubToken -and $Cfg.GitHubToken.Trim() -ne "") {
@@ -217,8 +263,9 @@ function Invoke-GitHubReleaseUpdate([switch]$ForceUpdate) {
 
     Write-UpdateLog "GitHub 最新版本: $remoteTag (發佈時間: $($release.published_at))" "Green"
 
-    $updateBackend = $hasBackend -and ($ForceUpdate -or ($localVer -ne $remoteTag))
-    $updateAgent = $hasAgent -and ($ForceUpdate -or ($agentVer -ne $remoteTag))
+    $publishedUtc = ConvertTo-UtcTime $release.published_at
+    $updateBackend = $hasBackend -and (Test-NeedsUpdate "後端" $localVer $VersionFile (Join-Path $InstallRoot "Server\api\Wx3000.Backend.exe") $remoteTag $publishedUtc -ForceUpdate:$ForceUpdate)
+    $updateAgent = $hasAgent -and (Test-NeedsUpdate "LocalAgent" $agentVer $AgentVersionFile (Join-Path $AgentDir (Get-AgentExeName)) $remoteTag $publishedUtc -ForceUpdate:$ForceUpdate)
 
     # 尋找 Wx3000_Server_*.zip 與 Wx3000_LocalAgent_*.zip 資產
     $serverAsset = $release.assets | Where-Object { $_.name -like "Wx3000_Server*.zip" } | Select-Object -First 1

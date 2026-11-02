@@ -180,8 +180,8 @@ pnpm build:electron
   ```
 
 ### 🛠️ 支援安裝角色與項目
-- **`[1]` 安裝【主機端 Server 全套】**：自動複製檔案至 `C:\Wx3000\`、註冊並啟動 `Wx3000Api` Windows 服務 (Port `5007`)、開放區網防火牆、設定 `LocalAgent` (Port `5009`) 開機背景自啟動，並建立桌面捷徑【Wx3000 雲端會計進銷存】。
-- **`[2]` 安裝【區網員工工作站】**：僅安裝本機 `LocalAgent`（供本機呼叫 FastReport 報表預覽直印）與 `Electron 桌面端`，啟動後按 `Ctrl + Shift + S` 指向主機區網 IP (`http://主機IP:5007`) 即可連線。
+- **`[1]` 安裝【主機端 Server 全套】**：自動複製檔案至 `C:\Wx3000\`、註冊並啟動 `Wx3000Api` Windows 服務 (Port `5007`)、開放區網防火牆、設定 `LocalAgent` (Port `5009`) 開機背景自啟動、建立桌面捷徑【Wx3000 雲端會計進銷存】，並啟用每日自動更新排程。
+- **`[2]` 安裝【區網員工工作站】**：僅安裝本機 `LocalAgent`（供本機呼叫 FastReport 報表預覽直印）與 `Electron 桌面端`，並啟用每日自動更新排程，啟動後按 `Ctrl + Shift + S` 指向主機區網 IP (`http://主機IP:5007`) 即可連線。
 - **`[3]` 系統檢測與維護工具**：進入第二層選單，可單獨更新後端 API、`wwwroot` 靜態網頁、`LocalAgent` 或 `Electron`，並整合 GitHub 線上更新與每日排程 (`Update-Wx3000.ps1`)、區網連線資訊與解除安裝。
 
 ---
