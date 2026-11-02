@@ -26,7 +26,7 @@
 backend/
 ├── Wx3000.Backend.csproj
 ├── Program.cs                           # API 入口點、Windows Service 註冊、DI 注入、Swagger 與 wwwroot 託管
-├── appsettings.json                     # Urls (5007)、PostgreSQL (54320/w3000) 與 LocalAgent (18889) 配置
+├── appsettings.json                     # Urls (5007)、PostgreSQL (54320/w3000) 與 LocalAgent (5009) 配置
 ├── Data/
 │   ├── AppDbContext.cs                  # EF Core DbContext (依 CurrentPgSchema 動態映射資料表)
 │   ├── DynamicModelCacheKeyFactory.cs   # EF Core 動態 Schema Model Cache Key 工廠

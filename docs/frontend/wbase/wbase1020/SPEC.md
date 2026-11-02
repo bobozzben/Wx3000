@@ -26,7 +26,7 @@
      - `checkBig5Compatible`：檢查姓名/地址是否含 Big5 罕見字（防止寫入 VFP DBF 變 `?`）。
      - `isValidEmail`：非阻斷式 Email 格式提示徽章（`⚠️ 格式`），不阻斷舊資料存檔。
 3. **列印預覽、純元素列印與原生 FastReport 輸出 (`wbase1020Print.tsx` + `<FoxProPrintModal />`)**：
-   - 支援起訖代號區間篩選、瀏覽器純表格預覽列印 (`printElementById`)、動態欄位勾選 Excel 匯出 (`<FormUtilSelectXlsxFieldsList />`)，以及透過 `LocalAgent` (`http://localhost:18889/report`) 呼叫 `wbaseRP.dll` (`waccrep3101_b`) 開啟原生報表預覽與直印。
+   - 支援起訖代號區間篩選、瀏覽器純表格預覽列印 (`printElementById`)、動態欄位勾選 Excel 匯出 (`<FormUtilSelectXlsxFieldsList />`)，以及透過 `LocalAgent` (`http://localhost:5009/report`) 呼叫 `wbaseRP.dll` (`waccrep3101_b`) 開啟原生報表預覽與直印。
 4. **混合雲地 DBF 雙向同步 (`Wbase1020Controller.cs`)**：
    - 讀取前自動執行 `_dbfSyncService.EnsureTableSyncedAsync` 比對 `<Drive>:\w3000\comm\cpa.dbf` Checksum；新增/修改/刪除時優先寫入地端 `cpa.dbf` 再同步更新 PostgreSQL `"cpa"`。
 

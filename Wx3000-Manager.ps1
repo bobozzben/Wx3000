@@ -92,7 +92,7 @@ function Start-Wx3000ApiSafely {
     Write-Host " 【一、編輯與開發預覽 (Edit & Dev)】" -ForegroundColor Green
     Write-Host "   [1] 前端 (Frontend)   - 開啟源碼編輯 / 啟動 Vite 開發伺服器 (5173)"
     Write-Host "   [2] 後端 (Backend)    - 開啟源碼編輯 / 啟動 .NET API 開發模式 (5000)"
-    Write-Host "   [3] 本機代理 (Agent)  - 開啟 dlls.json & agent.js / 啟動測試 (18889)"
+    Write-Host "   [3] 本機代理 (Agent)  - 開啟 dlls.json & agent.js / 啟動測試 (5009)"
     Write-Host "   [4] 桌面端 (Electron) - 開啟主程序源碼 / 啟動 Electron 熱重載開發模式"
     Write-Host ""
     Write-Host " 【二、編譯與打包部署 (Build & Package -> 統一輸出至 Wx3000\publish\...)】" -ForegroundColor Magenta

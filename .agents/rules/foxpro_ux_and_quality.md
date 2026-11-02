@@ -37,7 +37,7 @@
 1. **DBF 絕對權威原則與動態磁碟機 (`IDbfSyncService` & `ISystemConfigService`)**
    - 系統透過 `ISystemConfigService` 與前端 `X-Data-Drive` Header 支援動態切換資料來源磁碟機（如 `C:` 或 `F:`），自動對應地端 `<Drive>:\w3000\comm\*.dbf` 與 PostgreSQL `w3000` 資料庫之 `<drive>:/w3000/comm` Schema（資料表：`cpa`, `keyin`, `taxno`, `recitem`, `recnote` [1070 備註], `recmemo` [1080 摘要], `customer`, `place`, `buyinv`）。
    - **讀取 (`GET`)**：先呼叫 `_dbfSyncService.EnsureTableSyncedAsync(...)`，比對地端 DBF 的 SHA256 Checksum 與 PostgreSQL `dictionary.w3000_dbf` 紀錄；若不一致自動重灌快照，若一致則直接讀取 PostgreSQL（Fast-path ~2ms）。
-   - **寫入 (`POST` / `PUT` / `DELETE`)**：必須先呼叫 `_dbfSyncService.WriteRecordAsync(...)` 透過 `LocalAgent` (`http://localhost:18889/api/dbf/*` ➔ 32-bit `DBFBridge.exe`) 寫入地端 DBF。若 DBF 回傳鎖定衝突 (`LOCK_TIMEOUT` / HTTP `409 Conflict`) 或失敗，**嚴禁單邊寫入 PostgreSQL**；寫入 DBF 成功後，再寫入 PostgreSQL 並更新 Checksum。
+   - **寫入 (`POST` / `PUT` / `DELETE`)**：必須先呼叫 `_dbfSyncService.WriteRecordAsync(...)` 透過 `LocalAgent` (`http://localhost:5009/api/dbf/*` ➔ 32-bit `DBFBridge.exe`) 寫入地端 DBF。若 DBF 回傳鎖定衝突 (`LOCK_TIMEOUT` / HTTP `409 Conflict`) 或失敗，**嚴禁單邊寫入 PostgreSQL**；寫入 DBF 成功後，再寫入 PostgreSQL 並更新 Checksum。
 
 2. **LocalAgent 位元架構防呆**
    - `DBFBridge.exe` 必須編譯為 **32-bit (`i386-win32`)** 以呼叫 32-bit VFP COM `w3000_dbf.dll`。

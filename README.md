@@ -12,7 +12,7 @@
 | **Frontend (Web & Desktop)** | React 19 + TypeScript + Vite + Tailwind CSS (v4) + AG Grid Community + Zustand + Axios + SheetJS (`xlsx`)<br>- 支援瀏覽器區網連線與 **Electron 桌面端封裝**（含 `electron-updater` 自動更新、完整保留 `F1`~`F12` 功能鍵） |
 | **Backend (API & Service)** | **C# .NET 8 (ASP.NET Core Web API / Windows Service `Wx3000Api`)**<br>- 預設監聽：`http://0.0.0.0:5007`（內建 Swagger UI 與 `wwwroot` 靜態 SPA 託管）<br>- 內建 `DbfSyncService`（VFP DBF 雙向同步）、`SystemConfigService`（動態磁碟機 `C:`/`F:` 與 Schema 切換）與 `SystemParamService` |
 | **Database (Hybrid Sync)** | 1. **PostgreSQL 16** (`localhost:54320`, DB: `w3000`, 動態 Schema: `c:/w3000/comm` 或 `f:/w3000/comm` & `public`)<br>2. **Visual FoxPro DBF** (`<Drive>:\w3000\comm\*.dbf`) — 採用 **DBF 絕對權威雙向同步機制** |
-| **LocalAgent (地端橋接服務)** | **Node.js (`localagent/agent.js`, Port `18889`, Windows Service `Wx3000Agent`)**<br>- **DBF 橋接**：透過 **32-bit `DBFBridge.exe`** 呼叫 32-bit `w3000_dbf.dll` (VFP COM) 執行 SHA256 Checksum、RLOCK 鎖定檢測與雙向同步<br>- **報表橋接**：透過 **64-bit `WbaseBridge.exe`** / `Koffi` 呼叫 64-bit Lazarus `wbaseRP.dll` 產生傳統 FastReport 預覽與中一刀列印 |
+| **LocalAgent (地端橋接服務)** | **Node.js (`localagent/agent.js`, Port `5009`, Windows Service `Wx3000Agent`)**<br>- **DBF 橋接**：透過 **32-bit `DBFBridge.exe`** 呼叫 32-bit `w3000_dbf.dll` (VFP COM) 執行 SHA256 Checksum、RLOCK 鎖定檢測與雙向同步<br>- **報表橋接**：透過 **64-bit `WbaseBridge.exe`** / `Koffi` 呼叫 64-bit Lazarus `wbaseRP.dll` 產生傳統 FastReport 預覽與中一刀列印 |
 | **DevOps & Deployment** | `pnpm` Workspace + `Wx3000-Manager.bat` 互動式管理選單 + `publish/` 客戶端一鍵安裝/更新/DBF 同步診斷腳本 + GitHub Actions CI/Release |
 
 ---
@@ -60,7 +60,7 @@ Wx3000/
 │       │   └── wbase3060/          # 統購發票字軌輸入與國稅局/代售點 Excel 匯入
 │       ├── wtaxop/PurchaseOrder/   # 進貨單盲打作業 (Header + Detail)
 │       └── services/               # Axios API、apiConfig (X-Data-Drive)、addressService、validation.ts
-├── localagent/                     # 本機代理服務 (Port: 18889)
+├── localagent/                     # 本機代理服務 (Port: 5009)
 │   ├── agent.js                    # HTTP/WS 伺服器 (處理 /api/dbf/* 與 /report, /api/call)
 │   ├── dlls.json                   # 動態 DLL 函數簽名配置檔
 │   └── bridge/lazarus/             # DBFBridge.exe (32-bit) & WbaseBridge.exe (64-bit)
@@ -88,7 +88,7 @@ pnpm dev
 # 3. 單獨啟動各模組開發環境
 pnpm dev:web              # 前端 Vite (http://localhost:5173)
 pnpm dev:api              # 後端 C# API (http://localhost:5007)
-pnpm dev:agent            # 地端代理服務 (http://localhost:18889)
+pnpm dev:agent            # 地端代理服務 (http://localhost:5009)
 pnpm dev:electron         # Electron 桌面端熱重載模式
 
 # 4. 生產環境編譯與發佈 (統一輸出至 publish/ 目錄)

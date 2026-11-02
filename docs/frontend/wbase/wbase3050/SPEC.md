@@ -15,7 +15,7 @@
    - **雙報表格式支援 (`reportType`)**：
      - `1`：**A4 發票清單**（事務所內部彙總與核對清冊）。
      - `2`：**中一刀發票領取簽收單**（供客戶簽收發票並載明字軌、本數與工本費金額）。
-   - **原生 FastReport 列印整合**：透過 `LocalAgent` (`POST http://localhost:18889/wbase350_buyinv_list`) 傳遞 `rep_type` 與計算後之 JSON 資料，驅動 `wbaseRP.dll` (`wbase350_buyinv_list`) 開啟預覽或直接列印。
+   - **原生 FastReport 列印整合**：透過 `LocalAgent` (`POST http://localhost:5009/wbase350_buyinv_list`) 傳遞 `rep_type` 與計算後之 JSON 資料，驅動 `wbaseRP.dll` (`wbase350_buyinv_list`) 開啟預覽或直接列印。
    - **Excel 動態欄位匯出 (`<FormUtilSelectXlsxFieldsList />`)**：支援 25 個欄位（含各類發票本數、各類發票金額、公司本數、總金額、總家數、總本數）之自訂挑選、排序與試算表匯出。
 2. **`Wbase3050_buyinv_setamt` 發票工本費單價設定彈窗 (`wbase3050_buyinv_setamt.tsx`)**：
    - 提供 8 種發票（手開二聯、二聯副、三聯、三聯副、特種；收銀二聯、三聯、三聯副）之每本工本費單價設定。
@@ -48,4 +48,4 @@ backend/Controllers/
 | `POST` | `/api/wbase3050/query` | 依期別、分區（縣市/購買地點）與排序方式查詢發票購買數量 > 0 之客戶明細（關聯 `CompanyMasters`） |
 | `GET` | `/api/wbase3050/prices` | 讀取 8 種發票之每本單價設定（預設：二聯 15、二聯副 16、三聯 18、三聯副 19、特種 15、二收 36、三收 85、三收副 95） |
 | `POST` | `/api/wbase3050/prices` | 儲存 8 種發票之每本單價設定至系統參數表 |
-| `POST` | `http://localhost:18889/wbase350_buyinv_list` | 呼叫 LocalAgent 執行 `wbaseRP.dll` 之 `wbase350_buyinv_list` 函數（含 `rep_type`: `1`=A4, `2`=中一刀） |
+| `POST` | `http://localhost:5009/wbase350_buyinv_list` | 呼叫 LocalAgent 執行 `wbaseRP.dll` 之 `wbase350_buyinv_list` 函數（含 `rep_type`: `1`=A4, `2`=中一刀） |

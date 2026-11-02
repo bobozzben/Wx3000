@@ -13,7 +13,7 @@ Args JSON: <input id="args" value='[1,10,10,0,0,"C:\\temp\\wbase_test.pdf"]' sty
 <pre id="log" style="background:#eee;padding:10px;height:400px;overflow:auto"></pre>
 <script>
 let ws; function log(m){ document.getElementById('log').textContent += m+"\n"; }
-function ensureWs(cb){ if(ws&&ws.readyState===1){cb();return;} ws=new WebSocket('ws://localhost:18889'); ws.onopen=cb; ws.onmessage=e=>log("[WS] "+e.data); }
+function ensureWs(cb){ if(ws&&ws.readyState===1){cb();return;} ws=new WebSocket('ws://localhost:5009'); ws.onopen=cb; ws.onmessage=e=>log("[WS] "+e.data); }
 function loadList(){ fetch('/dllList').then(r=>r.json()).then(j=>log(JSON.stringify(j,null,2))); }
 function callGeneric(){
   const dll=document.getElementById('dll').value, func=document.getElementById('func').value, args=JSON.parse(document.getElementById('args').value);

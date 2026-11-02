@@ -35,7 +35,7 @@ namespace Wx3000.Backend.Services
             _http = http;
             _dbContext = dbContext;
             _logger = logger;
-            _localAgentUrl = config["LocalAgent:Url"] ?? "http://localhost:18889";
+            _localAgentUrl = config["LocalAgent:Url"] ?? "http://localhost:5009";
             if (_http.BaseAddress == null)
             {
                 _http.BaseAddress = new Uri(_localAgentUrl);
