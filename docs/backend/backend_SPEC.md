@@ -89,9 +89,9 @@ backend/
 1. **讀取前檢核 (`EnsureTableSyncedAsync`)**：
    - 呼叫 `LocalAgent` (`POST /api/dbf/checksum`) 計算 `.dbf` 檔案的 `SHA256:FileSize`。
    - 比對 PostgreSQL `dictionary.w3000_dbf` 表中之 `file_checksum`。
-   - 若一致則直接查詢 PostgreSQL（耗時約 2ms）；若不一致則呼叫 `LocalAgent` (`POST /api/dbf/call`, `action: "SYNC_TABLE"`) 透過 32-bit `DBFBridge.exe` 驅動 `w3000_dbf.dll` 將 DBF 全表同步至 PostgreSQL。
+   - 若一致則直接查詢 PostgreSQL（耗時約 2ms）；若不一致則呼叫 `LocalAgent` (`POST /api/dbf/get_pg_script`) 透過 32-bit `DBFBridge.exe` 驅動 `w3000_dbf.dll` 將 DBF 全表同步至 PostgreSQL。
 2. **DBF 絕對權威寫入 (`WriteRecordAsync`)**：
-   - 執行 `INSERT` / `UPDATE` / `DELETE` 時，先透過 `LocalAgent` (`POST /api/dbf/call`, `action: "WRITE_RECORD"`) 寫入地端 `.dbf`。
+   - 執行 `INSERT` / `UPDATE` / `DELETE` 時，先透過 `LocalAgent` (`POST /api/dbf/write`) 寫入地端 `.dbf`。
    - 若地端 DBF 記錄正被其他 FoxPro 工作站以 `RLOCK()` 鎖定，`DBFBridge.exe` 會回傳 `errorType: "LOCK_TIMEOUT"`，C# Controller 立即回傳 HTTP `409 Conflict`，**絕不單邊修改 PostgreSQL**。
    - 寫入 DBF 成功後，才透過 EF Core 更新 PostgreSQL，並呼叫 `UpdateDictionaryChecksumAsync` 更新快照校驗碼。
 

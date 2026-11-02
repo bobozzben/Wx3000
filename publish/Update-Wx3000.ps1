@@ -43,6 +43,9 @@ if ($PSCommandPath -and ($PSCommandPath -ne $localScriptPath)) {
     }
 }
 
+# LocalAgent 只應由本機存取；移除舊版安裝時對外開放 18889 的防火牆規則
+Remove-NetFirewallRule -DisplayName "Wx3000 LocalAgent (Port 18889)" -ErrorAction SilentlyContinue
+
 function Write-UpdateLog([string]$Message, [string]$Color = "White") {
     $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
     $logLine = "[$timestamp] $Message"
