@@ -24,7 +24,8 @@ interface Wbase1060FormProps {
  * "itemno,item,amt"
  */
 const FEE_COLUMNS: ColumnDefV2<FeeItem>[] = [
-  { key: 'itemno', label: '項目', isPrimaryKey: true, width: '130px', className: 'text-blue-900 dark:text-sky-300 font-bold' },
+  // recitem.itemno 為 C(4)，超過會被 VFP 截斷而撞到別的代號
+  { key: 'itemno', label: '項目', isPrimaryKey: true, uppercase: true, maxBytes: 4, width: '130px', className: 'text-blue-900 dark:text-sky-300 font-bold' },
   { key: 'item', label: '項目名稱', width: '1fr', className: 'font-semibold' },
   {
     key: 'amt',
