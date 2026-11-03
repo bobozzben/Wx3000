@@ -8,7 +8,7 @@
 
 | 橋接執行檔 | 目標位元架構 | 呼叫目標 DLL | 職責說明 |
 | :--- | :---: | :--- | :--- |
-| **`DBFBridge.exe`** | **32-bit (`i386-win32`)** | `w3000_dbf.dll` (32-bit VFP COM) | 執行 DBF `SHA256:FileSize` Checksum、全表同步至 PostgreSQL (`SYNC_TABLE`)、`RLOCK` 鎖定檢測與單筆權威寫入 (`WRITE_RECORD`) |
+| **`DBFBridge.exe`** | **32-bit (`i386-win32`)** | `w3000_dbf.dll` (32-bit VFP COM) | 執行 DBF `SHA256:FileSize` Checksum、全表同步至 PostgreSQL (`SYNC_TABLE`)、`RLOCK` 鎖定檢測、單筆權威寫入 (`WRITE_RECORD`) 與客戶資料整批匯出入 (`custbak.dbf`) |
 | **`WbaseBridge.exe`** | **64-bit (`x86_64-win64`)** | `wbaseRP.dll` (64-bit FastReport) | 啟動獨立 GUI 進程載入 FastReport 報表 DLL，開啟原生預覽視窗或直接驅動印表機 |
 
 > ⚠️ **重要防呆**：`DBFBridge.exe` 必須為 **32-bit**，`WbaseBridge.exe` 必須為 **64-bit**。切勿將兩者混淆，否則載入 DLL 時將觸發 Windows `ERROR_BAD_EXE_FORMAT (Code=193)`。
@@ -36,6 +36,10 @@
   - 欄位值只接受字串、數字、布林、`null` 與日期值；日期 (D) 欄位傳 `{ "$date": "yyyy-MM-dd" }`，會轉成 VFP `{^yyyy-MM-dd}`，`""` 或 `null` 代表空日期。一般字串一律當字元值。
   - DBF 被其他工作站獨佔或鎖定 (VFP 錯誤 3、108、109、130、1705) 時回 `errorType: "LOCK_TIMEOUT"`，後端據此回 409。
 - `POST /api/dbf/read`：讀取單筆 DBF 記錄。
+- `POST /api/dbf/export_custbak`：2-2 客戶資料匯出。內容 `{ dbfPath, keys, targetFile }`，把 `customer.dbf` 中指定代號的客戶 `COPY TO` 新檔 (依代號排序、CP950)，輸出檔的 `sel` 填 `"=>"`；回 `{ success, count }`。目的檔不可已存在。
+- `POST /api/dbf/import_custbak`：2-3 客戶資料匯入。內容 `{ dbfPath, keys, sourceFile }`，以 customer 結構 `APPEND FROM` 來源檔 (依欄名對應)，指定代號存在就整筆覆蓋、不存在就新增，`customer.sel` 不覆蓋；回 `{ success, inserted, updated, failed: [{ key, reason }] }`，單筆被鎖定時記在 `failed`，其餘照常寫入。
+  - 兩者都由固定 VFP 範本組成，呼叫端只能傳路徑與代號 (1–8 字元、不含 `|`)；代號清單寫入暫存檔再由 VFP `FILETOSTR` 讀入。路徑必須是絕對路徑、副檔名 `.dbf`、不含 `"`，且不可為 `customer.dbf` 本身。
+  - 開檔失敗 (VFP 錯誤 3、108、109、130、1705) 回 `errorType: "LOCK_TIMEOUT"`。
 
 ### 2. 原生 FastReport 報表 DLL 橋接 (`/report`, `/api/call`)
 - 當前端傳入 `jsonData` 時，自動於 `%TEMP%/Wx3000/` 產生暫存 JSON 檔並將路徑傳遞給 `wbaseRP.dll`。

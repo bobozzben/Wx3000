@@ -37,7 +37,8 @@ backend/
 │   ├── ISystemConfigService.cs          # 系統磁碟機與路徑配置介面
 │   ├── SystemConfigService.cs           # 動態磁碟機 (X-Data-Drive / system_config.json) 與目录檢測服務
 │   ├── ISystemParamService.cs           # 系統參數讀寫介面
-│   └── SystemParamService.cs            # 動態 Schema/Table 參數存取服務
+│   ├── SystemParamService.cs            # 動態 Schema/Table 參數存取服務
+│   └── TransferPasswordService.cs       # 轉檔列印密碼 (motherp.txt 第 101–110 bytes) 比對，只在後端
 ├── Models/
 │   ├── CpaMaster.cs                     # 會計師主檔 (table: cpa)
 │   ├── EmpMaster.cs                     # 建檔人員主檔 (table: keyin, 12 欄位含 psw/onepassno)
@@ -60,6 +61,7 @@ backend/
     ├── Wbase1070Controller.cs           # 備註維護 API (/api/wbase1070)
     ├── Wbase1080Controller.cs           # 收費摘要維護 API (/api/wbase1080)
     ├── Wbase2010Controller.cs           # 公司基本資料維護 API (/api/wbase2010)
+    ├── Wbase2030Controller.cs           # 客戶資料匯出 (2020) / 匯入 (2030) API (/api/wbase2030)
     ├── Wbase2040Controller.cs           # 客戶收費資料輸入 API (/api/wbase2040)
     ├── Wbase2050Controller.cs           # 總分支機構設定 API (/api/wbase2050)
     ├── Wbase3010Controller.cs           # 購票地點維護 API (/api/wbase3010)
@@ -84,6 +86,7 @@ backend/
 | `wbase1070` | `NoteMaster` | `<Drive>:\w3000\comm\recnote.dbf` | `<drive>:/w3000/comm` | `recnote` | `noteno` |
 | `wbase1080` | `FeeSummaryMaster` | `<Drive>:\w3000\comm\recmemo.dbf` | `<drive>:/w3000/comm` | `recmemo` | `mno` |
 | `wbase2010` | `CompanyMaster` | `<Drive>:\w3000\comm\customer.dbf` | `<drive>:/w3000/comm` | `customer` | `no` |
+| `wbase2020` / `2030` | ADO + DTO (`Wbase2030Models.cs`) | `<Drive>:\w3000\comm\customer.dbf` | `<drive>:/w3000/comm` | `customer` | `no`；匯入由 LocalAgent `import_custbak` 整批寫入，完成後整表重灌 |
 | `wbase2040` | ADO + DTO (`Wbase2040Models.cs`) | `<Drive>:\w3000\comm\recmom.dbf` / `recmod.dbf` / `recsmemo.dbf` | `<drive>:/w3000/comm` | `recmom` / `recmod` / `recsmemo` | 同步不設唯一鍵；寫入 `recmom` 以 `rno`、`recmod` 以 `RECNO(),rno`、`recsmemo` 以 `RECNO()` 定位 |
 | `wbase2050` | ADO + DTO (`Wbase2050Models.cs`) | `<Drive>:\w3000\comm\customer.dbf` | `<drive>:/w3000/comm` | `customer` | 同步不設唯一鍵；寫入以 `RECNO(),no` 定位，找不到再用 `no` |
 | `wbase3010` | `TicketPlaceMaster` | `<Drive>:\w3000\comm\place.dbf` | `<drive>:/w3000/comm` | `place` | `no` |
@@ -98,6 +101,9 @@ backend/
    - 執行 `INSERT` / `UPDATE` / `DELETE` 時，先透過 `LocalAgent` (`POST /api/dbf/write`) 寫入地端 `.dbf`。
    - 若地端 DBF 記錄正被其他 FoxPro 工作站以 `RLOCK()` 鎖定，`DBFBridge.exe` 會回傳 `errorType: "LOCK_TIMEOUT"`，C# Controller 立即回傳 HTTP `409 Conflict`，**絕不單邊修改 PostgreSQL**。
    - 寫入 DBF 成功後，才透過 EF Core 更新 PostgreSQL，並呼叫 `UpdateDictionaryChecksumAsync` 更新快照校驗碼。
+3. **整批匯出 / 匯入 (`ExportCustbakAsync` / `ImportCustbakAsync`，2-2 / 2-3)**：
+   - 透過 `LocalAgent` (`POST /api/dbf/export_custbak`、`/api/dbf/import_custbak`) 以固定 VFP 範本 `COPY TO` / `APPEND FROM` + `SEEK`/`GATHER` 處理 `custbak.dbf`。
+   - 匯入逐筆回報鎖定失敗；完成後 (含部分失敗) 一律呼叫 `EnsureTableSyncedAsync` 整表重灌，不手動寫 PostgreSQL、不直接更新校驗碼。
 
 ---
 
@@ -114,6 +120,7 @@ backend/
 | **備註維護 (`1070`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase1070` | 備註範本 CRUD、`/batch-save`、`/print` 與 `recnote.dbf` 雙向同步 |
 | **收費摘要 (`1080`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase1080` | 收費摘要 CRUD、`/batch-save`、`/print` 與 `recmemo.dbf` 雙向同步 |
 | **公司主檔 (`2010`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase2010` | 公司基本資料 CRUD、`/print` 與 `customer.dbf` 雙向同步 |
+| **客戶匯出入 (`2020`/`2030`)** | `GET` / `POST` / `DELETE` | `/api/wbase2030` | `/verify-password`、`/customers`、`/export` (回傳 Base64 `custbak.dbf`)、`/import/preview` (multipart 上傳)、`/import`、`DELETE /import/{importId}` |
 | **客戶收費 (`2040`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase2040` | 收費單與明細 CRUD、`/rename`、`/toggle-paid`、`/recalc`、`/shared-memo`、`/batch`、`/office`、`/print/receipts`、`/print/bill`、`/stats` |
 | **總分支機構 (`2050`)** | `GET` / `PUT` / `DELETE` | `/api/wbase2050` | `/headquarters` 總機構清單與逐列存檔、`/headquarters/{no}/branches` 分支讀取、整批存檔 (逐列回報) 與刪除、`/customers` 客戶選單 (`customer.dbf`) |
 | **購票地點 (`3010`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase3010` | 購票地點 CRUD、`/batch-save`、`/print` 與 `place.dbf` 雙向同步 |

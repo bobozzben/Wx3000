@@ -12,6 +12,7 @@ import { Wbase1070Page } from '../wbase1070';
 import { Wbase1080Page } from '../wbase1080';
 import { Wbase2010Page } from '../wbase2010';
 import { Wbase2010SplitPage } from '../wbase2010/Wbase2010SplitPage';
+import { Wbase2030Page } from '../wbase2030';
 import { Wbase2040Page } from '../wbase2040';
 import { Wbase2050Page } from '../wbase2050';
 import { Wbase3010Page } from '../wbase3010';
@@ -53,6 +54,10 @@ export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }
       setActiveModule('wbase2010');
     } else if (item.code === 'wbase2010_split') {
       setActiveModule('wbase2010_split');
+    } else if (item.code === 'wbase2020') {
+      setActiveModule('wbase2020');
+    } else if (item.code === 'wbase2030') {
+      setActiveModule('wbase2030');
     } else if (item.code === 'wbase2040') {
       setActiveModule('wbase2040');
     } else if (item.code === 'wbase2050') {
@@ -212,6 +217,12 @@ export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }
             <Wbase2010Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase2010_split' ? (
             <Wbase2010SplitPage onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase2020' || activeModule === 'wbase2030' ? (
+            <Wbase2030Page
+              key={activeModule}
+              mode={activeModule === 'wbase2020' ? 'export' : 'import'}
+              onBackToMenu={() => setActiveModule(null)}
+            />
           ) : activeModule === 'wbase2040' ? (
             <Wbase2040Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase2050' ? (
