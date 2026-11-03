@@ -61,6 +61,7 @@ backend/
     ├── Wbase1080Controller.cs           # 收費摘要維護 API (/api/wbase1080)
     ├── Wbase2010Controller.cs           # 公司基本資料維護 API (/api/wbase2010)
     ├── Wbase2040Controller.cs           # 客戶收費資料輸入 API (/api/wbase2040)
+    ├── Wbase2050Controller.cs           # 總分支機構設定 API (/api/wbase2050)
     ├── Wbase3010Controller.cs           # 購票地點維護 API (/api/wbase3010)
     ├── Wbase3020Controller.cs           # 發票預購維護、媒體檔與預購表列印 API (/api/wbase3020)
     ├── Wbase3050Controller.cs           # 統購發票清單列印與單價設定 API (/api/wbase3050)
@@ -84,6 +85,7 @@ backend/
 | `wbase1080` | `FeeSummaryMaster` | `<Drive>:\w3000\comm\recmemo.dbf` | `<drive>:/w3000/comm` | `recmemo` | `mno` |
 | `wbase2010` | `CompanyMaster` | `<Drive>:\w3000\comm\customer.dbf` | `<drive>:/w3000/comm` | `customer` | `no` |
 | `wbase2040` | ADO + DTO (`Wbase2040Models.cs`) | `<Drive>:\w3000\comm\recmom.dbf` / `recmod.dbf` / `recsmemo.dbf` | `<drive>:/w3000/comm` | `recmom` / `recmod` / `recsmemo` | 同步不設唯一鍵；寫入 `recmom` 以 `rno`、`recmod` 以 `RECNO(),rno`、`recsmemo` 以 `RECNO()` 定位 |
+| `wbase2050` | ADO + DTO (`Wbase2050Models.cs`) | `<Drive>:\w3000\comm\customer.dbf` | `<drive>:/w3000/comm` | `customer` | 同步不設唯一鍵；寫入以 `RECNO(),no` 定位，找不到再用 `no` |
 | `wbase3010` | `TicketPlaceMaster` | `<Drive>:\w3000\comm\place.dbf` | `<drive>:/w3000/comm` | `place` | `no` |
 | `wbase3020` / `3050` / `3060` | `InvoicePurchaseMaster` | `<Drive>:\w3000\comm\buyinv.dbf` | `<drive>:/w3000/comm` | `buyinv` | `yymm,times,no` |
 
@@ -113,6 +115,7 @@ backend/
 | **收費摘要 (`1080`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase1080` | 收費摘要 CRUD、`/batch-save`、`/print` 與 `recmemo.dbf` 雙向同步 |
 | **公司主檔 (`2010`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase2010` | 公司基本資料 CRUD、`/print` 與 `customer.dbf` 雙向同步 |
 | **客戶收費 (`2040`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase2040` | 收費單與明細 CRUD、`/rename`、`/toggle-paid`、`/recalc`、`/shared-memo`、`/batch`、`/office`、`/print/receipts`、`/print/bill`、`/stats` |
+| **總分支機構 (`2050`)** | `GET` / `PUT` / `DELETE` | `/api/wbase2050` | `/headquarters` 總機構清單與逐列存檔、`/headquarters/{no}/branches` 分支讀取、整批存檔 (逐列回報) 與刪除、`/customers` 客戶選單 (`customer.dbf`) |
 | **購票地點 (`3010`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase3010` | 購票地點 CRUD、`/batch-save`、`/print` 與 `place.dbf` 雙向同步 |
 | **發票預購 (`3020`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase3020` | 發票申購本數維護、`/batch-save`、`/buyinv-print-query`、`/generate-purchase-file` |
 | **發票清單 (`3050`)** | `POST` / `GET` | `/api/wbase3050` | `/query` 統購清單查詢、`/prices` 發票工本費單價讀寫 |
