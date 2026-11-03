@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 const { PassThrough } = require('stream');
@@ -8,6 +10,7 @@ const {
   isAllowedDllCall,
   genericCall,
   validateDbfWrite,
+  buildWhereClause,
   executeDbfWrite,
   isAllowedOrigin,
   authorizeRequest,
@@ -130,7 +133,7 @@ test('buildDbfBridgeRequest cannot be steered to EXEC_VFP', () => {
 });
 
 test('validateDbfWrite accepts every key form the backend uses', () => {
-  for (const key of ['no', 'accno', 'seq', 'serial', 'itemno', 'noteno', 'mno', 'RECNO()', 'STR(RECNO())', 'yymm,times,no', 'ALLTRIM(no)']) {
+  for (const key of ['no', 'accno', 'seq', 'serial', 'itemno', 'noteno', 'mno', 'RECNO()', 'yymm,times,no', 'ALLTRIM(no)']) {
     assert.equal(validateDbfWrite('customer', key, { name: 'x', desc: 'y' }), null, key);
   }
   assert.equal(validateDbfWrite('公司', 'no', { 名稱: 'x' }), null);
@@ -142,6 +145,29 @@ test('validateDbfWrite rejects VFP injection', () => {
   assert.ok(validateDbfWrite('customer', 'SYS(2000)', {}));
   assert.ok(validateDbfWrite('customer', 'no', { 'name WITH 1\r\nRUN calc.exe\r\nREPLACE x': 'v' }));
   assert.ok(validateDbfWrite('x\r\nRUN calc', 'no', {}));
+});
+
+test('buildWhereClause trims plain keys so RECNO() matches the record number', () => {
+  assert.equal(buildWhereClause('RECNO()', '1'), "ALLTRIM(TRANSFORM(RECNO())) == '1'");
+  assert.equal(buildWhereClause('yymm,times,no', '11311,1,A01'),
+    "ALLTRIM(TRANSFORM(yymm)) == '11311' AND ALLTRIM(TRANSFORM(times)) == '1' AND ALLTRIM(TRANSFORM(no)) == 'A01'");
+  // STR() 等函數鍵原樣比較；VFP 的 STR(1) 是右靠補空白的 10 字元，不會 == '1'
+  assert.equal(buildWhereClause('STR(RECNO())', '1'), "STR(RECNO()) == '1'");
+});
+
+test('backend never keys a DBF write on STR()', () => {
+  // STR(RECNO()) == '1' 永遠 RECORD_NOT_FOUND (已用 DBFBridge 對 accpara/pub_para 複本實測)，要定位單筆參數表請用 RECNO()
+  const backendDir = path.join(__dirname, '..', 'backend');
+  const sources = fs.readdirSync(backendDir, { recursive: true })
+    .filter((f) => f.endsWith('.cs') && !/^(bin|obj)[\\/]/.test(f));
+  const offenders = [];
+  for (const file of sources) {
+    const text = fs.readFileSync(path.join(backendDir, file), 'utf8');
+    for (const m of text.matchAll(/WriteRecordAsync\([^;]*?"STR\(/g)) {
+      offenders.push(`${file}:${text.slice(0, m.index).split('\n').length}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
 });
 
 test('executeDbfWrite validates before touching the bridge', async () => {

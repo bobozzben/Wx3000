@@ -828,6 +828,7 @@ module.exports = {
   isAllowedDllCall,
   genericCall,
   validateDbfWrite,
+  buildWhereClause,
   executeDbfWrite,
   isAllowedOrigin,
   authorizeRequest,
