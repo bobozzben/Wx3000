@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -130,15 +131,8 @@ namespace Wx3000.Backend.Services
                 _logger.LogInformation("[DbfSync] 表格 [{Schema}.{Table}] Checksum 不一致 (PG: {Pg} vs DBF: {Dbf})，開始重載快照...",
                     schema, table, recordedChecksum ?? "無", currentDbfChecksum);
 
-                // 5. 取得結構腳本並執行 (確保 Schema、資料表與唯一鍵索引存在)
+                // 5. 取得結構腳本 (確保 Schema、資料表與唯一鍵索引存在) 與全量資料腳本 (TRUNCATE + 全量批次 INSERT)
                 var struScript = await GetPgScriptAsync(dbfPath, dbfName, "STRUCT", schema, table, keyFields, hexFields);
-                if (!string.IsNullOrWhiteSpace(struScript))
-                {
-                    await _dbContext.Database.ExecuteSqlRawAsync(struScript);
-                }
-
-                // 6. 取得全量資料腳本並執行 (走 TRUNCATE + 全量批次 INSERT，避免 recno 重排碰撞)
-                var duplicates = new List<DbfDuplicateKey>();
                 var dataScript = await GetPgScriptAsync(dbfPath, dbfName, "DATA", schema, table, "", hexFields);
                 if (!string.IsNullOrWhiteSpace(dataScript))
                 {
@@ -148,19 +142,39 @@ namespace Wx3000.Backend.Services
                         dataScript,
                         @"(?<=[\(,])\s*\*+\s*(?=[,\)])",
                         "0");
-                    try
+                }
+
+                // 6. 在同一交易內重灌：任何一步失敗都整個回復，保留原本的快照
+                var duplicates = new List<DbfDuplicateKey>();
+                await using (var tx = await _dbContext.Database.BeginTransactionAsync())
+                {
+                    await ResetSnapshotAsync(schema, table);
+
+                    if (!string.IsNullOrWhiteSpace(struScript))
                     {
-                        await _dbContext.Database.ExecuteSqlRawAsync(dataScript);
+                        await _dbContext.Database.ExecuteSqlRawAsync(struScript);
                     }
-                    catch (PostgresException pex) when (pex.SqlState == PostgresErrorCodes.UniqueViolation && !string.IsNullOrWhiteSpace(keyFields))
+
+                    if (!string.IsNullOrWhiteSpace(dataScript))
                     {
-                        // DBF 沒有唯一限制，主鍵重複時整批 INSERT 會失敗並回滾，快照會永遠停在舊版；
-                        // 改為每個主鍵只保留 RECNO 最小的一筆 (與 VFP LOCATE / SEEK 找到的記錄一致)，並記下重複的主鍵
-                        duplicates = await ReloadKeepingFirstAsync(schema, table, keyFields, dataScript);
-                        _logger.LogWarning("[DbfSync] 表格 [{Schema}.{Table}] DBF 主鍵 ({Keys}) 重複，快照只保留 RECNO 最小的一筆: {Duplicates}",
-                            schema, table, keyFields,
-                            string.Join("; ", duplicates.Select(d => $"{d.Key} (#{string.Join(",#", d.RecordNumbers)})")));
+                        await tx.CreateSavepointAsync("data");
+                        try
+                        {
+                            await _dbContext.Database.ExecuteSqlRawAsync(dataScript);
+                        }
+                        catch (PostgresException pex) when (pex.SqlState == PostgresErrorCodes.UniqueViolation && !string.IsNullOrWhiteSpace(keyFields))
+                        {
+                            // DBF 沒有唯一限制，主鍵重複時整批 INSERT 會失敗；
+                            // 改為每個主鍵只保留 RECNO 最小的一筆 (與 VFP LOCATE / SEEK 找到的記錄一致)，並記下重複的主鍵
+                            await tx.RollbackToSavepointAsync("data");
+                            duplicates = await ReloadKeepingFirstAsync(schema, table, keyFields, dataScript);
+                            _logger.LogWarning("[DbfSync] 表格 [{Schema}.{Table}] DBF 主鍵 ({Keys}) 重複，快照只保留 RECNO 最小的一筆: {Duplicates}",
+                                schema, table, keyFields,
+                                string.Join("; ", duplicates.Select(d => $"{d.Key} (#{string.Join(",#", d.RecordNumbers)})")));
+                        }
                     }
+
+                    await tx.CommitAsync();
                 }
 
                 // 7. 更新字典表記錄
@@ -367,9 +381,10 @@ namespace Wx3000.Backend.Services
             var keyList = string.Join(", ", keys);
             var keyText = string.Join(" || ',' || ", keys.Select(k => $"TRIM({k}::text)"));
 
+            // 在呼叫端 (EnsureTableSyncedAsync) 的重灌交易內執行
             var conn = _dbContext.Database.GetDbConnection();
-            if (conn.State != ConnectionState.Open) await conn.OpenAsync();
-            await using var tx = await conn.BeginTransactionAsync();
+            var tx = _dbContext.Database.CurrentTransaction?.GetDbTransaction()
+                ?? throw new InvalidOperationException("去除重複主鍵的重載必須在重灌交易內執行");
 
             async Task ExecAsync(string sql)
             {
@@ -401,8 +416,51 @@ namespace Wx3000.Backend.Services
 
             await ExecAsync($@"TRUNCATE TABLE {target};
                 INSERT INTO {target} SELECT DISTINCT ON ({keyList}) * FROM {stage} ORDER BY {keyList}, ""_record_number"";");
-            await tx.CommitAsync();
             return duplicates;
+        }
+
+        /// <summary>
+        /// 重灌前清空快照，並移除結構腳本先前建立的唯一索引 (ux_ 開頭)，讓這次的結構腳本在空表上依本次 keyFields 重建。
+        /// 同一張 DBF 可能被不同畫面以不同 keyFields 同步 (例如 customer 有的以 no、有的不設唯一鍵)；
+        /// 舊快照若留有重複主鍵，CREATE UNIQUE INDEX 會失敗，快照就會永遠停在舊版。
+        /// </summary>
+        private async Task ResetSnapshotAsync(string schema, string table)
+        {
+            var conn = _dbContext.Database.GetDbConnection();
+            var tx = _dbContext.Database.CurrentTransaction?.GetDbTransaction();
+            var target = QuoteIdent(schema) + "." + QuoteIdent(table);
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.Transaction = tx;
+                cmd.CommandText = "SELECT to_regclass(@t) IS NOT NULL;";
+                var p = cmd.CreateParameter(); p.ParameterName = "@t"; p.Value = target; cmd.Parameters.Add(p);
+                if (!(bool)(await cmd.ExecuteScalarAsync())!) return;
+            }
+
+            var indexes = new List<string>();
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.Transaction = tx;
+                cmd.CommandText = @"SELECT indexname FROM pg_indexes WHERE schemaname = @s AND tablename = @t AND indexname LIKE 'ux\_%';";
+                var p1 = cmd.CreateParameter(); p1.ParameterName = "@s"; p1.Value = schema; cmd.Parameters.Add(p1);
+                var p2 = cmd.CreateParameter(); p2.ParameterName = "@t"; p2.Value = table; cmd.Parameters.Add(p2);
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync()) indexes.Add(reader.GetString(0));
+            }
+
+            var sql = new StringBuilder($"TRUNCATE TABLE {target};");
+            foreach (var index in indexes)
+            {
+                sql.Append($" DROP INDEX IF EXISTS {QuoteIdent(schema)}.{QuoteIdent(index)};");
+            }
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.Transaction = tx;
+                cmd.CommandText = sql.ToString();
+                await cmd.ExecuteNonQueryAsync();
+            }
         }
 
         private async Task SaveDuplicateKeysAsync(string normPath, string normDbf, List<DbfDuplicateKey> duplicates)
