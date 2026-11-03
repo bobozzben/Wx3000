@@ -33,6 +33,8 @@
 - `GET` / `POST /api/dbf/checksum`：高速計算地端 `.dbf` 檔案之 `SHA256:FileSize` 校驗碼。
 - `POST /api/dbf/get_pg_script`：產生 DBF 轉 PostgreSQL 的結構 (`STRUCT`) 或資料 (`DATA`) 腳本。
 - `POST /api/dbf/write`：新增、修改、刪除 DBF 記錄（別名、欄位名與鍵值運算式會先經過識別字檢查）。
+  - 欄位值只接受字串、數字、布林、`null` 與日期值；日期 (D) 欄位傳 `{ "$date": "yyyy-MM-dd" }`，會轉成 VFP `{^yyyy-MM-dd}`，`""` 或 `null` 代表空日期。一般字串一律當字元值。
+  - DBF 被其他工作站獨佔或鎖定 (VFP 錯誤 3、108、109、130、1705) 時回 `errorType: "LOCK_TIMEOUT"`，後端據此回 409。
 - `POST /api/dbf/read`：讀取單筆 DBF 記錄。
 
 ### 2. 原生 FastReport 報表 DLL 橋接 (`/report`, `/api/call`)

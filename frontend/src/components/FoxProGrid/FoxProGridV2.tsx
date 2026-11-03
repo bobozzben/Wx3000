@@ -98,6 +98,10 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
   showRowIndex?: boolean;
   /** Direction to move cursor when pressing Enter in edit mode (default 'right') */
   enterDirection?: 'right' | 'down';
+  /** 外部指定游標列 (以 getRowKey 比對)：值變更時移到該列且不進入編輯，用於後端建立資料後定位，例如新增的收費單 */
+  activeRowKey?: string | number;
+  /** 新增列後是否自動進入第一欄編輯 (default true)；新列由後端建立且第一欄不可編輯時設為 false */
+  editOnInsert?: boolean;
 }
 
 const parseColWidth = (w?: string): number | undefined => {
@@ -134,6 +138,8 @@ export function FoxProGridV2<T extends Record<string, any>>({
   storageKey,
   showRowIndex = false,
   enterDirection = 'right',
+  activeRowKey,
+  editOnInsert = true,
 }: FoxProGridV2Props<T>) {
   const { isDark } = useTheme();
 
@@ -582,7 +588,9 @@ export function FoxProGridV2<T extends Record<string, any>>({
           rows.length === prevRowsLengthRef.current + 1 &&
           (!lastRowPkVal || lastRowPkVal === '新科目'));
 
-      if (isAppendedNewRow) {
+      if (isAppendedNewRow && !editOnInsert) {
+        isAddingRowRef.current = false;
+      } else if (isAppendedNewRow) {
         isAddingRowRef.current = false;
         const newRowIdx = rows.length - 1;
         const initialCol = pkColIndex >= 0 ? pkColIndex : 0;
@@ -598,7 +606,18 @@ export function FoxProGridV2<T extends Record<string, any>>({
       }
     }
     prevRowsLengthRef.current = rows.length;
-  }, [rows, pkColIndex, columns]);
+  }, [rows, pkColIndex, columns, editOnInsert]);
+
+  // 外部指定游標列：每個 activeRowKey 只定位一次，之後交還使用者的方向鍵操作
+  const appliedActiveKeyRef = useRef<string | number | undefined>(undefined);
+  useEffect(() => {
+    if (activeRowKey === undefined || activeRowKey === appliedActiveKeyRef.current) return;
+    const idx = rows.findIndex((row, i) => (getRowKey ? getRowKey(row, i) : i) === activeRowKey);
+    if (idx < 0) return;
+    appliedActiveKeyRef.current = activeRowKey;
+    setSelectedCell((prev) => ({ ...prev, r: idx }));
+    setIsEditing(false);
+  }, [activeRowKey, rows, getRowKey]);
 
   // Helper to move cell focus
   const moveCell = useCallback(

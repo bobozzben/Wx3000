@@ -111,6 +111,32 @@
           ],
           "comment": "hs_chk, top_mag, left_mag, PrtIndex, IsPrint, rep_type, path",
           "bringToFront": true
+        },
+        "wbase2040_receipt": {
+          "ret": "int",
+          "params": [
+            "double",
+            "double",
+            "double",
+            "int",
+            "int",
+            "str"
+          ],
+          "comment": "客戶收費收據: hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path (JSON 暫存檔: { officeName, officeTaxNo, officeAddr, officeTel, printDate, data: [...] })",
+          "bringToFront": true
+        },
+        "wbase2040_bill": {
+          "ret": "int",
+          "params": [
+            "double",
+            "double",
+            "double",
+            "int",
+            "int",
+            "str"
+          ],
+          "comment": "客戶請款單: hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path (JSON 暫存檔: { officeName, officeTaxNo, officeAddr, officeTel, printDate, data: [...] })",
+          "bringToFront": true
         }
       }
     },

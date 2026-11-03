@@ -319,10 +319,42 @@ function getMacs() {
   return [...new Set(macs)];
 }
 
+// 日期 (D) 欄位以 { "$date": "YYYY-MM-DD" } 傳入，空字串或 null 代表空日期；
+// 一般字串一律當字元值，避免把剛好長得像日期的 C 欄位內容誤轉成日期
+const DATE_VALUE_KEY = '$date';
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function isDateValue(val) {
+  return val !== null && typeof val === 'object' && !Array.isArray(val) &&
+    Object.keys(val).length === 1 && Object.prototype.hasOwnProperty.call(val, DATE_VALUE_KEY);
+}
+
+function isValidIsoDate(str) {
+  const m = ISO_DATE.exec(str);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return y >= 1 && dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+}
+
+function isValidFieldValue(val) {
+  if (val === null || val === undefined || typeof val === 'string' || typeof val === 'boolean') return true;
+  if (typeof val === 'number') return Number.isFinite(val);
+  if (isDateValue(val)) {
+    const d = val[DATE_VALUE_KEY];
+    return d === null || d === '' || (typeof d === 'string' && isValidIsoDate(d));
+  }
+  return false;
+}
+
 function toVfpLiteral(val) {
   if (val === null || val === undefined) return "''";
   if (typeof val === 'number') return String(val);
   if (typeof val === 'boolean') return val ? '.T.' : '.F.';
+  if (isDateValue(val)) {
+    const d = val[DATE_VALUE_KEY];
+    return d ? `{^${d}}` : '{}';
+  }
   const str = String(val);
   // 若包含換行或引號，以 Base64 + CP950 編碼，透過 VFP 原生 STRCONV(..., 14) 解碼，保證 100% 免疫語法錯誤與亂碼
   if (str.includes('\r') || str.includes('\n') || str.includes("'") || str.includes('"')) {
@@ -371,6 +403,8 @@ function validateDbfWrite(cAlias, keyField, fields) {
   if (badKey !== undefined) return `不合法的鍵值欄位: ${badKey}`;
   const badField = Object.keys(fields).find((k) => !VFP_IDENTIFIER.test(k));
   if (badField !== undefined) return `不合法的欄位名稱: ${badField}`;
+  const badValue = Object.keys(fields).find((k) => !isValidFieldValue(fields[k]));
+  if (badValue !== undefined) return `不合法的欄位值: ${badValue}`;
   return null;
 }
 
@@ -444,6 +478,10 @@ async function executeDbfWrite(payload) {
 
   const execRes = await callDbfBridge({ action: 'EXEC_VFP', script });
   if (!execRes.success) {
+    // EXEC_VFP 只回 lockHint (VFP 錯誤 3/108/109/130/1705)；轉成後端判斷 409 用的 LOCK_TIMEOUT
+    if (execRes.lockHint) {
+      return { ...execRes, errorType: 'LOCK_TIMEOUT', message: execRes.lockHint };
+    }
     return execRes;
   }
   if (execRes.result === 'RECORD_NOT_FOUND') {
@@ -828,6 +866,7 @@ module.exports = {
   isAllowedDllCall,
   genericCall,
   validateDbfWrite,
+  toVfpLiteral,
   executeDbfWrite,
   isAllowedOrigin,
   authorizeRequest,
