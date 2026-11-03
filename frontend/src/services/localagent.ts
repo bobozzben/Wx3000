@@ -44,6 +44,15 @@ export const callWbaseListReport = async (
   func: string,
   rows: unknown[],
   params: WbaseReportParams = {}
+): Promise<WbaseReportResult> => callWbaseReport(func, rows, params);
+
+/**
+ * 同 callWbaseListReport，但 jsonData 可為物件 (例如單據報表的 { officeName, printDate, data: [...] })
+ */
+export const callWbaseReport = async (
+  func: string,
+  rows: unknown,
+  params: WbaseReportParams = {}
 ): Promise<WbaseReportResult> => {
   try {
     const response = await localagentApi.post(

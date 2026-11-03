@@ -25,6 +25,8 @@ type
     frxReport_3010_ticketplace: TfrxReport;
     frxReport_3502_buyinv: TfrxReport;
     frxReport_320_buyinv: TfrxReport;
+    frxReport_2040_receipt: TfrxReport;
+    frxReport_2040_bill: TfrxReport;
   private
 
   public

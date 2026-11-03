@@ -31,6 +31,10 @@
   - 常用收費摘要與明細簡稱維護、開窗快查、列印與 DBF (`recmemo.dbf`) 雙向同步。
 - 📌 [wbase2010 公司基本資料維護模組規格 (`docs/frontend/wbase/wbase2010/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase2010/SPEC.md)
   - 支援上下分割 (`index.tsx`) 與左右分割 (`Wbase2010SplitPage.tsx`) 雙佈局、`<FoxProGridCard />` 瀏覽清單、6 大 Tab 多頁籤 (`F3`~`F8`) 跨頁全鍵盤順序跳欄、8 大地址欄位 `F2` 智慧快選、統編/身分證/9碼稅籍/12碼房屋稅籍/民國日期/25項限定值檢核、公司名稱自動推導組織代號與 DBF (`customer.dbf`) 雙向同步。
+- 📌 [wbase2040 客戶收費資料輸入模組規格 (`docs/frontend/wbase/wbase2040/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase2040/SPEC.md)
+  - 收費單表頭 `<FoxProGridV2 />` + Space 明細子視窗、已收註記計算已收/未收與鎖單、收據摘要/共用說明、批次產生帳款收據、收據/請款單網頁列印、收費統計表 Excel，與 DBF (`recmom.dbf`/`recmod.dbf`/`recsmemo.dbf`) 雙向同步。
+- 📌 [wbase2050 總分支機構設定模組規格 (`docs/frontend/wbase/wbase2050/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase2050/SPEC.md)
+  - 總機構 (`tpay='1'`) 清單 `<FoxProGridV2 />` 編修進銷項合併設定與媒體旗標 (欄位說明列、離開時正規化)、`F8` 分公司資料維護 (以統編對應分支，`F2` 客戶選單、改掛確認、改代號清除原分支、刪除立即生效、整批存檔逐列回報)，與 DBF (`customer.dbf`) 雙向同步。
 
 ---
 

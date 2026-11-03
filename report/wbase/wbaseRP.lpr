@@ -26,7 +26,9 @@ Exports
   wbase1080_feesummary_list,  // 基本收費摘要清冊
   wbase3010_ticketplace_list,  // 統一發票購買地點清冊
   wbase320_buyinv,  // 預購統一發票列印
-  wbase350_buyinv_list;  // 統一發票購買清單
+  wbase350_buyinv_list,  // 統一發票購買清單
+  wbase2040_receipt,  // 客戶收費收據
+  wbase2040_bill;  // 客戶請款單
 
 {$R *.res}
 

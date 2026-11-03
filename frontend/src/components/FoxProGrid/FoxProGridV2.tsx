@@ -98,6 +98,14 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
   showRowIndex?: boolean;
   /** Direction to move cursor when pressing Enter in edit mode (default 'right') */
   enterDirection?: 'right' | 'down';
+  /** 外部指定游標列 (以 getRowKey 比對)：值變更時移到該列且不進入編輯，用於後端建立資料後定位，例如新增的收費單 */
+  activeRowKey?: string | number;
+  /** 新增列後是否自動進入第一欄編輯 (default true)；新列由後端建立且第一欄不可編輯時設為 false */
+  editOnInsert?: boolean;
+  /** 是否允許新增列 (default true)；false 時 Ins 鍵、最後一格 Enter/Tab 自動新增與新增按鈕全部停用，用於只能修改的清單 */
+  allowInsert?: boolean;
+  /** 目前儲存格 (列或欄) 改變時觸發，用於依目前欄位切換的說明列 (VFP AfterRowColChange) */
+  onActiveCellChange?: (row: T | undefined, rowIndex: number, colKey: keyof T & string) => void;
 }
 
 const parseColWidth = (w?: string): number | undefined => {
@@ -134,6 +142,10 @@ export function FoxProGridV2<T extends Record<string, any>>({
   storageKey,
   showRowIndex = false,
   enterDirection = 'right',
+  activeRowKey,
+  editOnInsert = true,
+  allowInsert = true,
+  onActiveCellChange,
 }: FoxProGridV2Props<T>) {
   const { isDark } = useTheme();
 
@@ -370,6 +382,18 @@ export function FoxProGridV2<T extends Record<string, any>>({
     }
   }, [selectedCell.r, rows]);
 
+  const onActiveCellChangeRef = useRef(onActiveCellChange);
+  useEffect(() => {
+    onActiveCellChangeRef.current = onActiveCellChange;
+  }, [onActiveCellChange]);
+
+  const activeColKey = columns[selectedCell.c]?.key;
+  useEffect(() => {
+    if (onActiveCellChangeRef.current && activeColKey) {
+      onActiveCellChangeRef.current(displayRows[selectedCell.r], selectedCell.r, activeColKey);
+    }
+  }, [selectedCell.r, activeColKey]);
+
   const evaluatedStatusBarInfo = useMemo(() => {
     if (typeof statusBarInfo === 'function') {
       return statusBarInfo(currentSelectedRow, selectedCell.r);
@@ -497,6 +521,8 @@ export function FoxProGridV2<T extends Record<string, any>>({
   // 新增列處理 (Insert Row: 驗證當前列主鍵後新增，並直接聚焦第一欄進入編輯)
   const isAddingRowRef = useRef(false);
   const handleInsertRow = useCallback(() => {
+    if (!allowInsert) return;
+
     // 檢查當前列的主鍵是否已填且無重複
     if (displayRows.length > 0 && pkColIndex !== -1) {
       const curPkCol = columns[pkColIndex];
@@ -556,6 +582,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
       }, 60);
     }
   }, [
+    allowInsert,
     displayRows,
     pkColIndex,
     columns,
@@ -582,7 +609,9 @@ export function FoxProGridV2<T extends Record<string, any>>({
           rows.length === prevRowsLengthRef.current + 1 &&
           (!lastRowPkVal || lastRowPkVal === '新科目'));
 
-      if (isAppendedNewRow) {
+      if (isAppendedNewRow && !editOnInsert) {
+        isAddingRowRef.current = false;
+      } else if (isAppendedNewRow) {
         isAddingRowRef.current = false;
         const newRowIdx = rows.length - 1;
         const initialCol = pkColIndex >= 0 ? pkColIndex : 0;
@@ -598,7 +627,18 @@ export function FoxProGridV2<T extends Record<string, any>>({
       }
     }
     prevRowsLengthRef.current = rows.length;
-  }, [rows, pkColIndex, columns]);
+  }, [rows, pkColIndex, columns, editOnInsert]);
+
+  // 外部指定游標列：每個 activeRowKey 只定位一次，之後交還使用者的方向鍵操作
+  const appliedActiveKeyRef = useRef<string | number | undefined>(undefined);
+  useEffect(() => {
+    if (activeRowKey === undefined || activeRowKey === appliedActiveKeyRef.current) return;
+    const idx = rows.findIndex((row, i) => (getRowKey ? getRowKey(row, i) : i) === activeRowKey);
+    if (idx < 0) return;
+    appliedActiveKeyRef.current = activeRowKey;
+    setSelectedCell((prev) => ({ ...prev, r: idx }));
+    setIsEditing(false);
+  }, [activeRowKey, rows, getRowKey]);
 
   // Helper to move cell focus
   const moveCell = useCallback(
@@ -1249,7 +1289,12 @@ export function FoxProGridV2<T extends Record<string, any>>({
                   </div>
                 );
               })}
-              {displayRows.length === 0 && (
+              {displayRows.length === 0 && !allowInsert && (
+                <div className={`p-8 text-center text-sm font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  查無資料
+                </div>
+              )}
+              {displayRows.length === 0 && allowInsert && (
                 <div className={`p-8 text-center text-sm font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                   查無資料 (可按{' '}
                   <kbd
@@ -1288,7 +1333,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
         </div>
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs font-normal">
           {/* Action buttons if callbacks provided */}
-          {onInsertRow && (
+          {onInsertRow && allowInsert && (
             <button
               type="button"
               onClick={handleInsertRow}
