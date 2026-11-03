@@ -500,6 +500,203 @@ async function executeDbfWrite(payload) {
   };
 }
 
+// ========== 客戶資料匯出 / 匯入 custbak.dbf (wbase2020 / wbase2030) ==========
+// 對應 VFP base20.prg 的 COPY TO 與 APPEND FROM + SEEK/GATHER；腳本由固定範本組成，呼叫端只能傳路徑與客戶代號。
+// 代號清單寫進暫存檔再由 VFP FILETOSTR 讀入，不組進腳本字串，避開字串常值與單行 8,192 字元的限制。
+const CUSTBAK_TABLE = 'customer';
+const CUSTBAK_KEY_MAX = 8; // customer.no C(8)
+const CUSTBAK_KEY_SEPARATOR = '|';
+// EXEC_VFP 以 TRY/CATCH 自行攔截錯誤時，bridge 不會給 lockHint，這裡依 VFP 錯誤碼判斷
+const VFP_LOCK_ERRORS = new Set([3, 108, 109, 130, 1705]);
+
+function isAbsoluteWinPath(p) {
+  return typeof p === 'string' && /^(?:[a-zA-Z]:[\\/]|\\\\[^\\/])/.test(p);
+}
+
+function sameFile(a, b) {
+  return path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+}
+
+// 回傳錯誤訊息；合法時回傳 null。kind 為 'export' (targetFile 不可已存在) 或 'import' (sourceFile 必須存在)
+function validateCustbakRequest(kind, payload) {
+  const { dbfPath, keys } = payload || {};
+  const file = kind === 'export' ? payload?.targetFile : payload?.sourceFile;
+  if (!isAbsoluteWinPath(dbfPath) || /["\r\n]/.test(dbfPath)) return `不合法的 DBF 目錄: ${dbfPath}`;
+  const tablePath = path.join(dbfPath, `${CUSTBAK_TABLE}.dbf`);
+  if (!fs.existsSync(tablePath)) return `找不到 DBF 檔案: ${tablePath}`;
+  if (!isAbsoluteWinPath(file) || /["\r\n]/.test(file) || path.extname(file).toLowerCase() !== '.dbf') return `不合法的檔案路徑: ${file}`;
+  const dir = path.dirname(file);
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return `目錄不存在: ${dir}`;
+  if (sameFile(file, tablePath)) return '來源或目的檔不可為客戶資料檔本身';
+  if (kind === 'export' && fs.existsSync(file)) return `目的檔已存在: ${file}`;
+  if (kind === 'import' && !fs.existsSync(file)) return `找不到來源檔: ${file}`;
+  if (!Array.isArray(keys) || keys.length === 0) return '至少要指定一個客戶代號';
+  const badKey = keys.find((k) => typeof k !== 'string' || !k.trim() || k.trim().length > CUSTBAK_KEY_MAX ||
+    k.includes(CUSTBAK_KEY_SEPARATOR) || /[\x00-\x1f]/.test(k));
+  if (badKey !== undefined) return `不合法的客戶代號: ${JSON.stringify(badKey)}`;
+  return null;
+}
+
+function writeCustbakKeysFile(keys) {
+  const dir = path.join(os.tmpdir(), 'Wx3000');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `custbak_keys_${process.pid}_${Date.now()}_${Math.random().toString(36).slice(2)}.txt`);
+  const text = CUSTBAK_KEY_SEPARATOR + keys.map((k) => k.trim()).join(CUSTBAK_KEY_SEPARATOR) + CUSTBAK_KEY_SEPARATOR;
+  // DBF 內容是 CP950，ALLTRIM(no) 比對的是 Big5 位元組
+  fs.writeFileSync(file, iconv ? iconv.encode(text, 'cp950') : Buffer.from(text, 'utf8'));
+  return file;
+}
+
+function buildCustbakExportScript({ dbfPath, keysFile, targetFile }) {
+  const tablePath = path.join(dbfPath, `${CUSTBAK_TABLE}.dbf`);
+  return [
+    'SET DELETED ON',
+    'SET SAFETY OFF',
+    'SET CPDIALOG OFF',
+    'lcResult = ""',
+    'TRY',
+    `  lcKeys = FILETOSTR("${keysFile}")`,
+    `  USE "${tablePath}" IN 0 ALIAS wx_cust SHARED AGAIN`,
+    '  SELECT wx_cust',
+    '  IF TAGNO("NO") > 0',
+    '    SET ORDER TO TAG no',
+    '  ENDIF',
+    `  COPY TO "${targetFile}" FOR ("${CUSTBAK_KEY_SEPARATOR}" + ALLTRIM(no) + "${CUSTBAK_KEY_SEPARATOR}") $ lcKeys`,
+    '  USE IN wx_cust',
+    `  USE "${targetFile}" IN 0 ALIAS wx_bak EXCLUSIVE`,
+    // 只改輸出檔，與 VFP 匯出的 custbak.dbf 一致；customer.dbf 的 sel 不動
+    '  REPLACE sel WITH "=>" ALL IN wx_bak',
+    '  lcResult = "OK" + CHR(10) + TRANSFORM(RECCOUNT("wx_bak"))',
+    'CATCH TO loErr',
+    '  lcResult = "ERR" + CHR(10) + TRANSFORM(loErr.ErrorNo) + CHR(10) + loErr.Message',
+    'FINALLY',
+    '  IF USED("wx_cust")',
+    '    USE IN wx_cust',
+    '  ENDIF',
+    '  IF USED("wx_bak")',
+    '    USE IN wx_bak',
+    '  ENDIF',
+    'ENDTRY',
+    'RETURN lcResult'
+  ].join('\r\n');
+}
+
+// 依 VFP 2-3：用 customer 結構建暫存 cursor 再 APPEND FROM (依欄名對應，來源缺的欄位成為空值)，
+// 以 no 為鍵存在就整筆覆蓋、不存在就新增。唯一差異是不寫 sel：既有客戶保留原值，新客戶為空白
+function buildCustbakImportScript({ dbfPath, keysFile, sourceFile }) {
+  const tablePath = path.join(dbfPath, `${CUSTBAK_TABLE}.dbf`);
+  return [
+    'SET DELETED ON',
+    'SET SAFETY OFF',
+    'SET CPDIALOG OFF',
+    'SET REPROCESS TO 10',
+    'STORE 0 TO lnIns, lnUpd',
+    'lcFail = ""',
+    'lcResult = ""',
+    'TRY',
+    `  lcKeys = FILETOSTR("${keysFile}")`,
+    `  USE "${tablePath}" IN 0 ALIAS wx_cust SHARED AGAIN ORDER TAG no`,
+    '  =AFIELDS(laF, "wx_cust")',
+    '  CREATE CURSOR wx_src FROM ARRAY laF',
+    `  APPEND FROM "${sourceFile}"`,
+    '  SELECT wx_src',
+    `  SCAN FOR ("${CUSTBAK_KEY_SEPARATOR}" + ALLTRIM(no) + "${CUSTBAK_KEY_SEPARATOR}") $ lcKeys`,
+    '    SCATTER MEMVAR',
+    '    lcNo = ALLTRIM(wx_src.no)',
+    '    TRY',
+    '      IF SEEK(wx_src.no, "wx_cust", "no")',
+    '        IF RLOCK("wx_cust")',
+    '          m.sel = wx_cust.sel',
+    '          SELECT wx_cust',
+    '          GATHER MEMVAR',
+    '          UNLOCK IN wx_cust',
+    '          lnUpd = lnUpd + 1',
+    '        ELSE',
+    '          lcFail = lcFail + lcNo + CHR(9) + "LOCK" + CHR(10)',
+    '        ENDIF',
+    '      ELSE',
+    // INSERT 一次寫入整筆；APPEND BLANK 後 GATHER 失敗會留下一筆空白客戶
+    '        m.sel = ""',
+    '        INSERT INTO wx_cust FROM MEMVAR',
+    '        UNLOCK IN wx_cust',
+    '        lnIns = lnIns + 1',
+    '      ENDIF',
+    '    CATCH TO loRowErr',
+    '      lcFail = lcFail + lcNo + CHR(9) + TRANSFORM(loRowErr.ErrorNo) + " " + loRowErr.Message + CHR(10)',
+    '      UNLOCK IN wx_cust',
+    '    ENDTRY',
+    '    SELECT wx_src',
+    '  ENDSCAN',
+    '  lcResult = "OK" + CHR(10) + TRANSFORM(lnIns) + CHR(10) + TRANSFORM(lnUpd) + CHR(10) + lcFail',
+    'CATCH TO loErr',
+    '  lcResult = "ERR" + CHR(10) + TRANSFORM(loErr.ErrorNo) + CHR(10) + loErr.Message + CHR(10) + TRANSFORM(lnIns) + CHR(10) + TRANSFORM(lnUpd)',
+    'FINALLY',
+    '  IF USED("wx_src")',
+    '    USE IN wx_src',
+    '  ENDIF',
+    '  IF USED("wx_cust")',
+    '    USE IN wx_cust',
+    '  ENDIF',
+    'ENDTRY',
+    'RETURN lcResult'
+  ].join('\r\n');
+}
+
+function vfpLockMessage(errorNo) {
+  return errorNo === 3 || errorNo === 1705
+    ? '客戶資料檔正被其他工作站獨佔使用，請等該站作業完成後再試。'
+    : '客戶資料正被其他工作站編輯中，請稍候再試。';
+}
+
+// 腳本回傳 "OK\n..." 或 "ERR\n錯誤碼\n訊息[\n新增\n覆蓋]"
+function parseCustbakResult(kind, raw) {
+  const lines = String(raw ?? '').split('\n').map((s) => s.replace(/\r$/, ''));
+  if (lines[0] === 'OK' && kind === 'export') {
+    return { success: true, count: parseInt(lines[1], 10) || 0 };
+  }
+  if (lines[0] === 'OK') {
+    const failed = lines.slice(3).filter((l) => l.trim()).map((l) => {
+      const [key, reason = ''] = l.split('\t');
+      const code = parseInt(reason, 10);
+      const isLock = reason === 'LOCK' || VFP_LOCK_ERRORS.has(code);
+      return { key: key.trim(), reason: isLock ? vfpLockMessage(code) : reason.trim() };
+    });
+    return { success: true, inserted: parseInt(lines[1], 10) || 0, updated: parseInt(lines[2], 10) || 0, failed };
+  }
+  if (lines[0] === 'ERR') {
+    const errorNo = parseInt(lines[1], 10) || 0;
+    const partial = kind === 'import' ? { inserted: parseInt(lines[3], 10) || 0, updated: parseInt(lines[4], 10) || 0 } : {};
+    if (VFP_LOCK_ERRORS.has(errorNo)) {
+      return { success: false, errorType: 'LOCK_TIMEOUT', error: `VFP 錯誤 ${errorNo}: ${lines[2] || ''}`, message: vfpLockMessage(errorNo), ...partial };
+    }
+    return { success: false, errorType: 'VFP_ERROR', error: `VFP 錯誤 ${errorNo}: ${lines[2] || ''}`, ...partial };
+  }
+  return { success: false, errorType: 'VFP_ERROR', error: `無法解讀 VFP 回傳值: ${String(raw ?? '').slice(0, 200)}` };
+}
+
+async function executeCustbak(kind, payload) {
+  const invalid = validateCustbakRequest(kind, payload);
+  if (invalid) return { success: false, errorType: 'INVALID_REQUEST', error: invalid };
+
+  const keysFile = writeCustbakKeysFile(payload.keys);
+  try {
+    const script = kind === 'export'
+      ? buildCustbakExportScript({ dbfPath: payload.dbfPath, keysFile, targetFile: payload.targetFile })
+      : buildCustbakImportScript({ dbfPath: payload.dbfPath, keysFile, sourceFile: payload.sourceFile });
+    const execRes = await callDbfBridge({ action: 'EXEC_VFP', script });
+    if (!execRes.success) {
+      if (execRes.lockHint) return { ...execRes, errorType: 'LOCK_TIMEOUT', message: execRes.lockHint };
+      return execRes;
+    }
+    return { ...parseCustbakResult(kind, execRes.result), elapsedMs: execRes.elapsedMs };
+  } finally {
+    fs.rm(keysFile, { force: true }, () => {});
+  }
+}
+
+const executeCustbakExport = (payload) => executeCustbak('export', payload);
+const executeCustbakImport = (payload) => executeCustbak('import', payload);
+
 // ========== 存取控制 ==========
 // 正式環境的前端由 http://<主機>:5007 提供，主機位址無法事先得知，因此放行內網位址與單段主機名；
 // 其他網域 (如 ngrok、企業內網 FQDN) 請以逗號分隔設定於環境變數 WX3000_AGENT_ALLOWED_ORIGINS
@@ -643,6 +840,13 @@ const handleRequest = async (req, res) => {
 
           if (dbfAction === 'WRITE') {
             const result = await executeDbfWrite(payload);
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify(result));
+            return;
+          }
+
+          if (dbfAction === 'EXPORT_CUSTBAK' || dbfAction === 'IMPORT_CUSTBAK') {
+            const result = dbfAction === 'EXPORT_CUSTBAK' ? await executeCustbakExport(payload) : await executeCustbakImport(payload);
             res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify(result));
             return;
@@ -868,6 +1072,12 @@ module.exports = {
   validateDbfWrite,
   toVfpLiteral,
   executeDbfWrite,
+  validateCustbakRequest,
+  buildCustbakExportScript,
+  buildCustbakImportScript,
+  parseCustbakResult,
+  executeCustbakExport,
+  executeCustbakImport,
   isAllowedOrigin,
   authorizeRequest,
   buildDbfBridgeRequest,

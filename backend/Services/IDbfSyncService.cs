@@ -49,6 +49,48 @@ namespace Wx3000.Backend.Services
         public int ElapsedMs { get; set; }
     }
 
+    /// <summary>LocalAgent export_custbak / import_custbak 的回傳 (2-2 客戶資料匯出、2-3 客戶資料匯入)</summary>
+    public class CustbakAgentResult
+    {
+        [JsonPropertyName("success")]
+        public bool Success { get; set; }
+
+        [JsonPropertyName("errorType")]
+        public string? ErrorType { get; set; }
+
+        [JsonPropertyName("error")]
+        public string? Error { get; set; }
+
+        [JsonPropertyName("message")]
+        public string? Message { get; set; }
+
+        /// <summary>匯出筆數</summary>
+        [JsonPropertyName("count")]
+        public int Count { get; set; }
+
+        [JsonPropertyName("inserted")]
+        public int Inserted { get; set; }
+
+        [JsonPropertyName("updated")]
+        public int Updated { get; set; }
+
+        /// <summary>匯入時逐筆失敗 (例如記錄被其他工作站鎖定)</summary>
+        [JsonPropertyName("failed")]
+        public List<CustbakAgentFailure> Failed { get; set; } = new();
+
+        [JsonPropertyName("elapsedMs")]
+        public int ElapsedMs { get; set; }
+    }
+
+    public class CustbakAgentFailure
+    {
+        [JsonPropertyName("key")]
+        public string Key { get; set; } = string.Empty;
+
+        [JsonPropertyName("reason")]
+        public string Reason { get; set; } = string.Empty;
+    }
+
     public interface IDbfSyncService
     {
         /// <summary>
@@ -81,5 +123,15 @@ namespace Wx3000.Backend.Services
         /// 更新 PostgreSQL dictionary.w3000_dbf 快照校驗碼
         /// </summary>
         Task<bool> UpdateDictionaryChecksumAsync(string dbfPath, string dbfName, string checksum);
+
+        /// <summary>
+        /// 由地端 customer.dbf 將指定客戶 COPY TO 新檔 targetFile (目的檔不可已存在)，輸出檔的 sel 填 "=>"，與 VFP 2-2 匯出檔相同
+        /// </summary>
+        Task<CustbakAgentResult> ExportCustbakAsync(string dbfPath, IEnumerable<string> keys, string targetFile);
+
+        /// <summary>
+        /// 將 sourceFile (custbak.dbf) 中指定的客戶依代號新增或整筆覆蓋到地端 customer.dbf，customer.sel 不覆蓋
+        /// </summary>
+        Task<CustbakAgentResult> ImportCustbakAsync(string dbfPath, IEnumerable<string> keys, string sourceFile);
     }
 }

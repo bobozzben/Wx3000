@@ -281,6 +281,35 @@ namespace Wx3000.Backend.Services
             }
         }
 
+        public Task<CustbakAgentResult> ExportCustbakAsync(string dbfPath, IEnumerable<string> keys, string targetFile) =>
+            PostCustbakAsync("/api/dbf/export_custbak", new { dbfPath, keys, targetFile });
+
+        public Task<CustbakAgentResult> ImportCustbakAsync(string dbfPath, IEnumerable<string> keys, string sourceFile) =>
+            PostCustbakAsync("/api/dbf/import_custbak", new { dbfPath, keys, sourceFile });
+
+        private async Task<CustbakAgentResult> PostCustbakAsync(string endpoint, object payload)
+        {
+            try
+            {
+                var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                var resp = await _http.PostAsync(endpoint, content);
+                var json = await resp.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<CustbakAgentResult>(json, JsonOptions)
+                    ?? new CustbakAgentResult { Success = false, ErrorType = "EMPTY_RESPONSE", Error = "LocalAgent 回傳空字串" };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[DbfSync] {Endpoint} 發生例外: {Message}", endpoint, ex.Message);
+                return new CustbakAgentResult
+                {
+                    Success = false,
+                    ErrorType = "HTTP_EXCEPTION",
+                    Error = ex.Message,
+                    Message = "連線至地端 LocalAgent 失敗: " + ex.Message
+                };
+            }
+        }
+
         private async Task<string> GetPgScriptAsync(
             string dbfPath,
             string dbfName,
