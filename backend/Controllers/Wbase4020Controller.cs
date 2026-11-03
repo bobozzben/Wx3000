@@ -259,7 +259,7 @@ namespace Wx3000.Backend.Controllers
             };
 
             // DBF update accpara (1 row)
-            var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "accpara", "UPDATE", "STR(RECNO())", "1", fields);
+            var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "accpara", "UPDATE", "RECNO()", "1", fields);
             if (!writeRes.Success)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "更新標準科目至 DBF 失敗" });
@@ -481,7 +481,7 @@ namespace Wx3000.Backend.Controllers
                 ["sm_dateb"] = model.SmDateb ?? 1m,
             };
 
-            var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "accpara", "UPDATE", "STR(RECNO())", "1", fields);
+            var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "accpara", "UPDATE", "RECNO()", "1", fields);
             if (!writeRes.Success)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "更新標準轉傳票參數至 DBF 失敗" });
@@ -1002,7 +1002,7 @@ namespace Wx3000.Backend.Controllers
                 ["qqsel"] = sel
             };
 
-            var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "pub_para", "UPDATE", "STR(RECNO())", "1", fields);
+            var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "pub_para", "UPDATE", "RECNO()", "1", fields);
             if (!writeRes.Success)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "更新共用參數至 DBF 失敗" });
