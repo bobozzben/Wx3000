@@ -35,6 +35,8 @@
   - 轉檔列印密碼 (只在後端比對)、唯讀複選清單 (Space/F3/F4/F6)、勾選客戶匯出與 VFP 互通的 `custbak.dbf` (瀏覽器下載)、上傳預覽新增／覆蓋後依代號寫入 `customer.dbf` (LocalAgent `export_custbak` / `import_custbak`) 並整表重灌 PostgreSQL。
 - 📌 [wbase2040 客戶收費資料輸入模組規格 (`docs/frontend/wbase/wbase2040/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase2040/SPEC.md)
   - 收費單表頭 `<FoxProGridV2 />` + Space 明細子視窗、已收註記計算已收/未收與鎖單、收據摘要/共用說明、批次產生帳款收據、收據/請款單網頁列印、收費統計表 Excel，與 DBF (`recmom.dbf`/`recmod.dbf`/`recsmemo.dbf`) 雙向同步。
+- 📌 [wbase2050 總分支機構設定模組規格 (`docs/frontend/wbase/wbase2050/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase2050/SPEC.md)
+  - 總機構 (`tpay='1'`) 清單 `<FoxProGridV2 />` 編修進銷項合併設定與媒體旗標 (欄位說明列、離開時正規化)、`F8` 分公司資料維護 (以統編對應分支，`F2` 客戶選單、改掛確認、改代號清除原分支、刪除立即生效、整批存檔逐列回報)，與 DBF (`customer.dbf`) 雙向同步。
 
 ---
 

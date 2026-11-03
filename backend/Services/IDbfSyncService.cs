@@ -91,6 +91,18 @@ namespace Wx3000.Backend.Services
         public string Reason { get; set; } = string.Empty;
     }
 
+    /// <summary>
+    /// DBF 中主鍵重複的一組記錄 (快照只保留 RECNO 最小的一筆，也就是 VFP LOCATE / SEEK 會找到的那筆)
+    /// </summary>
+    public class DbfDuplicateKey
+    {
+        [JsonPropertyName("key")]
+        public string Key { get; set; } = string.Empty;
+
+        [JsonPropertyName("recordNumbers")]
+        public List<int> RecordNumbers { get; set; } = new();
+    }
+
     public interface IDbfSyncService
     {
         /// <summary>
@@ -123,6 +135,11 @@ namespace Wx3000.Backend.Services
         /// 更新 PostgreSQL dictionary.w3000_dbf 快照校驗碼
         /// </summary>
         Task<bool> UpdateDictionaryChecksumAsync(string dbfPath, string dbfName, string checksum);
+
+        /// <summary>
+        /// 取得最近一次快照重載時發現的主鍵重複記錄 (無重複時回傳空清單)
+        /// </summary>
+        Task<IReadOnlyList<DbfDuplicateKey>> GetDuplicateKeysAsync(string dbfPath, string dbfName);
 
         /// <summary>
         /// 由地端 customer.dbf 將指定客戶 COPY TO 新檔 targetFile (目的檔不可已存在)，輸出檔的 sel 填 "=>"，與 VFP 2-2 匯出檔相同

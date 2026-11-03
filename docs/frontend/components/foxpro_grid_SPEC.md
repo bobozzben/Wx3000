@@ -50,6 +50,8 @@ frontend/src/components/
   - `hasEllipsis` / `ellipsisLabel` / `onEllipsisClick`: 儲存格右側顯示 `F2` 小按鈕（對齊 Lazarus `cbsEllipsis`），點擊或按 `F2`/`F4` 即可開啟 `<AddressSelectModal />` 等輔助視窗。
 - **可拖曳調整欄寬與持久化 (`gridId` / `storageKey`)**：支援拖曳表頭分隔線調整欄寬、雙擊自動適應內容寬度，並自動儲存於 `localStorage` (`wx3000_grid_col_widths_*`)。
 - **`Enter` / `Tab` 連續跳欄與自動存檔**：向右移動至下一個可編輯欄位；到達列末時自動換至下一列首欄並觸發 `onSaveRow`；最後一列最後一欄按 `Enter` 自動新增空白列。
+- **只能修改的清單 (`allowInsert`，預設 `true`)**：設為 `false` 時 `Ins` 鍵、最後一格 `Enter`/`Tab` 自動新增、底部新增按鈕全部停用，空表只顯示「查無資料」(例：`wbase2050` 總機構清單)。
+- **目前儲存格回呼 (`onActiveCellChange(row, rowIndex, colKey)`)**：列或欄改變時觸發，用於依目前欄位切換的說明列 (VFP `AfterRowColChange` 的 `flddesc`，例：`wbase2050`)。`onSelectRow` 只在換列時觸發且不帶欄位。
 
 ---
 

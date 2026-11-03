@@ -1070,6 +1070,7 @@ module.exports = {
   isAllowedDllCall,
   genericCall,
   validateDbfWrite,
+  buildWhereClause,
   toVfpLiteral,
   executeDbfWrite,
   validateCustbakRequest,

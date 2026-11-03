@@ -11,7 +11,14 @@ import {
   deleteFeeItem,
   printFeeItemList,
   callWbase1060Report,
+  fetchDuplicateFeeCodes,
 } from '../../services/wbase1060';
+
+// 載入時各列 (_record_number) 的代號；Grid 改代號時 onSaveRow 只拿得到新代號，要靠這裡找回原代號
+const loadedCodes = new Map<number, string>();
+// 依序存檔：改代號後緊接著改名稱時，要等前一筆完成並記下新代號，才知道要更新哪一筆
+let saveQueue: Promise<void> = Promise.resolve();
+let lastDuplicateWarning = '';
 
 interface Wbase1060State {
   rows: FeeItem[];
@@ -61,28 +68,50 @@ export const useWbase1060 = create<Wbase1060State>((set, get) => ({
     set({ loading: true });
     try {
       const data = await getFeeItemList(keyword);
+      loadedCodes.clear();
+      data.forEach((r) => {
+        if (r._record_number) loadedCodes.set(r._record_number, r.itemno);
+      });
       set({ rows: data, loading: false });
     } catch (e) {
       console.error('Failed to load fee items:', e);
       set({ errorToast: '載入收費項目失敗，請重新連線', loading: false });
+      return;
+    }
+
+    try {
+      const duplicates = await fetchDuplicateFeeCodes();
+      const warning = duplicates
+        .map((d) => `${d.key} (第 ${d.recordNumbers.join('、')} 筆)`)
+        .join('；');
+      if (warning && warning !== lastDuplicateWarning) {
+        set({ errorToast: `地端收費項目代號重複：${warning}。畫面只顯示每個代號的第一筆，請洽系統管理員清理 recitem.dbf` });
+      }
+      lastDuplicateWarning = warning;
+    } catch (e) {
+      console.error('Failed to load duplicate fee codes:', e);
     }
   },
 
-  handleSaveRow: async (updatedRow) => {
-    const code = (updatedRow.itemno || updatedRow.feeCode || '').trim();
-    if (!code) return;
-    try {
-      const isNew = !get().rows.some((r) => (r.itemno || r.feeCode) === code);
-      const success = await saveFeeItem(updatedRow, isNew);
-      if (success) {
+  handleSaveRow: (updatedRow) => {
+    const code = (updatedRow.itemno || updatedRow.feeCode || '').trim().toUpperCase();
+    if (!code) return Promise.resolve();
+    const run = async () => {
+      const recno = updatedRow._record_number || 0;
+      try {
+        await saveFeeItem(updatedRow, recno ? loadedCodes.get(recno) : undefined);
+        if (recno) loadedCodes.set(recno, code);
         set({ showAutoCloseToast: true });
         setTimeout(() => set({ showAutoCloseToast: false }), 2000);
-        await get().refreshData();
+      } catch (e: any) {
+        console.error('Save row error:', e);
+        set({ errorToast: e?.response?.data?.message || e?.message || '儲存收費項目失敗' });
       }
-    } catch (e) {
-      console.error('Save row error:', e);
-      set({ errorToast: '儲存收費項目失敗' });
-    }
+      // 失敗時也重新載入，讓 Grid 回到地端實際內容 (例如代號重複被拒時還原舊代號)
+      await get().refreshData();
+    };
+    saveQueue = saveQueue.then(run, run);
+    return saveQueue;
   },
 
   handleSaveAll: async () => {

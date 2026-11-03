@@ -62,7 +62,7 @@ frontend/src/
    - `210` `wbase2010` / `wbase2010_split` 客戶基本資料建檔（支援上下分割與左右分割雙模式） ✅
    - `220` `wbase2020` 客戶資料匯出、`230` `wbase2030` 客戶資料匯入 (`custbak.dbf` ⇄ `customer.dbf`，共用 `Wbase2030Page`) ✅
    - `240` `wbase2040` 客戶收費資料輸入 (`recmom.dbf` / `recmod.dbf`) ✅
-   - `250` 總分支
+   - `250` `wbase2050` 總分支機構設定 (`customer.dbf`；F8 分公司資料維護 `wbase2050f8`) ✅
 3. **`300` 發票統購**
    - `310` `wbase3010` 購買地點 ✅
    - `320` `wbase3020` 預購輸入 ✅

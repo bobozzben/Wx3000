@@ -110,19 +110,24 @@ export const deleteFeeItem = async (code: string): Promise<{ message: string }> 
   return response.data;
 };
 
-export const saveFeeItem = async (item: FeeItem, isNew: boolean): Promise<boolean> => {
-  try {
-    const payload = sanitizeFeeItemForSave(item);
-    if (isNew) {
-      await createFeeItem(payload);
-    } else {
-      await updateFeeItem(payload.itemno, payload);
-    }
-    return true;
-  } catch (e) {
-    console.error('saveFeeItem error:', e);
-    return false;
-  }
+/**
+ * 儲存 Grid 的一列。originalCode 是修改前的代號：與 item.itemno 不同時，後端會改代號並連動收費明細 (recmod)；
+ * 新增列沒有 originalCode，以本身代號 PUT，代號不存在時新增。失敗時拋出 axios 錯誤。
+ */
+export const saveFeeItem = async (item: FeeItem, originalCode?: string): Promise<FeeItem> => {
+  const payload = sanitizeFeeItemForSave(item);
+  return updateFeeItem(originalCode || payload.itemno, payload);
+};
+
+/** 地端 recitem.dbf 重複的代號；快照每個代號只保留 RECNO 最小的一筆 */
+export interface FeeItemDuplicate {
+  key: string;
+  recordNumbers: number[];
+}
+
+export const fetchDuplicateFeeCodes = async (): Promise<FeeItemDuplicate[]> => {
+  const response = await axios.get<FeeItemDuplicate[]>(`${API_BASE}/duplicates`);
+  return Array.isArray(response.data) ? response.data : [];
 };
 
 export const batchSaveFeeItems = async (items: FeeItem[]): Promise<boolean> => {

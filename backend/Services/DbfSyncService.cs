@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +11,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Wx3000.Backend.Data;
 
 namespace Wx3000.Backend.Services
@@ -136,6 +138,7 @@ namespace Wx3000.Backend.Services
                 }
 
                 // 6. 取得全量資料腳本並執行 (走 TRUNCATE + 全量批次 INSERT，避免 recno 重排碰撞)
+                var duplicates = new List<DbfDuplicateKey>();
                 var dataScript = await GetPgScriptAsync(dbfPath, dbfName, "DATA", schema, table, "", hexFields);
                 if (!string.IsNullOrWhiteSpace(dataScript))
                 {
@@ -145,11 +148,24 @@ namespace Wx3000.Backend.Services
                         dataScript,
                         @"(?<=[\(,])\s*\*+\s*(?=[,\)])",
                         "0");
-                    await _dbContext.Database.ExecuteSqlRawAsync(dataScript);
+                    try
+                    {
+                        await _dbContext.Database.ExecuteSqlRawAsync(dataScript);
+                    }
+                    catch (PostgresException pex) when (pex.SqlState == PostgresErrorCodes.UniqueViolation && !string.IsNullOrWhiteSpace(keyFields))
+                    {
+                        // DBF 沒有唯一限制，主鍵重複時整批 INSERT 會失敗並回滾，快照會永遠停在舊版；
+                        // 改為每個主鍵只保留 RECNO 最小的一筆 (與 VFP LOCATE / SEEK 找到的記錄一致)，並記下重複的主鍵
+                        duplicates = await ReloadKeepingFirstAsync(schema, table, keyFields, dataScript);
+                        _logger.LogWarning("[DbfSync] 表格 [{Schema}.{Table}] DBF 主鍵 ({Keys}) 重複，快照只保留 RECNO 最小的一筆: {Duplicates}",
+                            schema, table, keyFields,
+                            string.Join("; ", duplicates.Select(d => $"{d.Key} (#{string.Join(",#", d.RecordNumbers)})")));
+                    }
                 }
 
                 // 7. 更新字典表記錄
                 await UpdateDictionaryChecksumAsync(normPath, normDbf, currentDbfChecksum);
+                await SaveDuplicateKeysAsync(normPath, normDbf, duplicates);
 
                 sw.Stop();
                 _logger.LogInformation("[DbfSync] 表格 [{Schema}.{Table}] 快照重載完成，耗時 {Elapsed}ms",
@@ -310,6 +326,105 @@ namespace Wx3000.Backend.Services
             }
         }
 
+        public async Task<IReadOnlyList<DbfDuplicateKey>> GetDuplicateKeysAsync(string dbfPath, string dbfName)
+        {
+            try
+            {
+                await EnsureDictionaryTableExistsAsync();
+
+                var conn = _dbContext.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT dup_keys FROM dictionary.w3000_dbf_dupkey WHERE path = @p AND dbf = @d;";
+                var p1 = cmd.CreateParameter(); p1.ParameterName = "@p"; p1.Value = NormalizePath(dbfPath); cmd.Parameters.Add(p1);
+                var p2 = cmd.CreateParameter(); p2.ParameterName = "@d"; p2.Value = NormalizeDbf(dbfName); cmd.Parameters.Add(p2);
+
+                var json = (await cmd.ExecuteScalarAsync()) as string;
+                if (string.IsNullOrWhiteSpace(json)) return Array.Empty<DbfDuplicateKey>();
+                return JsonSerializer.Deserialize<List<DbfDuplicateKey>>(json, JsonOptions) ?? new List<DbfDuplicateKey>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[DbfSync] 讀取重複主鍵記錄失敗 ({Path}/{Name}): {Message}", dbfPath, dbfName, ex.Message);
+                return Array.Empty<DbfDuplicateKey>();
+            }
+        }
+
+        /// <summary>
+        /// 先把資料腳本灌進沒有唯一索引的暫存表，找出重複主鍵，再以每個主鍵 RECNO 最小的一筆覆蓋正式快照 (同一交易)
+        /// </summary>
+        private async Task<List<DbfDuplicateKey>> ReloadKeepingFirstAsync(string schema, string table, string keyFields, string dataScript)
+        {
+            var target = QuoteIdent(schema) + "." + QuoteIdent(table);
+            if (!dataScript.Contains(target))
+            {
+                throw new InvalidOperationException($"資料腳本中找不到 {target}，無法改以去除重複主鍵的方式重載");
+            }
+
+            const string stage = "\"_wx_dbf_stage\"";
+            var keys = keyFields.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(QuoteIdent).ToList();
+            var keyList = string.Join(", ", keys);
+            var keyText = string.Join(" || ',' || ", keys.Select(k => $"TRIM({k}::text)"));
+
+            var conn = _dbContext.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            async Task ExecAsync(string sql)
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = sql;
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            await ExecAsync($"CREATE TEMP TABLE {stage} (LIKE {target} INCLUDING DEFAULTS) ON COMMIT DROP;");
+            await ExecAsync(dataScript.Replace(target, stage));
+
+            var duplicates = new List<DbfDuplicateKey>();
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.Transaction = tx;
+                cmd.CommandText = $@"SELECT {keyText}, string_agg(""_record_number""::text, ',' ORDER BY ""_record_number"")
+                    FROM {stage} GROUP BY {keyList} HAVING COUNT(*) > 1 ORDER BY MIN(""_record_number"");";
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    duplicates.Add(new DbfDuplicateKey
+                    {
+                        Key = reader.GetString(0),
+                        RecordNumbers = reader.GetString(1).Split(',').Select(int.Parse).ToList()
+                    });
+                }
+            }
+
+            await ExecAsync($@"TRUNCATE TABLE {target};
+                INSERT INTO {target} SELECT DISTINCT ON ({keyList}) * FROM {stage} ORDER BY {keyList}, ""_record_number"";");
+            await tx.CommitAsync();
+            return duplicates;
+        }
+
+        private async Task SaveDuplicateKeysAsync(string normPath, string normDbf, List<DbfDuplicateKey> duplicates)
+        {
+            var conn = _dbContext.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = duplicates.Count == 0
+                ? "DELETE FROM dictionary.w3000_dbf_dupkey WHERE path = @p AND dbf = @d;"
+                : @"INSERT INTO dictionary.w3000_dbf_dupkey (path, dbf, dup_keys) VALUES (@p, @d, @k)
+                    ON CONFLICT (path, dbf) DO UPDATE SET dup_keys = EXCLUDED.dup_keys;";
+
+            var p1 = cmd.CreateParameter(); p1.ParameterName = "@p"; p1.Value = normPath; cmd.Parameters.Add(p1);
+            var p2 = cmd.CreateParameter(); p2.ParameterName = "@d"; p2.Value = normDbf; cmd.Parameters.Add(p2);
+            var p3 = cmd.CreateParameter(); p3.ParameterName = "@k"; p3.Value = JsonSerializer.Serialize(duplicates); cmd.Parameters.Add(p3);
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        private static string QuoteIdent(string name) => "\"" + name.Replace("\"", "\"\"") + "\"";
+
         private async Task<string> GetPgScriptAsync(
             string dbfPath,
             string dbfName,
@@ -371,6 +486,12 @@ namespace Wx3000.Backend.Services
                     path character varying(255) NOT NULL DEFAULT '',
                     dbf character varying(255) NOT NULL DEFAULT '',
                     checksum character varying(255) NOT NULL DEFAULT '',
+                    PRIMARY KEY (path, dbf)
+                );
+                CREATE TABLE IF NOT EXISTS ""dictionary"".""w3000_dbf_dupkey"" (
+                    path character varying(255) NOT NULL DEFAULT '',
+                    dbf character varying(255) NOT NULL DEFAULT '',
+                    dup_keys text NOT NULL DEFAULT '',
                     PRIMARY KEY (path, dbf)
                 );
             ");

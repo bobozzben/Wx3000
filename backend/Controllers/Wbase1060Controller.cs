@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.Common;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +27,15 @@ namespace Wx3000.Backend.Controllers
         private string PgSchema => _configService.CurrentPgSchema;
         private const string PgTable = "recitem";
         private const string KeyField = "itemno";
+
+        // recitem.itemno 為 C(4)，超過的部分會被 VFP 截斷，可能撞到既有代號
+        private const int ItemnoBytes = 4;
+
+        // 收費明細 recmod.dbf 沒有唯一鍵，以 RECNO() 搭配 rno 與舊代號定位；VFP PACK 讓 RECNO 重排時回 RECORD_NOT_FOUND 而不是改錯列
+        private const string RecmodTable = "recmod";
+        private const string RecmodKeyField = "RECNO(),rno,itemno";
+
+        private static readonly Encoding Big5 = CreateBig5();
 
         public Wbase1060Controller(AppDbContext context, IDbfSyncService dbfSyncService, ISystemConfigService configService)
         {
@@ -70,6 +82,15 @@ namespace Wx3000.Backend.Controllers
             }
         }
 
+        // GET: api/wbase1060/duplicates
+        // 地端 recitem.dbf 代號重複的記錄；快照每個代號只保留 RECNO 最小的一筆，其餘需在地端清理
+        [HttpGet("duplicates")]
+        public async Task<ActionResult<IReadOnlyList<DbfDuplicateKey>>> GetDuplicates()
+        {
+            await SyncAsync();
+            return Ok(await _dbfSyncService.GetDuplicateKeysAsync(DbfPath, DbfName));
+        }
+
         // GET: api/wbase1060/{feeCode}
         [HttpGet("{feeCode}")]
         public async Task<ActionResult<FeeItemMaster>> GetByCode(string feeCode)
@@ -93,6 +114,7 @@ namespace Wx3000.Backend.Controllers
         }
 
         // POST: api/wbase1060
+        // 只新增；代號已存在時比照 VFP recitem.scx 回「項目代號重複」，不覆蓋既有項目
         [HttpPost]
         public async Task<ActionResult<FeeItemMaster>> Create([FromBody] FeeItemMaster model)
         {
@@ -103,140 +125,64 @@ namespace Wx3000.Backend.Controllers
 
             var rawCode = !string.IsNullOrWhiteSpace(model.FeeCode) ? model.FeeCode : model.ItemNo;
             var code = rawCode.Trim().ToUpper();
-            model.FeeCode = code;
-            model.FeeName = (!string.IsNullOrWhiteSpace(model.FeeName) ? model.FeeName : model.Item)?.Trim() ?? string.Empty;
-            if (model.Price == 0 && model.Amt != 0) model.Price = model.Amt;
-            if (string.IsNullOrWhiteSpace(model.Guid))
+            var invalid = ValidateCode(code);
+            if (invalid != null) return BadRequest(new { message = invalid });
+            NormalizeModel(model);
+
+            // 先以 DBF 最新內容重灌快照再判斷是否存在；快照過期時直接查 PG 會把已存在的代號再 INSERT 一次
+            if (!await SyncAsync()) return SyncUnavailable();
+            if (await FindAsync(code) != null)
             {
-                model.Guid = Guid.NewGuid().ToString("N").ToUpper();
+                return Conflict(new { message = $"項目代號重複：[{code}] 已存在" });
             }
 
-            var existing = await _context.FeeItemMasters.FirstOrDefaultAsync(f => f.FeeCode.Trim() == code);
-            var operation = existing != null ? "UPDATE" : "INSERT";
-
-            // 1. 組裝 DBF 欄位清單
-            var fields = new Dictionary<string, object?>
-            {
-                ["itemno"] = code,
-                ["item"] = model.FeeName,
-                ["amt"] = model.Price
-            };
-
-            // 2. 核心原則：DBF 絕對權威！先寫 DBF
-            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, code, fields);
-            if (!dbfResult.Success)
-            {
-                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
-                {
-                    return StatusCode(StatusCodes.Status409Conflict, new
-                    {
-                        error = dbfResult.Error,
-                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消"
-                    });
-                }
-                return BadRequest(new
-                {
-                    error = dbfResult.Error,
-                    message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
-                });
-            }
-
-            // 3. DBF 成功後才寫入 PostgreSQL
-            if (existing != null)
-            {
-                existing.FeeName = model.FeeName;
-                existing.Price = model.Price;
-                existing.Guid = model.Guid;
-                if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
-
-                await _context.SaveChangesAsync();
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
-
-                return Ok(existing);
-            }
-
-            if (dbfResult.Recno > 0) model.RecordNumber = dbfResult.Recno;
-            _context.FeeItemMasters.Add(model);
-            await _context.SaveChangesAsync();
-            var newCsum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(newCsum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newCsum);
-
-            return CreatedAtAction(nameof(GetByCode), new { feeCode = model.FeeCode }, model);
+            var error = await InsertAsync(code, model);
+            if (error != null) return error;
+            return CreatedAtAction(nameof(GetByCode), new { feeCode = code }, model);
         }
 
         // PUT: api/wbase1060/{feeCode}
+        // {feeCode} 為目前 (修改前) 的代號；body 的 itemno 與其不同時視為修改代號，比照 VFP recitem.scx #5885 連動 recmod
+        // {feeCode} 不存在且代號未修改時新增 (Grid 新增列以 PUT 存檔)
         [HttpPut("{feeCode}")]
         public async Task<IActionResult> Update(string feeCode, [FromBody] FeeItemMaster model)
         {
             if (string.IsNullOrWhiteSpace(feeCode)) return BadRequest("代號不可為空");
 
-            var targetCode = feeCode.Trim().ToUpper();
-            model.FeeCode = targetCode;
-            model.FeeName = (!string.IsNullOrWhiteSpace(model.FeeName) ? model.FeeName : model.Item)?.Trim() ?? string.Empty;
-            if (model.Price == 0 && model.Amt != 0) model.Price = model.Amt;
-            if (string.IsNullOrWhiteSpace(model.Guid))
-            {
-                model.Guid = Guid.NewGuid().ToString("N").ToUpper();
-            }
+            var oldCode = feeCode.Trim().ToUpper();
+            var rawCode = !string.IsNullOrWhiteSpace(model.FeeCode) ? model.FeeCode : model.ItemNo;
+            var newCode = string.IsNullOrWhiteSpace(rawCode) ? oldCode : rawCode.Trim().ToUpper();
+            var invalid = ValidateCode(newCode);
+            if (invalid != null) return BadRequest(new { message = invalid });
+            NormalizeModel(model);
 
-            var existing = await _context.FeeItemMasters.FirstOrDefaultAsync(f => f.FeeCode.Trim() == targetCode);
-            var operation = existing != null ? "UPDATE" : "INSERT";
+            if (!await SyncAsync()) return SyncUnavailable();
+            var existing = await FindAsync(oldCode);
 
-            // 1. 組裝 DBF 欄位清單
-            var fields = new Dictionary<string, object?>
-            {
-                ["itemno"] = targetCode,
-                ["item"] = model.FeeName,
-                ["amt"] = model.Price
-            };
-
-            // 2. 核心原則：DBF 絕對權威！先寫 DBF
-            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, targetCode, fields);
-            if (!dbfResult.Success)
-            {
-                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
-                {
-                    return StatusCode(StatusCodes.Status409Conflict, new
-                    {
-                        error = dbfResult.Error,
-                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消"
-                    });
-                }
-                return BadRequest(new
-                {
-                    error = dbfResult.Error,
-                    message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
-                });
-            }
-
-            // 3. DBF 成功後才寫入 PostgreSQL
             if (existing == null)
             {
-                if (dbfResult.Recno > 0) model.RecordNumber = dbfResult.Recno;
-                _context.FeeItemMasters.Add(model);
-                await _context.SaveChangesAsync();
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
-
-                return Ok(model);
+                if (newCode != oldCode)
+                {
+                    return NotFound(new { message = $"找不到欲修改代號的收費項目 [{oldCode}]，請重新整理後再試" });
+                }
+                return (IActionResult?)await InsertAsync(newCode, model) ?? Ok(model);
             }
 
+            if (newCode != oldCode)
+            {
+                return await RenameAsync(existing, oldCode, newCode, model);
+            }
+
+            // DBF 絕對權威！先寫 DBF
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "UPDATE", KeyField, oldCode, RecitemFields(oldCode, model));
+            if (!dbfResult.Success) return DbfError(dbfResult, "存檔");
+
+            // DBF 成功後才寫入 PostgreSQL
             existing.FeeName = model.FeeName;
             existing.Price = model.Price;
-            if (!string.IsNullOrWhiteSpace(model.Guid))
-            {
-                existing.Guid = model.Guid.Trim();
-            }
+            existing.Guid = model.Guid;
             if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
-
-            await _context.SaveChangesAsync();
-            var updatedChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(updatedChecksum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, updatedChecksum);
+            await AfterDbfWriteAsync(() => _context.SaveChangesAsync());
 
             return Ok(existing);
         }
@@ -248,7 +194,8 @@ namespace Wx3000.Backend.Controllers
             if (string.IsNullOrWhiteSpace(feeCode)) return BadRequest("代號不可為空");
 
             var targetCode = feeCode.Trim().ToUpper();
-            var existing = await _context.FeeItemMasters.FirstOrDefaultAsync(f => f.FeeCode.Trim() == targetCode);
+            if (!await SyncAsync()) return SyncUnavailable();
+            var existing = await FindAsync(targetCode);
             if (existing == null)
             {
                 return NotFound(new { message = $"欲刪除的收費項目 [{targetCode}] 不存在" });
@@ -256,29 +203,14 @@ namespace Wx3000.Backend.Controllers
 
             // 1. 核心原則：DBF 絕對權威！先刪除 DBF
             var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "DELETE", KeyField, targetCode, new Dictionary<string, object?>());
-            if (!dbfResult.Success)
-            {
-                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
-                {
-                    return StatusCode(StatusCodes.Status409Conflict, new
-                    {
-                        error = dbfResult.Error,
-                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，刪除取消"
-                    });
-                }
-                return BadRequest(new
-                {
-                    error = dbfResult.Error,
-                    message = "地端 DBF 刪除失敗: " + (dbfResult.Message ?? dbfResult.Error)
-                });
-            }
+            if (!dbfResult.Success) return DbfError(dbfResult, "刪除");
 
             // 2. DBF 成功刪除後才刪除 PostgreSQL
-            _context.FeeItemMasters.Remove(existing);
-            await _context.SaveChangesAsync();
-            var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(newChecksum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+            await AfterDbfWriteAsync(async () =>
+            {
+                _context.FeeItemMasters.Remove(existing);
+                await _context.SaveChangesAsync();
+            });
 
             return Ok(new { message = "刪除成功" });
         }
@@ -299,19 +231,24 @@ namespace Wx3000.Backend.Controllers
                     Guid = string.IsNullOrWhiteSpace(x.Guid) ? Guid.NewGuid().ToString("N").ToUpper() : x.Guid.Trim(),
                 }).ToList();
 
-            // 依序寫入 DBF (DBF 絕對權威)
+            var invalid = validItems.Select(x => ValidateCode(x.FeeCode)).FirstOrDefault(m => m != null);
+            if (invalid != null) return BadRequest(new { message = invalid });
+
+            // 同一代號出現兩次時，兩筆都會被當成新增寫進 DBF
+            var repeated = validItems.GroupBy(x => x.FeeCode).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            if (repeated.Count > 0)
+            {
+                return BadRequest(new { message = $"項目代號重複：{string.Join("、", repeated)}" });
+            }
+
+            if (!await SyncAsync()) return SyncUnavailable();
+            var existingCodes = (await _context.FeeItemMasters.AsNoTracking().Select(f => f.FeeCode.Trim()).ToListAsync()).ToHashSet();
+
+            // 依序寫入 DBF (DBF 絕對權威)；中途失敗時不更新 Checksum，下次讀取會依 DBF 重灌快照
             foreach (var item in validItems)
             {
-                var existing = await _context.FeeItemMasters.FirstOrDefaultAsync(f => f.FeeCode.Trim() == item.FeeCode);
-                var op = existing != null ? "UPDATE" : "INSERT";
-                var fields = new Dictionary<string, object?>
-                {
-                    ["itemno"] = item.FeeCode,
-                    ["item"] = item.FeeName,
-                    ["amt"] = item.Price
-                };
-
-                var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, item.FeeCode, fields);
+                var op = existingCodes.Contains(item.FeeCode) ? "UPDATE" : "INSERT";
+                var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, item.FeeCode, RecitemFields(item.FeeCode, item));
                 if (!dbfRes.Success)
                 {
                     if (dbfRes.ErrorType == "LOCK_TIMEOUT")
@@ -328,17 +265,10 @@ namespace Wx3000.Backend.Controllers
                         message = $"地端 DBF 寫入失敗 [{item.FeeCode}]: " + (dbfRes.Message ?? dbfRes.Error)
                     });
                 }
-                if (dbfRes.Recno > 0) item.RecordNumber = dbfRes.Recno;
             }
 
-            var currentDbList = await _context.FeeItemMasters.ToListAsync();
-            _context.FeeItemMasters.RemoveRange(currentDbList);
-            await _context.FeeItemMasters.AddRangeAsync(validItems);
-            await _context.SaveChangesAsync();
-
-            var newCsum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(newCsum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newCsum);
+            // 以 DBF 重灌快照；不可用送來的清單整批覆蓋 PG，清單外 (例如被關鍵字篩掉) 的項目會從快照消失
+            await SyncAsync();
 
             return Ok(new { message = "批次儲存成功", count = validItems.Count });
         }
@@ -407,6 +337,217 @@ namespace Wx3000.Backend.Controllers
             {
                 return StatusCode(500, new { message = $"取得預覽資料失敗: {ex.Message}" });
             }
+        }
+
+        /// <summary>
+        /// 比照 VFP recitem.scx itemno.Valid：新代號已存在回「項目代號重複」；
+        /// 否則先把 recmod 的舊代號改成新代號 (#5885)，再改 recitem 本身。中途失敗時舊代號仍在，重試會接續完成。
+        /// </summary>
+        private async Task<IActionResult> RenameAsync(FeeItemMaster existing, string oldCode, string newCode, FeeItemMaster model)
+        {
+            if (await FindAsync(newCode) != null)
+            {
+                return Conflict(new { message = $"項目代號重複：[{newCode}] 已存在" });
+            }
+
+            if (!await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, RecmodTable, PgSchema, RecmodTable, ""))
+            {
+                return SyncUnavailable();
+            }
+            var lines = await RecmodLinesAsync(oldCode);
+            var linesPgOk = true;
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var (recno, rno) = lines[i];
+                var lineFields = new Dictionary<string, object?> { ["itemno"] = newCode };
+                var res = await _dbfSyncService.WriteRecordAsync(DbfPath, RecmodTable, "UPDATE", RecmodKeyField, $"{recno},{rno},{oldCode}", lineFields);
+                if (!res.Success)
+                {
+                    return DbfError(res, $"收費明細代號連動 (第 {i + 1}/{lines.Count} 筆，前 {i} 筆已改為 [{newCode}]，請重新整理後再試)");
+                }
+                linesPgOk &= await TryPgAsync(RecmodTable, () => ExecPgAsync(
+                    $@"UPDATE ""{PgSchema}"".""{RecmodTable}"" SET ""itemno"" = @new WHERE ""_record_number"" = @rec;",
+                    ("@new", newCode), ("@rec", recno)));
+            }
+            if (lines.Count > 0 && linesPgOk) await RefreshChecksumAsync(RecmodTable);
+
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "UPDATE", KeyField, oldCode, RecitemFields(newCode, model));
+            if (!dbfResult.Success)
+            {
+                var done = lines.Count > 0 ? $"，收費明細 {lines.Count} 筆已改為 [{newCode}]，請重新整理後再試" : string.Empty;
+                return DbfError(dbfResult, $"修改收費項目代號{done}");
+            }
+
+            var recordNumber = dbfResult.Recno > 0 ? dbfResult.Recno : existing.RecordNumber;
+            // EF 不能修改追蹤中實體的主鍵，改以 SQL 更新
+            await AfterDbfWriteAsync(() => ExecPgAsync(
+                $@"UPDATE ""{PgSchema}"".""{PgTable}"" SET ""itemno"" = @new, ""item"" = @item, ""amt"" = @amt WHERE TRIM(""itemno"") = @old;",
+                ("@new", newCode), ("@item", model.FeeName), ("@amt", model.Price), ("@old", oldCode)));
+
+            return Ok(new FeeItemMaster
+            {
+                FeeCode = newCode,
+                FeeName = model.FeeName,
+                Price = model.Price,
+                Guid = model.Guid,
+                RecordNumber = recordNumber
+            });
+        }
+
+        /// <summary>新增一筆收費項目；成功回傳 null，DBF 寫入失敗回傳錯誤回應</summary>
+        private async Task<ObjectResult?> InsertAsync(string code, FeeItemMaster model)
+        {
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "INSERT", KeyField, code, RecitemFields(code, model));
+            if (!dbfResult.Success) return DbfError(dbfResult, "存檔");
+
+            model.FeeCode = code;
+            if (dbfResult.Recno > 0) model.RecordNumber = dbfResult.Recno;
+            await AfterDbfWriteAsync(async () =>
+            {
+                _context.FeeItemMasters.Add(model);
+                await _context.SaveChangesAsync();
+            });
+            return null;
+        }
+
+        private async Task<List<(int Recno, string Rno)>> RecmodLinesAsync(string itemno)
+        {
+            using var cmd = await CommandAsync();
+            cmd.CommandText = $@"SELECT ""_record_number"", TRIM(""rno"") FROM ""{PgSchema}"".""{RecmodTable}""
+                WHERE TRIM(""itemno"") = @code ORDER BY ""_record_number"";";
+            AddParam(cmd, "@code", itemno);
+
+            var lines = new List<(int, string)>();
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                lines.Add((reader.GetInt32(0), reader.IsDBNull(1) ? string.Empty : reader.GetString(1)));
+            }
+            return lines;
+        }
+
+        /// <summary>
+        /// DBF 已寫入後同步 PostgreSQL 並更新 Checksum。
+        /// DBF 有重複代號時快照只保留 RECNO 最小的一筆，手動修補會與 DBF 對不上，改為直接重灌快照；
+        /// PG 失敗時不更新 Checksum，下次讀取會自動重灌。
+        /// </summary>
+        private async Task AfterDbfWriteAsync(Func<Task> pgAction)
+        {
+            if ((await _dbfSyncService.GetDuplicateKeysAsync(DbfPath, DbfName)).Count > 0)
+            {
+                await SyncAsync();
+                return;
+            }
+            if (await TryPgAsync(DbfName, pgAction)) await RefreshChecksumAsync(DbfName);
+        }
+
+        private static async Task<bool> TryPgAsync(string table, Func<Task> pgAction)
+        {
+            try
+            {
+                await pgAction();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Wbase1060 PostgreSQL 同步失敗 ({table})，下次讀取將重灌快照: {ex.Message}");
+                return false;
+            }
+        }
+
+        private async Task RefreshChecksumAsync(string dbfName)
+        {
+            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, dbfName);
+            if (!string.IsNullOrEmpty(chk)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, dbfName, chk);
+        }
+
+        private Task<bool> SyncAsync() =>
+            _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, KeyField);
+
+        private Task<FeeItemMaster?> FindAsync(string code) =>
+            _context.FeeItemMasters.FirstOrDefaultAsync(f => f.FeeCode.Trim() == code);
+
+        private ObjectResult SyncUnavailable() =>
+            StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "無法確認地端收費資料的最新內容 (LocalAgent 或資料庫異常)，存檔取消" });
+
+        private ObjectResult DbfError(DbfWriteResult res, string action)
+        {
+            if (res.ErrorType == "LOCK_TIMEOUT")
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    error = res.Error,
+                    message = res.Message ?? $"資料正被地端其他工作站編輯中，{action}取消"
+                });
+            }
+            if (res.ErrorType == "RECORD_NOT_FOUND")
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    error = res.Error,
+                    message = $"{action}失敗：地端資料已變動，請重新整理後再試"
+                });
+            }
+            return BadRequest(new
+            {
+                error = res.Error,
+                message = $"地端 DBF 寫入失敗 ({action}): " + (res.Message ?? res.Error)
+            });
+        }
+
+        private static Dictionary<string, object?> RecitemFields(string code, FeeItemMaster model) => new()
+        {
+            ["itemno"] = code,
+            ["item"] = model.FeeName,
+            ["amt"] = model.Price
+        };
+
+        private static void NormalizeModel(FeeItemMaster model)
+        {
+            model.FeeName = (!string.IsNullOrWhiteSpace(model.FeeName) ? model.FeeName : model.Item)?.Trim() ?? string.Empty;
+            if (model.Price == 0 && model.Amt != 0) model.Price = model.Amt;
+            if (string.IsNullOrWhiteSpace(model.Guid))
+            {
+                model.Guid = Guid.NewGuid().ToString("N").ToUpper();
+            }
+        }
+
+        private static string? ValidateCode(string code)
+        {
+            if (code.Length == 0) return "收費項目代號不得為空";
+            if (Big5.GetByteCount(code) > ItemnoBytes) return $"收費項目代號最多 {ItemnoBytes} 碼 (中文字算 2 碼): [{code}]";
+            // 寫入 recmod 時以逗號分隔多個鍵值
+            if (code.Contains(',')) return "收費項目代號不可包含逗號";
+            return null;
+        }
+
+        private static Encoding CreateBig5()
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            return Encoding.GetEncoding(950);
+        }
+
+        private async Task ExecPgAsync(string sql, params (string Name, object Value)[] args)
+        {
+            using var cmd = await CommandAsync();
+            cmd.CommandText = sql;
+            foreach (var (name, value) in args) AddParam(cmd, name, value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        private async Task<DbCommand> CommandAsync()
+        {
+            var conn = _context.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+            return conn.CreateCommand();
+        }
+
+        private static void AddParam(DbCommand cmd, string name, object value)
+        {
+            var p = cmd.CreateParameter();
+            p.ParameterName = name;
+            p.Value = value;
+            cmd.Parameters.Add(p);
         }
     }
 }
