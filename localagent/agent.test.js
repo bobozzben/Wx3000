@@ -8,6 +8,7 @@ const {
   isAllowedDllCall,
   genericCall,
   validateDbfWrite,
+  toVfpLiteral,
   executeDbfWrite,
   isAllowedOrigin,
   authorizeRequest,
@@ -142,6 +143,34 @@ test('validateDbfWrite rejects VFP injection', () => {
   assert.ok(validateDbfWrite('customer', 'SYS(2000)', {}));
   assert.ok(validateDbfWrite('customer', 'no', { 'name WITH 1\r\nRUN calc.exe\r\nREPLACE x': 'v' }));
   assert.ok(validateDbfWrite('x\r\nRUN calc', 'no', {}));
+});
+
+test('date field values become VFP strict date literals', () => {
+  assert.equal(toVfpLiteral({ $date: '2025-03-12' }), '{^2025-03-12}');
+  assert.equal(toVfpLiteral({ $date: '' }), '{}');
+  assert.equal(toVfpLiteral({ $date: null }), '{}');
+  // 長得像日期的一般字串仍是字元值
+  assert.equal(toVfpLiteral('2025-03-12'), "'2025-03-12'");
+});
+
+test('validateDbfWrite accepts date values and rejects malformed ones', () => {
+  for (const v of [{ $date: '2025-03-12' }, { $date: '2024-02-29' }, { $date: '' }, { $date: null }]) {
+    assert.equal(validateDbfWrite('recmom', 'rno', { recdate: v }), null, JSON.stringify(v));
+  }
+  for (const v of [
+    { $date: '2025-02-29' },
+    { $date: '2025/03/12' },
+    { $date: '114-03-12' },
+    { $date: "2025-03-12}\r\nRUN calc.exe\r\n*" },
+    { $date: 20250312 },
+    { $date: '2025-03-12', extra: 1 },
+    { other: '2025-03-12' },
+    ['2025-03-12'],
+    NaN,
+    Infinity
+  ]) {
+    assert.ok(validateDbfWrite('recmom', 'rno', { recdate: v }), JSON.stringify(v));
+  }
 });
 
 test('executeDbfWrite validates before touching the bridge', async () => {
