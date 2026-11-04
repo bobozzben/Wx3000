@@ -14,6 +14,8 @@
 - **總機構** = `customer.tpay = '1'` 的客戶。本功能不能新增或移除總機構，要到「客戶資料建檔」改彙總註記。
 - **分支機構** = `customer.mainunino` 等於總機構統一編號的客戶，存檔時 `tpay` 寫成 `'2'`。**對應鍵是統編，不是客戶代號**，兩個統編相同的總機構會看到同一組分支。
 
+**檔案結構**：`index.tsx` (`Wbase2050Page`，頁面層 capture 按鍵、在總機構清單與分公司維護間切換)、`useWbase2050.ts` (Zustand store)、`Wbase2050Form.tsx` (總機構清單，`gridId="wbase2050_hq"`)、`Wbase2050F8Form.tsx` (分公司資料維護，`gridId="wbase2050_branch"`)、`FieldDescBar.tsx` (欄位說明列)；API Client 為 `frontend/src/services/wbase2050.ts`。
+
 ### 1.1 總機構清單 (`Wbase2050Form.tsx`)
 
 | 欄 | 欄位 | 可編輯 | 規則 |
@@ -75,7 +77,7 @@
 
 ## 2. 資料庫與 DBF Schema 對照 (`<drive>:/w3000/comm`.`customer`)
 
-只用 `customer.dbf`，同步不設唯一鍵 (與 `wbase4020` 相同)。
+只用 `customer.dbf`，同步不設唯一鍵 (`EnsureTableSyncedAsync(..., "customer", ..., "customer", "")`，與 `wbase4020` 相同；`wbase2010`、`wbase2030` 則以 `no` 為 keyFields)。
 
 | 欄位 | DBF 型別 | 說明 |
 | :--- | :--- | :--- |

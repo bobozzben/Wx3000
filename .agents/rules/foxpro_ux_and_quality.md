@@ -35,9 +35,10 @@
 ## 2. 混合雲地 DBF 雙向同步與後端開發規範
 
 1. **DBF 絕對權威原則與動態磁碟機 (`IDbfSyncService` & `ISystemConfigService`)**
-   - 系統透過 `ISystemConfigService` 與前端 `X-Data-Drive` Header 支援動態切換資料來源磁碟機（如 `C:` 或 `F:`），自動對應地端 `<Drive>:\w3000\comm\*.dbf` 與 PostgreSQL `w3000` 資料庫之 `<drive>:/w3000/comm` Schema（資料表：`cpa`, `keyin`, `taxno`, `recitem`, `recnote` [1070 備註], `recmemo` [1080 摘要], `customer`, `place`, `buyinv`, `recmom` / `recmod` / `recsmemo` [2040 客戶收費]）。
-   - **讀取 (`GET`)**：先呼叫 `_dbfSyncService.EnsureTableSyncedAsync(...)`，比對地端 DBF 的 SHA256 Checksum 與 PostgreSQL `dictionary.w3000_dbf` 紀錄；若不一致自動重灌快照，若一致則直接讀取 PostgreSQL（Fast-path ~2ms）。
-   - **寫入 (`POST` / `PUT` / `DELETE`)**：必須先呼叫 `_dbfSyncService.WriteRecordAsync(...)` 透過 `LocalAgent` (`http://localhost:5009/api/dbf/*` ➔ 32-bit `DBFBridge.exe`) 寫入地端 DBF。若 DBF 回傳鎖定衝突 (`LOCK_TIMEOUT` / HTTP `409 Conflict`) 或失敗，**嚴禁單邊寫入 PostgreSQL**；寫入 DBF 成功後，再寫入 PostgreSQL 並更新 Checksum。
+   - 系統透過 `ISystemConfigService` 支援動態切換資料來源磁碟機（如 `C:` 或 `F:`）：以前端請求標頭 `X-Data-Drive` 為準，沒有標頭時用後端 `system_config.json` 的設定；自動對應地端 `<Drive>:\w3000\comm\*.dbf` 與 PostgreSQL `w3000` 資料庫之 `<drive>:/w3000/comm` Schema（資料表與 DBF 同名，例如 `cpa`, `keyin`, `taxno`, `recitem`, `recnote` [1070 備註], `recmemo` [1080 摘要], `customer`, `place`, `buyinv`, `recmom` / `recmod` / `recsmemo` [2040 客戶收費], `xmaster` ~ `xmaster6` [4010 會計科目], `accpara` / `acc_st` / `descrip` / `pub_para` [4020~4060], `bsdesc` [5060 委任書]；完整對照見 `docs/backend/backend_SPEC.md`）。
+   - **讀取 (`GET`)**：先呼叫 `_dbfSyncService.EnsureTableSyncedAsync(dbfPath, dbfName, schema, table, keyFields)`，比對地端 DBF 的 `SHA256:FileSize` 與 PostgreSQL `dictionary.w3000_dbf` 紀錄；一致則直接讀取 PostgreSQL（Fast-path ~2ms），不一致才在單一交易內重灌快照，失敗時整個回復並保留舊快照。
+   - **`keyFields`**：會成為快照的唯一索引；沒有唯一鍵的表傳 `""`。DBF 主鍵重複時，快照每個主鍵只保留 RECNO 最小的一筆，並記錄於 `dictionary.w3000_dbf_dupkey`，因此需要看到所有列的畫面必須傳 `""`。
+   - **寫入 (`POST` / `PUT` / `DELETE`)**：必須先呼叫 `_dbfSyncService.WriteRecordAsync(...)` 透過 `LocalAgent` (`http://localhost:5009/api/dbf/*` ➔ 32-bit `DBFBridge.exe`) 寫入地端 DBF。若 DBF 回傳鎖定衝突 (`LOCK_TIMEOUT` / HTTP `409 Conflict`) 或失敗，**嚴禁單邊寫入 PostgreSQL**；寫入 DBF 成功後，再寫入 PostgreSQL 並更新 Checksum（PostgreSQL 失敗時不更新 Checksum，讓下次讀取重灌）。
 
 2. **LocalAgent 位元架構防呆**
    - `DBFBridge.exe` 必須編譯為 **32-bit (`i386-win32`)** 以呼叫 32-bit VFP COM `w3000_dbf.dll`。
@@ -45,6 +46,7 @@
 
 3. **實機與編譯驗證 (Empirical Verification)**
    - 完成程式碼修改後，必須執行編譯驗證：
-     - 前端：`pnpm --filter frontend build`
+     - 前端：`pnpm --filter frontend build`（另可執行 `pnpm --filter frontend lint`）
      - 後端：`dotnet build backend/Wx3000.Backend.csproj`
+     - LocalAgent：修改 `localagent/` 時執行 `cd localagent; npm test`
    - 未通過編譯與型別檢查前，不得宣佈任務完成。

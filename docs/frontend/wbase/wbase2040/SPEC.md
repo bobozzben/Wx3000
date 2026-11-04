@@ -14,7 +14,10 @@
 1. **主格線 (`Wbase2040Form.tsx`)**：已收、單號、請款日 (民國)、客戶代號 (`F2` 客戶開窗，自動帶客戶簡稱)、客戶簡稱、已收金額、未收金額、收款人 (`F2` 人員開窗，存人員名稱)、註記。
 2. **明細子視窗 (`Wbase2040DetailModal.tsx`，Space 開啟)**：已收、收費項目 (`F2` 開窗，帶出名稱與金額)、項目名稱、收費金額、備註 (`F2` 開窗)。Space 切換已收，Esc 離開時重算表頭。
 3. **已收清鎖單**：明細全部已收時表頭 `isover = '*'`，表頭與明細唯讀、不可刪明細；仍可新增明細、以 Space 取消已收、修改收據摘要 (同 VFP)。
-4. **子功能**：`F3` 收據摘要、`F8` 共用說明 (`Wbase2040MemoModal.tsx`)；`F5` 批次收款單 (`Wbase2040BatchModal.tsx`)；`F4` 收據列印、`F6` 請款單 (`wbase2040_rec_print.tsx`，DLL 報表)；`F9` 收費統計表 Excel (`wbase2040Print.tsx`)。
+4. **子功能**：`F3` 收據摘要、`F8` 共用說明 (`Wbase2040MemoModal.tsx`)；`F5` 批次收款單 (`Wbase2040BatchModal.tsx`)；`F4` 收據列印、`F6` 請款單 (`wbase2040_rec_print.tsx`，DLL 報表)；`F9` 收費統計表 Excel (`wbase2040Print.tsx`，`F7` 轉出 `收費統計表_yyyyMMdd.xlsx`)。
+5. **F2 開窗資料來源 (`lookups.ts`，共用 `SearchModal`)**：客戶 → `GET /api/wbase2040/lookup/customers` (`no`, `abbr`, `name`)；收款人 → 1-3 員工 `fetchEmps` (`keyin`)；收費項目 → 1-6 `fetchFeeItems` (`recitem`，帶入名稱與金額)；備註 → 1-7 `fetchNoteItems` (`recnote`)；收據摘要 → 1-8 `fetchFeeSummaries` (`recmemo`，選取後帶入 memo 內容)。
+
+**檔案結構**：`index.tsx` (頁面、capture 攔截功能鍵、`KeyHintBar.tsx` 底部按鍵列)、`useWbase2040.ts` (Zustand store，狀態與 API 呼叫)、`Wbase2040Form.tsx` (`FoxProGridV2`，`gridId="wbase2040_grid"`)、`Wbase2040DetailModal.tsx` (`gridId="wbase2040_detail_grid"`)、`Wbase2040MemoModal.tsx`、`Wbase2040BatchModal.tsx`、`wbase2040_rec_print.tsx`、`wbase2040Print.tsx`、`lookups.ts`；API Client 為 `frontend/src/services/wbase2040.ts`。
 
 ### F4 收據列印 / F6 請款單 (DLL 報表)
 
@@ -92,6 +95,8 @@
 | `GET` | `/api/wbase2040/print/receipts`、`/print/bill`、`/stats` | 收據、請款單 (前期未收彙總 + 當月未收明細)、客戶 × 收費項目統計 |
 | `GET` | `/api/wbase2040/office` | 報表頁首的事務所資料 (`base.dbf`) |
 
+- 讀取前以 `EnsureTableSyncedAsync` 同步用到的表，keyFields：`recmom`、`recmod`、`recsmemo`、`base` 為 `""` (無唯一鍵)，`customer` 為 `no`、`recitem` 為 `itemno`、`recmemo` 為 `mno`。
+- `WriteRecordAsync` 的 keyField：`recmom` 用 `rno`；`recmod` 新增用 `rno`，修改/刪除用 `RECNO(),rno` (值為 `<_record_number>,<rno>`)；`recsmemo` 用 `RECNO()`。
 - 明細每次異動後後端立即重算並寫回表頭；明細視窗關閉時再呼叫一次 `recalc`。
 - 寫入順序：DBF 成功後才寫 PostgreSQL 並更新 Checksum；PostgreSQL 失敗時不更新 Checksum，下次讀取會自動重灌快照。
 - 日期欄以 `{"$date":"yyyy-MM-dd"}` 交給 LocalAgent，轉成 VFP `{^yyyy-MM-dd}`。

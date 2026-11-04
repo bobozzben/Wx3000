@@ -26,22 +26,24 @@ cd localagent; node --test --test-name-pattern "<測試名稱>" agent.test.js   
 
 ### 資料流與動態磁碟機
 前端 → 後端 `api/wbaseXXXX` → LocalAgent `/api/dbf/*` → 32-bit `DBFBridge.exe` (VFP COM `w3000_dbf.dll`) → `<Drive>:\w3000\comm\*.dbf`。
-- 前端 `services/apiConfig.ts` 的 Axios 攔截器在每個 `/api` 請求帶 `X-Data-Drive`；後端 `SystemConfigService` 依此選 DBF 目錄與 PostgreSQL schema `"<drive>:/w3000/comm"` (例如 `"c:/w3000/comm"`)，`DynamicModelCacheKeyFactory` 讓 EF 依 schema 快取模型。
-- 正式資料在 `C:\w3000\COMM`。要測寫入時，把資料複本 `subst` 成另一個磁碟機代號 (目錄須為 `<代號>:\w3000\comm`)，並在前端設定 (`Ctrl+Shift+S`) 指向該代號；測完要刪掉對應的 PostgreSQL schema 與 `dictionary.w3000_dbf` 列。
+- 前端 `services/apiConfig.ts` 的 Axios 攔截器在每個 `/api` 請求帶 `X-Data-Drive`；後端 `SystemConfigService` 依此選 DBF 目錄與 PostgreSQL schema `"<drive>:/w3000/comm"` (例如 `"c:/w3000/comm"`)，沒有標頭時用執行檔目錄的 `system_config.json` (預設 `C`)。`DynamicModelCacheKeyFactory` 讓 EF 依 schema 快取模型。
+- 正式資料在 `C:\w3000\COMM`。要測寫入時，把資料複本 `subst` 成另一個磁碟機代號 (目錄須為 `<代號>:\w3000\comm`)，並在前端設定 (`Ctrl+Shift+S`) 指向該代號；測完要刪掉對應的 PostgreSQL schema 與 `dictionary.w3000_dbf`、`dictionary.w3000_dbf_dupkey` 列。
 
 ### DBF 權威讀寫 (`IDbfSyncService`)
-- **讀**：先呼叫 `EnsureTableSyncedAsync(dbfPath, dbfName, schema, table, keyFields)`。它比對 DBF 的 `SHA256:FileSize` 與 `dictionary.w3000_dbf`，不同就整表重灌快照。`keyFields` 會成為 PostgreSQL 的唯一鍵；沒有唯一鍵的表傳 `""`，否則 DBF 裡的重複值會讓重灌一直失敗。快照的 `_record_number` 等於實體 RECNO，已刪除列不在快照中。
+- **讀**：先呼叫 `EnsureTableSyncedAsync(dbfPath, dbfName, schema, table, keyFields)`。它比對 DBF 的 `SHA256:FileSize` 與 `dictionary.w3000_dbf`，不同才整表重灌快照。重灌在單一交易內：清空舊快照並移除先前的 `ux_` 唯一索引 → 結構腳本 → 資料腳本；任何一步失敗整個回復、保留舊快照。`keyFields` 會成為 PostgreSQL 的唯一鍵；DBF 主鍵重複時，資料腳本回到 savepoint，改為每個主鍵只保留 RECNO 最小的一筆，並記在 `dictionary.w3000_dbf_dupkey` (`GetDuplicateKeysAsync` 可讀)。需要看到所有列的表傳 `""`。同一張 DBF 被不同畫面以不同 `keyFields` 同步時 (例如 `customer`)，快照內容取決於 DBF 變動後第一個觸發重灌的畫面。快照的 `_record_number` 等於實體 RECNO，已刪除列不在快照中。
 - **寫**：一律先 `WriteRecordAsync(..., operation, keyField, keyValue, fields)` 寫 DBF，成功後才寫 PostgreSQL 並更新 checksum；DBF 失敗時不可單邊寫 PostgreSQL。`keyField` 可以是 VFP 運算式 (例如沒有唯一鍵的 `recmod` 用 `"RECNO(),rno"`)。日期欄傳 `{"$date":"yyyy-MM-dd"}`。LocalAgent 回 `LOCK_TIMEOUT` (VFP 獨佔或鎖定) 時後端回 409。
-- LocalAgent 把寫入組成 `EXEC_VFP` 的 VFP `REPLACE` 腳本執行。正式 DBF 的格式可能和 VFP 原始碼裡的樣板不同 (例如 FoxPro 2.x / dBase III、金額 F/N 而非 Currency)，不要假設欄位型別。
-- 控制器有兩種寫法：EF Core 實體 (`Models/*Master.cs` + `AppDbContext`)，以及 ADO + DTO (`GetDbConnection()`，如 1020、1030、2040、4010、4020、5010)。新模組比照最接近的既有模組。
+- LocalAgent 把寫入組成 `EXEC_VFP` 的 VFP 腳本執行 (`INSERT INTO`、`LOCATE FOR` + `REPLACE`、`LOCATE FOR` + `DELETE`；找不到記錄回 `RECORD_NOT_FOUND`)。正式 DBF 的格式可能和 VFP 原始碼裡的樣板不同 (例如 FoxPro 2.x / dBase III、金額 F/N 而非 Currency)，不要假設欄位型別。
+- 控制器有兩種寫法：EF Core 實體 (`Models/*Master.cs` + `AppDbContext`，如 1020、1030、1050~1080、2010、3010、3020、3050、3060)，以及 ADO + DTO (`GetDbConnection()`，如 2030、2040、2050、4010、4020、5010)。新模組比照最接近的既有模組。
 
 ### LocalAgent (`localagent/agent.js`)
-- 只聽本機；`/api/dbf/*` 拒絕帶 `Origin` / `Sec-Fetch-Site` 的瀏覽器請求，只給後端用。可轉送給 DBFBridge 的動作有白名單 (`DBF_BRIDGE_ACTIONS`)，`EXEC_VFP` 只能由 `executeDbfWrite` 內部使用。
-- 報表：`POST /report` 把 `jsonData` 寫成 `%TEMP%\Wx3000\` 暫存 JSON，交給 64-bit `WbaseBridge.exe` 呼叫 `wbaseRP.dll`。`/report`、`/api/call` 只能呼叫 `localagent/dlls.json` 登記過的函數，未登記回 `FORBIDDEN`。
+- 只聽本機 (`127.0.0.1` / `::1` 的 5009)；`/api/dbf/*` 拒絕帶 `Origin` / `Sec-Fetch-Site` 的瀏覽器請求，只給後端用。可轉送給 DBFBridge 的動作有白名單 (`DBF_BRIDGE_ACTIONS`：`PING`、`CHECKSUM`、`READ`、`GET_PG_SCRIPT`)，`EXEC_VFP` 只能由 `executeDbfWrite` 與 custbak 匯出入的固定範本內部使用。
+- 報表：`POST /report` 把 `jsonData` 寫成 `%TEMP%\Wx3000\` 暫存 JSON，交給 64-bit `WbaseBridge.exe` 呼叫 `wbaseRP.dll`。`/report`、`/api/call` 只能呼叫 `localagent/dlls.json` 登記過的函數 (目前 `wbaseRP` 10 個)，未登記回 `FORBIDDEN`。DLL 路徑依 `dlls.json` 的 `path` / `fallback_paths` (可用絕對路徑)，環境變數 `WBASE_DLL_PATH` 可整個覆蓋。
+- 修改後跑 `npm test` (21 項，含子測試共 26)。`agent_v*.js`、`test_v*.html`、`README_v1.md` 是歷史留存 (Port 18889)，不用改。
 
 ### 報表 DLL (`report/wbase/`, Lazarus + FastReport)
 - 新增一張報表要改四處：`wbase_unit1.lfm` / `.pas` 加 `TfrxReport` 範本 (資料集名 `MTable`)、`wbase_repunit1.pas` 加 stdcall 函數、`wbaseRP.lpr` 匯出、`localagent/dlls.json` 登記。`WbaseBridge_Generic.lpr` 依參數個數分派，命令列參數要 base64。`IsPrint`：`0` 預覽、`1` 直接列印、`999` 只 PrepareReport 不開視窗 (適合自動驗證)。
-- 只用 Manager `[13]` 編譯 (會先檢查匯出函數才覆蓋 `localagent/wbase/wbaseRP.dll` 與 `WbaseBridge.exe`)，之後跑 `[8]` 並重啟 LocalAgent 才生效。`[13]` 會改到已追蹤的 `report/wbase/lib/x86_64-win64/wbase_unit1.lfm`，不打算提交時用 `git checkout --` 還原。
+- 只用 Manager `[13]` 編譯：報表 DLL 用 Debug 模式、`WbaseBridge_Generic.lpi` 用 Release 模式，先確認 `dlls.json` 登記的函數都已匯出並試跑橋接程式，才覆蓋 `localagent/wbase/wbaseRP.dll`、`localagent/bridge/lazarus/WbaseBridge.exe` 與 `localagent/WbaseBridge.exe`。開發中用 `node agent.js` 跑的 LocalAgent (bridge 模式每次列印都重新啟動橋接程式) 下次列印就用新版；隨身碟安裝檔要再跑 `[8]`。`[13]` 會改到已追蹤的 `report/wbase/lib/x86_64-win64/wbase_unit1.lfm`，不打算提交時用 `git checkout --` 還原。
+- `[14]` 發版：本機必須是 GitHub `main` 最新提交且報表 / 橋接原始碼無未提交修改；先編譯報表元件，再推 tag 讓 `release.yml` 建立草稿 Release (附 Server、LocalAgent zip 與 Electron 安裝檔)，補傳 `Wx3000_ReportBin_<版本>.zip` 後才正式發佈。各機自動更新只看得到正式版。
 - `DBFBridge.exe` 必須 32-bit、`WbaseBridge.exe` 必須 64-bit (位元錯誤會出現 `LoadLibrary ... Code=193`)。
 
 ### 前端模組
@@ -55,4 +57,5 @@ cd localagent; node --test --test-name-pattern "<測試名稱>" agent.test.js   
 - UX 硬性規則 (詳見 `.agents/rules/foxpro_ux_and_quality.md`、`WORKSPACE.md`)：全部操作可純鍵盤完成；代號、名稱、地址查詢用 `F2`/`F3`/`F4` 開大型彈窗 (`SearchModal`、`AddressSelectModal`)，不用下拉選單；焦點用黃色外框；`Consolas` 16px、列高 38px。
 - VFP 原始碼在 `F:\W3000SOUR\SourS9BASE\` (`PROGS`、`FORMS`、`LIBS`、`REPORTS`)。選單按鈕對應 `base20.prg` 等檔裡的 `wbasemenuNNcmdMM` 函數。`.scx`/`.vcx`/`.frx` 本身是 DBF 表 (memo 在 `.sct`/`.vct`/`.frt`)，文字是 Big5 (cp950)；`.frx` 座標單位是 1/10000 英吋。
 - 分析時注意 VFP 全域環境 (`w3000func.prg` 的 `w_init_env`：`SET DELETED ON`、`SET EXACT` 未設定，字串 `=` 可能變成前綴比對)。
-- 工具路徑 (見 `SKILL.md`)：Lazarus 4.6 `C:\fpcupdeluxe4\lazarus`、VFP9 `C:\Program Files (x86)\Microsoft Visual FoxPro 9`、FoxBin2PRG `C:\Thor\Thor\Tools\Components\FoxBin2PRG\FoxBin2Prg.exe`。
+- 工具路徑 (見 `SKILL.md`)：VFP9 `C:\Program Files (x86)\Microsoft Visual FoxPro 9`、FoxBin2PRG `C:\Thor\Thor\Tools\Components\FoxBin2PRG\FoxBin2Prg.exe`。
+- Lazarus：Manager (`[13]`、`[14]`、`[A]`) 依序在環境變數 `LAZBUILD` → `PATH` → `C:\fpcupdeluxe\lazarus` → `C:\lazarus` → `C:\Program Files\Lazarus` 找 `lazbuild.exe`，**不會**找 `SKILL.md` 所列 Lazarus 4.6 的 `C:\fpcupdeluxe4\lazarus`。要用 4.6 編譯時先設 `LAZBUILD=C:\fpcupdeluxe4\lazarus\lazbuild.exe`。
