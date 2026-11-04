@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getApiServerUrl } from './apiConfig';
+import { backendApiRequestInterceptor } from './apiConfig';
 
 export const api = axios.create({
   headers: {
@@ -7,10 +7,8 @@ export const api = axios.create({
   },
 });
 
-api.interceptors.request.use((config) => {
-  config.baseURL = getApiServerUrl();
-  return config;
-});
+// axios.create() 的 instance 不會繼承全域 axios 攔截器，必須自行掛上才會帶 X-Data-Drive
+api.interceptors.request.use(backendApiRequestInterceptor);
 
 export interface ProductItem {
   code: string;
