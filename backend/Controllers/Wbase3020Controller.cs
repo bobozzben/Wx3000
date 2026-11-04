@@ -590,6 +590,7 @@ namespace Wx3000.Backend.Controllers
                     .GroupBy(x => x.CompanyCode.Trim().ToUpper())
                     .ToDictionary(g => g.Key, g => g.First());
 
+                var insertedCount = 0;
                 foreach (var c in companies)
                 {
                     if (string.IsNullOrWhiteSpace(c.CompanyCode)) continue;
@@ -609,19 +610,58 @@ namespace Wx3000.Backend.Controllers
                         var fields = AssembleDbfFields(item, targetPeriod, targetTimes, code);
                         var keyVal = $"{targetPeriod},{targetTimes},{code}";
                         var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "INSERT", KeyField, keyVal, fields);
-                        if (dbfRes.Success && dbfRes.Recno > 0)
+                        if (!dbfRes.Success)
+                        {
+                            // 不寫 PostgreSQL、不更新 Checksum：已新增的列只在 DBF，下次讀取會自動重灌快照，重跑 F3 也會略過它們
+                            var done = insertedCount > 0 ? $"已新增 {insertedCount} 筆至 DBF，" : string.Empty;
+                            if (dbfRes.ErrorType == "LOCK_TIMEOUT")
+                            {
+                                return StatusCode(StatusCodes.Status409Conflict, new
+                                {
+                                    success = false,
+                                    error = dbfRes.Error,
+                                    message = $"{done}發票購買資料檔正被地端其他工作站使用中，F3 轉檔中止"
+                                });
+                            }
+                            return StatusCode(StatusCodes.Status500InternalServerError, new
+                            {
+                                success = false,
+                                error = dbfRes.Error,
+                                message = $"{done}公司 [{code}] 寫入地端 DBF 失敗，F3 轉檔中止: {dbfRes.Message ?? dbfRes.Error}"
+                            });
+                        }
+                        if (dbfRes.Recno > 0)
                             item.RecordNumber = dbfRes.Recno;
 
                         _context.InvoicePurchaseMasters.Add(item);
+                        // customer 沒有唯一鍵，同一代號出現兩次時只新增一筆
+                        existingMap[code] = item;
+                        insertedCount++;
                     }
                 }
-                await _context.SaveChangesAsync();
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
 
-                var totalCount = await _context.InvoicePurchaseMasters
-                    .CountAsync(x => x.Period == targetPeriod && x.Times == targetTimes);
+                var pgSynced = true;
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    // DBF 已寫入；不更新 Checksum，下次讀取會從 DBF 重灌快照
+                    pgSynced = false;
+                    Console.WriteLine($"Wbase3020 F3 轉檔 PostgreSQL 同步失敗，下次讀取將重灌快照: {ex.Message}");
+                }
+
+                if (pgSynced && insertedCount > 0)
+                {
+                    var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+                    if (!string.IsNullOrEmpty(newChecksum))
+                        await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+                }
+
+                var totalCount = pgSynced
+                    ? await _context.InvoicePurchaseMasters.CountAsync(x => x.Period == targetPeriod && x.Times == targetTimes)
+                    : existingPurchases.Count + insertedCount;
 
                 return Ok(new
                 {

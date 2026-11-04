@@ -136,32 +136,15 @@ namespace Wx3000.Backend.Controllers
                 ["monthv"] = SafeFirstChar(model.Monthv, "0"),
             };
 
-            // 1. 寫入 DBF (DBF 絕對權威，優先以 RECNO 精準定位，避免代號特殊字元或重複代號問題)
-            DbfWriteResult writeRes;
-            if (model.RecordNumber.HasValue && model.RecordNumber.Value > 0)
-            {
-                writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "RECNO()", model.RecordNumber.Value.ToString(), fields);
-                if (!writeRes.Success)
-                {
-                    writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fields);
-                }
-            }
-            else
-            {
-                writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fields);
-            }
-
+            // 1. 寫入 DBF (DBF 絕對權威，以 RECNO 加客戶代號精準定位)
+            var writeRes = await WriteCustomerAsync(trimmedNo, model.RecordNumber, fields);
             if (!writeRes.Success)
             {
-                if (writeRes.ErrorType == "LOCK_TIMEOUT")
-                {
-                    return StatusCode(StatusCodes.Status409Conflict, new { error = writeRes.Error, message = "資料正被地端其他工作站鎖定中，存檔取消" });
-                }
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = writeRes.Message ?? writeRes.Error ?? "寫入 DBF 失敗" });
+                return DbfWriteFailure(writeRes, "寫入 DBF 失敗");
             }
 
-            // 2. 同步寫入 PostgreSQL
-            await UpdateCustomerFieldsInPg(trimmedNo, fields, model.RecordNumber);
+            // 2. 同步寫入 PostgreSQL (以實際寫入的 RECNO 定位)
+            await UpdateCustomerFieldsInPg(trimmedNo, fields, writeRes.Recno);
 
             // 3. 更新 Checksum
             var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "customer");
@@ -201,26 +184,13 @@ namespace Wx3000.Backend.Controllers
             };
 
             var recno = await GetCustomerRecordNumber(trimmedNo);
-            DbfWriteResult writeRes;
-            if (recno.HasValue && recno.Value > 0)
-            {
-                writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "RECNO()", recno.Value.ToString(), fields);
-                if (!writeRes.Success)
-                {
-                    writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fields);
-                }
-            }
-            else
-            {
-                writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fields);
-            }
-
+            var writeRes = await WriteCustomerAsync(trimmedNo, recno, fields);
             if (!writeRes.Success)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = writeRes.Message ?? writeRes.Error ?? "套用標準參數至 DBF 失敗" });
+                return DbfWriteFailure(writeRes, "套用標準參數至 DBF 失敗");
             }
 
-            await UpdateCustomerFieldsInPg(trimmedNo, fields, recno);
+            await UpdateCustomerFieldsInPg(trimmedNo, fields, writeRes.Recno);
 
             var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "customer");
             if (!string.IsNullOrEmpty(chk))
@@ -262,7 +232,7 @@ namespace Wx3000.Backend.Controllers
             var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "accpara", "UPDATE", "RECNO()", "1", fields);
             if (!writeRes.Success)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "更新標準科目至 DBF 失敗" });
+                return DbfWriteFailure(writeRes, "更新標準科目至 DBF 失敗");
             }
 
             await UpdateSingleRowTableInPg("accpara", fields);
@@ -364,31 +334,14 @@ namespace Wx3000.Backend.Controllers
                 ["tpay"] = SafeFirstChar(model.Tpay, "0"),
             };
 
-            // 1. 寫入 DBF (DBF 絕對權威，優先以 RECNO 精準定位)
-            DbfWriteResult writeRes;
-            if (model.RecordNumber.HasValue && model.RecordNumber.Value > 0)
-            {
-                writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "RECNO()", model.RecordNumber.Value.ToString(), fields);
-                if (!writeRes.Success)
-                {
-                    writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fields);
-                }
-            }
-            else
-            {
-                writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fields);
-            }
-
+            // 1. 寫入 DBF (DBF 絕對權威，以 RECNO 加客戶代號精準定位)
+            var writeRes = await WriteCustomerAsync(trimmedNo, model.RecordNumber, fields);
             if (!writeRes.Success)
             {
-                if (writeRes.ErrorType == "LOCK_TIMEOUT")
-                {
-                    return StatusCode(StatusCodes.Status409Conflict, new { error = writeRes.Error, message = "資料正被地端其他工作站鎖定中，存檔取消" });
-                }
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = writeRes.Message ?? writeRes.Error ?? "寫入 DBF 失敗" });
+                return DbfWriteFailure(writeRes, "寫入 DBF 失敗");
             }
 
-            await UpdateCustomerFieldsInPg(trimmedNo, fields, model.RecordNumber);
+            await UpdateCustomerFieldsInPg(trimmedNo, fields, writeRes.Recno);
 
             var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "customer");
             if (!string.IsNullOrEmpty(chk))
@@ -425,26 +378,13 @@ namespace Wx3000.Backend.Controllers
             };
 
             var recno = await GetCustomerRecordNumber(trimmedNo);
-            DbfWriteResult writeRes;
-            if (recno.HasValue && recno.Value > 0)
-            {
-                writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "RECNO()", recno.Value.ToString(), fields);
-                if (!writeRes.Success)
-                {
-                    writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fields);
-                }
-            }
-            else
-            {
-                writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fields);
-            }
-
+            var writeRes = await WriteCustomerAsync(trimmedNo, recno, fields);
             if (!writeRes.Success)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = writeRes.Message ?? writeRes.Error ?? "套用標準轉傳票參數至 DBF 失敗" });
+                return DbfWriteFailure(writeRes, "套用標準轉傳票參數至 DBF 失敗");
             }
 
-            await UpdateCustomerFieldsInPg(trimmedNo, fields, recno);
+            await UpdateCustomerFieldsInPg(trimmedNo, fields, writeRes.Recno);
 
             var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "customer");
             if (!string.IsNullOrEmpty(chk))
@@ -484,7 +424,7 @@ namespace Wx3000.Backend.Controllers
             var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "accpara", "UPDATE", "RECNO()", "1", fields);
             if (!writeRes.Success)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "更新標準轉傳票參數至 DBF 失敗" });
+                return DbfWriteFailure(writeRes, "更新標準轉傳票參數至 DBF 失敗");
             }
 
             await UpdateSingleRowTableInPg("accpara", fields);
@@ -612,19 +552,7 @@ namespace Wx3000.Backend.Controllers
                 ["acctype"] = acctypeCode
             };
             var custRecno = await GetCustomerRecordNumber(trimmedNo);
-            DbfWriteResult writeRes2;
-            if (custRecno.HasValue && custRecno.Value > 0)
-            {
-                writeRes2 = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "RECNO()", custRecno.Value.ToString(), fieldsCustomer);
-                if (!writeRes2.Success)
-                {
-                    writeRes2 = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fieldsCustomer);
-                }
-            }
-            else
-            {
-                writeRes2 = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", trimmedNo, fieldsCustomer);
-            }
+            var writeRes2 = await WriteCustomerAsync(trimmedNo, custRecno, fieldsCustomer);
             if (!writeRes2.Success)
             {
                 // PostgreSQL 與 Checksum 都還沒更新，下次查詢會從 DBF 重新同步；重送一次即可補上 customer
@@ -827,7 +755,7 @@ namespace Wx3000.Backend.Controllers
             var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "INSERT", "accno", trimmedAccno, fields);
             if (!writeRes.Success)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "新增摘要至 DBF 失敗" });
+                return DbfWriteFailure(writeRes, "新增摘要至 DBF 失敗");
             }
 
             // 同步寫入 PostgreSQL
@@ -871,7 +799,7 @@ namespace Wx3000.Backend.Controllers
             var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "UPDATE", "RECNO()", recno.ToString(), fields);
             if (!writeRes.Success)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "更新摘要至 DBF 失敗" });
+                return DbfWriteFailure(writeRes, "更新摘要至 DBF 失敗");
             }
 
             var conn = _context.Database.GetDbConnection();
@@ -900,7 +828,7 @@ namespace Wx3000.Backend.Controllers
             var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "DELETE", "RECNO()", recno.ToString(), new Dictionary<string, object?>());
             if (!writeRes.Success)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "刪除 DBF 摘要記錄失敗" });
+                return DbfWriteFailure(writeRes, "刪除 DBF 摘要記錄失敗");
             }
 
             var conn = _context.Database.GetDbConnection();
@@ -937,8 +865,28 @@ namespace Wx3000.Backend.Controllers
             var fields1 = new Dictionary<string, object?> { ["serial"] = req.Serial2 };
             var fields2 = new Dictionary<string, object?> { ["serial"] = req.Serial1 };
 
-            await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "UPDATE", "RECNO()", req.Recno1.ToString(), fields1);
-            await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "UPDATE", "RECNO()", req.Recno2.ToString(), fields2);
+            var writeRes1 = await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "UPDATE", "RECNO()", req.Recno1.ToString(), fields1);
+            if (!writeRes1.Success)
+            {
+                return DbfWriteFailure(writeRes1, "交換摘要順序寫入 DBF 失敗");
+            }
+
+            var writeRes2 = await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "UPDATE", "RECNO()", req.Recno2.ToString(), fields2);
+            if (!writeRes2.Success)
+            {
+                // 還原第一筆，避免兩筆摘要留下相同的 serial；PostgreSQL 與 Checksum 都不動
+                var undoFields = new Dictionary<string, object?> { ["serial"] = req.Serial1 };
+                var undoRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "UPDATE", "RECNO()", req.Recno1.ToString(), undoFields);
+                if (!undoRes.Success)
+                {
+                    return StatusCode(StatusCodes.Status500InternalServerError, new
+                    {
+                        error = $"{writeRes2.Error ?? writeRes2.Message}; 還原失敗: {undoRes.Error ?? undoRes.Message}",
+                        message = "交換摘要順序失敗，且第一筆無法還原，兩筆摘要的序號可能相同，請重新查詢確認"
+                    });
+                }
+                return DbfWriteFailure(writeRes2, "交換摘要順序寫入 DBF 失敗，已還原第一筆");
+            }
 
             var conn = _context.Database.GetDbConnection();
             if (conn.State != ConnectionState.Open) await conn.OpenAsync();
@@ -1005,7 +953,7 @@ namespace Wx3000.Backend.Controllers
             var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "pub_para", "UPDATE", "RECNO()", "1", fields);
             if (!writeRes.Success)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "更新共用參數至 DBF 失敗" });
+                return DbfWriteFailure(writeRes, "更新共用參數至 DBF 失敗");
             }
 
             await UpdateSingleRowTableInPg("pub_para", fields);
@@ -1019,6 +967,35 @@ namespace Wx3000.Backend.Controllers
         // =========================================================================
         // Helper Methods
         // =========================================================================
+
+        /// <summary>DBF 寫入失敗：LOCK_TIMEOUT 回 409，其他錯誤回 500 並附上 LocalAgent 的錯誤訊息</summary>
+        private ObjectResult DbfWriteFailure(DbfWriteResult writeRes, string message)
+        {
+            if (writeRes.ErrorType == "LOCK_TIMEOUT")
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new { error = writeRes.Error, message = "資料正被地端其他工作站鎖定中，存檔取消" });
+            }
+            var detail = writeRes.Message ?? writeRes.Error;
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                error = writeRes.Error,
+                message = string.IsNullOrWhiteSpace(detail) ? message : $"{message}: {detail}"
+            });
+        }
+
+        /// <summary>
+        /// 以 RECNO() 加客戶代號定位 customer.dbf (RECNO 過期時回 RECORD_NOT_FOUND 而不是改錯列)；
+        /// 只有查無記錄才改用客戶代號完全比對，鎖定等其他錯誤直接回傳
+        /// </summary>
+        private async Task<DbfWriteResult> WriteCustomerAsync(string no, int? recno, Dictionary<string, object?> fields)
+        {
+            if (recno.HasValue && recno.Value > 0 && !no.Contains(','))
+            {
+                var res = await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "RECNO(),no", $"{recno.Value},{no}", fields);
+                if (res.Success || res.ErrorType != "RECORD_NOT_FOUND") return res;
+            }
+            return await _dbfSyncService.WriteRecordAsync(DbfPath, "customer", "UPDATE", "no", no, fields);
+        }
 
         private async Task UpdateCustomerFieldsInPg(string no, Dictionary<string, object?> fields, int? recordNumber = null)
         {

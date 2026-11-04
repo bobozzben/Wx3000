@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -23,7 +24,6 @@ namespace Wx3000.Backend.Controllers
         private const string DbfName = "buyinv";
         private string PgSchema => _configService.CurrentPgSchema;
         private const string PgTable = "buyinv";
-        private const string KeyField = "yymm,times,no";
         private const string SyncKeyField = "_record_number";
 
         public Wbase3060Controller(AppDbContext context, IDbfSyncService dbfSyncService, ISystemConfigService configService)
@@ -218,82 +218,160 @@ namespace Wx3000.Backend.Controllers
 
             try
             {
-                int successCount = 0;
+                // 先讓快照與 DBF 一致，_record_number 才等於目前的 RECNO
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, SyncKeyField);
+
+                var written = new List<(int Recno, Dictionary<string, object?> Fields)>();
                 foreach (var dto in updates)
                 {
-                    var period = dto.Period.Trim();
+                    var period = (dto.Period ?? string.Empty).Trim();
                     var cleanPeriod = period.Replace("-", "");
                     var dbfPeriod = NormalizeToDbfPeriod(period);
-                    var times = dto.Times.Trim();
-                    var compCode = dto.CompanyCode.Trim();
+                    var times = (dto.Times ?? string.Empty).Trim();
+                    var compCode = (dto.CompanyCode ?? string.Empty).Trim();
 
-                    var existing = await _context.InvoicePurchaseMasters
-                        .FirstOrDefaultAsync(x =>
+                    // 同一公司同期別可能有多筆 (追加購買)，與 DBF LOCATE 一致取 RECNO 最小的一筆
+                    var existing = await _context.InvoicePurchaseMasters.AsNoTracking()
+                        .Where(x =>
                             (x.Period == period || x.Period == cleanPeriod || x.Period == dbfPeriod) &&
                             (x.Times == times || x.Times == times.TrimStart('0')) &&
-                            x.CompanyCode == compCode);
+                            x.CompanyCode == compCode)
+                        .OrderBy(x => x.RecordNumber)
+                        .FirstOrDefaultAsync();
+                    if (existing == null) continue;
 
-                    if (existing != null)
+                    var fields = new Dictionary<string, object?>
                     {
-                        existing.ManualTwoTrack = dto.ManualTwoTrack ?? string.Empty;
-                        existing.ManualTwoStartNo = dto.ManualTwoStartNo ?? string.Empty;
-                        existing.ManualTwoEndNo = dto.ManualTwoEndNo ?? string.Empty;
+                        ["a02beg"] = dto.ManualTwoTrack ?? string.Empty,
+                        ["a02begno"] = dto.ManualTwoStartNo ?? string.Empty,
+                        ["a02endno"] = dto.ManualTwoEndNo ?? string.Empty,
+                        ["a02bbeg"] = dto.ManualTwoSubTrack ?? string.Empty,
+                        ["a02bbegno"] = dto.ManualTwoSubStartNo ?? string.Empty,
+                        ["a02bendno"] = dto.ManualTwoSubEndNo ?? string.Empty,
+                        ["a03beg"] = dto.ManualThreeTrack ?? string.Empty,
+                        ["a03begno"] = dto.ManualThreeStartNo ?? string.Empty,
+                        ["a03endno"] = dto.ManualThreeEndNo ?? string.Empty,
+                        ["a03bbeg"] = dto.ManualThreeSubTrack ?? string.Empty,
+                        ["a03bbegno"] = dto.ManualThreeSubStartNo ?? string.Empty,
+                        ["a03bendno"] = dto.ManualThreeSubEndNo ?? string.Empty,
+                        ["specbeg"] = dto.SpecialTrack ?? string.Empty,
+                        ["specbegno"] = dto.SpecialStartNo ?? string.Empty,
+                        ["specendno"] = dto.SpecialEndNo ?? string.Empty,
+                        ["c02beg"] = dto.CashTwoTrack ?? string.Empty,
+                        ["c02begno"] = dto.CashTwoStartNo ?? string.Empty,
+                        ["c02endno"] = dto.CashTwoEndNo ?? string.Empty,
+                        ["c03beg"] = dto.CashThreeTrack ?? string.Empty,
+                        ["c03begno"] = dto.CashThreeStartNo ?? string.Empty,
+                        ["c03endno"] = dto.CashThreeEndNo ?? string.Empty,
+                        ["c03bbeg"] = dto.CashThreeSubTrack ?? string.Empty,
+                        ["c03bbegno"] = dto.CashThreeSubStartNo ?? string.Empty,
+                        ["c03bendno"] = dto.CashThreeSubEndNo ?? string.Empty
+                    };
 
-                        existing.ManualTwoSubTrack = dto.ManualTwoSubTrack ?? string.Empty;
-                        existing.ManualTwoSubStartNo = dto.ManualTwoSubStartNo ?? string.Empty;
-                        existing.ManualTwoSubEndNo = dto.ManualTwoSubEndNo ?? string.Empty;
-
-                        existing.ManualThreeTrack = dto.ManualThreeTrack ?? string.Empty;
-                        existing.ManualThreeStartNo = dto.ManualThreeStartNo ?? string.Empty;
-                        existing.ManualThreeEndNo = dto.ManualThreeEndNo ?? string.Empty;
-
-                        existing.ManualThreeSubTrack = dto.ManualThreeSubTrack ?? string.Empty;
-                        existing.ManualThreeSubStartNo = dto.ManualThreeSubStartNo ?? string.Empty;
-                        existing.ManualThreeSubEndNo = dto.ManualThreeSubEndNo ?? string.Empty;
-
-                        existing.SpecialTrack = dto.SpecialTrack ?? string.Empty;
-                        existing.SpecialStartNo = dto.SpecialStartNo ?? string.Empty;
-                        existing.SpecialEndNo = dto.SpecialEndNo ?? string.Empty;
-
-                        existing.CashTwoTrack = dto.CashTwoTrack ?? string.Empty;
-                        existing.CashTwoStartNo = dto.CashTwoStartNo ?? string.Empty;
-                        existing.CashTwoEndNo = dto.CashTwoEndNo ?? string.Empty;
-
-                        existing.CashThreeTrack = dto.CashThreeTrack ?? string.Empty;
-                        existing.CashThreeStartNo = dto.CashThreeStartNo ?? string.Empty;
-                        existing.CashThreeEndNo = dto.CashThreeEndNo ?? string.Empty;
-
-                        existing.CashThreeSubTrack = dto.CashThreeSubTrack ?? string.Empty;
-                        existing.CashThreeSubStartNo = dto.CashThreeSubStartNo ?? string.Empty;
-                        existing.CashThreeSubEndNo = dto.CashThreeSubEndNo ?? string.Empty;
-
-                        var keyVal = $"{existing.Period},{existing.Times},{existing.CompanyCode}";
-                        var fields = AssembleTrackFields(existing);
-                        var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "UPDATE", KeyField, keyVal, fields);
-                        if (!dbfRes.Success && dbfRes.ErrorType == "LOCK_TIMEOUT")
-                        {
-                            return StatusCode(StatusCodes.Status409Conflict, new
-                            {
-                                error = dbfRes.Error,
-                                message = $"發票購買紀錄 [{existing.CompanyCode}] 正被地端其他工作站編輯中，更新取消"
-                            });
-                        }
-
-                        successCount++;
-                    }
+                    var dbfRes = await WriteTrackRowAsync(existing, fields);
+                    if (!dbfRes.Success) return DbfWriteFailure(dbfRes, existing, written.Count, "更新");
+                    written.Add((existing.RecordNumber, fields));
                 }
 
-                await _context.SaveChangesAsync();
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
-
-                return Ok(new { success = true, updated = successCount });
+                await SyncWrittenRowsAsync(written);
+                return Ok(new { success = true, updated = written.Count });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "批次更新字軌失敗", error = ex.Message });
             }
+        }
+
+        /// <summary>
+        /// 以 RECNO 加 yymm、times、no 定位：同一公司同期別可能有多筆追加購買，RECNO 過期時回 RECORD_NOT_FOUND 而不會改錯列
+        /// </summary>
+        private Task<DbfWriteResult> WriteTrackRowAsync(InvoicePurchaseMaster row, Dictionary<string, object?> fields)
+        {
+            var no = row.CompanyCode.Trim();
+            // LocalAgent 以逗號拆複合鍵，代號含逗號時只用 RECNO 與期別、次數定位
+            var keyField = no.Contains(',') ? "RECNO(),yymm,times" : "RECNO(),yymm,times,no";
+            var keyVal = no.Contains(',')
+                ? $"{row.RecordNumber},{row.Period.Trim()},{row.Times.Trim()}"
+                : $"{row.RecordNumber},{row.Period.Trim()},{row.Times.Trim()},{no}";
+            return _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "UPDATE", keyField, keyVal, fields);
+        }
+
+        /// <summary>
+        /// DBF 寫入失敗：PostgreSQL 與 Checksum 都不動。已寫入的前幾筆只在 DBF，Checksum 不符，下次讀取會自動重灌快照
+        /// </summary>
+        private ObjectResult DbfWriteFailure(DbfWriteResult res, InvoicePurchaseMaster row, int writtenCount, string action)
+        {
+            var code = row.CompanyCode.Trim();
+            var prefix = writtenCount > 0 ? $"前 {writtenCount} 筆已寫入，" : string.Empty;
+            if (res.ErrorType == "LOCK_TIMEOUT")
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    error = res.Error,
+                    message = $"{prefix}發票購買紀錄 [{code}] 正被地端其他工作站編輯中，{action}中止"
+                });
+            }
+            if (res.ErrorType == "RECORD_NOT_FOUND")
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    error = res.Error,
+                    message = $"{prefix}發票購買紀錄 [{code}] 已被其他工作站異動，{action}中止，請重新查詢後再試"
+                });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                error = res.Error,
+                message = $"{prefix}發票購買紀錄 [{code}] 寫入地端 DBF 失敗，{action}中止: {res.Message ?? res.Error}"
+            });
+        }
+
+        /// <summary>
+        /// DBF 全部寫入成功後，以同一組欄位依 _record_number 同步 PostgreSQL 並更新 Checksum。
+        /// PostgreSQL 失敗時不更新 Checksum，下次讀取會從 DBF 重灌快照。
+        /// </summary>
+        private async Task SyncWrittenRowsAsync(List<(int Recno, Dictionary<string, object?> Fields)> rows)
+        {
+            if (rows.Count == 0) return;
+
+            try
+            {
+                var conn = _context.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+                using var tx = await conn.BeginTransactionAsync();
+                foreach (var (recno, fields) in rows)
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.Transaction = tx;
+                    var sets = new List<string>();
+                    var i = 0;
+                    foreach (var (name, value) in fields)
+                    {
+                        var p = cmd.CreateParameter();
+                        p.ParameterName = "@f" + i;
+                        p.Value = value ?? string.Empty;
+                        cmd.Parameters.Add(p);
+                        sets.Add($@"""{name}"" = @f{i}");
+                        i++;
+                    }
+                    var pRec = cmd.CreateParameter();
+                    pRec.ParameterName = "@recno";
+                    pRec.Value = recno;
+                    cmd.Parameters.Add(pRec);
+                    cmd.CommandText = $@"UPDATE ""{PgSchema}"".""{PgTable}"" SET {string.Join(", ", sets)} WHERE ""_record_number"" = @recno;";
+                    await cmd.ExecuteNonQueryAsync();
+                }
+                await tx.CommitAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Wbase3060 PostgreSQL 同步失敗，下次讀取將重灌快照: {ex.Message}");
+                return;
+            }
+
+            var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
+            if (!string.IsNullOrEmpty(newChecksum))
+                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
         }
 
         private static Dictionary<string, object?> AssembleTrackFields(InvoicePurchaseMaster item)
@@ -341,13 +419,38 @@ namespace Wx3000.Backend.Controllers
             {
                 var period = string.IsNullOrWhiteSpace(req.Period) ? "11505-06" : req.Period.Trim();
                 var cleanPeriod = period.Replace("-", "");
+                var dbfPeriod = NormalizeToDbfPeriod(period);
                 var times = string.IsNullOrWhiteSpace(req.Times) ? "1" : req.Times.Trim();
 
-                // 取得當期所有公司資料
-                var dbList = await _context.InvoicePurchaseMasters
-                    .Where(x => (x.Period == period || x.Period == cleanPeriod) &&
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, SyncKeyField);
+
+                // 取得當期所有公司資料 (DBF 的 yymm 是 6 碼，例如 11505-06 → 150506)
+                var dbList = await _context.InvoicePurchaseMasters.AsNoTracking()
+                    .Where(x => (x.Period == period || x.Period == cleanPeriod || x.Period == dbfPeriod) &&
                                 (x.Times == times || x.Times == times.TrimStart('0')))
+                    .OrderBy(x => x.RecordNumber)
                     .ToListAsync();
+
+                // 每筆購買紀錄目前的字軌欄位值與要寫入 DBF 的異動欄位 (以 RECNO 區分同公司的多筆)
+                var current = new Dictionary<int, Dictionary<string, object?>>();
+                var changes = new Dictionary<int, Dictionary<string, object?>>();
+                void SetTrack(InvoicePurchaseMaster row, string field, string? value)
+                {
+                    if (string.IsNullOrEmpty(value)) return;
+                    if (!current.TryGetValue(row.RecordNumber, out var cur))
+                    {
+                        cur = AssembleTrackFields(row);
+                        current[row.RecordNumber] = cur;
+                    }
+                    if (string.Equals((cur[field] as string)?.Trim(), value, StringComparison.Ordinal)) return;
+                    cur[field] = value;
+                    if (!changes.TryGetValue(row.RecordNumber, out var chg))
+                    {
+                        chg = new Dictionary<string, object?>();
+                        changes[row.RecordNumber] = chg;
+                    }
+                    chg[field] = value;
+                }
 
                 // 同時取得公司資料以備統編對應
                 var companies = await _context.CompanyMasters.AsNoTracking().ToListAsync();
@@ -408,59 +511,39 @@ namespace Wx3000.Backend.Controllers
                     var startNo = item.StartNo?.Trim();
                     var endNo = item.EndNo?.Trim();
 
-                    if (type.Contains("二聯副") || type.Contains("手開二聯副"))
+                    // 判斷順序沿用原本寫法
+                    string? prefix = null;
+                    if (type.Contains("二聯副") || type.Contains("手開二聯副")) prefix = "a02b";
+                    else if (type.Contains("二聯") || type.Contains("手開二聯")) prefix = "a02";
+                    else if (type.Contains("三聯副") || type.Contains("手開三聯副")) prefix = "a03b";
+                    else if (type.Contains("三聯") || type.Contains("手開三聯")) prefix = "a03";
+                    else if (type.Contains("特種")) prefix = "spec";
+                    else if (type.Contains("收銀二聯") || type.Contains("二收")) prefix = "c02";
+                    else if (type.Contains("收銀三聯副") || type.Contains("三收副")) prefix = "c03b";
+                    else if (type.Contains("收銀三聯") || type.Contains("三收")) prefix = "c03";
+
+                    if (prefix != null)
                     {
-                        if (!string.IsNullOrEmpty(track)) target.ManualTwoSubTrack = track;
-                        if (!string.IsNullOrEmpty(startNo)) target.ManualTwoSubStartNo = startNo;
-                        if (!string.IsNullOrEmpty(endNo)) target.ManualTwoSubEndNo = endNo;
-                    }
-                    else if (type.Contains("二聯") || type.Contains("手開二聯"))
-                    {
-                        if (!string.IsNullOrEmpty(track)) target.ManualTwoTrack = track;
-                        if (!string.IsNullOrEmpty(startNo)) target.ManualTwoStartNo = startNo;
-                        if (!string.IsNullOrEmpty(endNo)) target.ManualTwoEndNo = endNo;
-                    }
-                    else if (type.Contains("三聯副") || type.Contains("手開三聯副"))
-                    {
-                        if (!string.IsNullOrEmpty(track)) target.ManualThreeSubTrack = track;
-                        if (!string.IsNullOrEmpty(startNo)) target.ManualThreeSubStartNo = startNo;
-                        if (!string.IsNullOrEmpty(endNo)) target.ManualThreeSubEndNo = endNo;
-                    }
-                    else if (type.Contains("三聯") || type.Contains("手開三聯"))
-                    {
-                        if (!string.IsNullOrEmpty(track)) target.ManualThreeTrack = track;
-                        if (!string.IsNullOrEmpty(startNo)) target.ManualThreeStartNo = startNo;
-                        if (!string.IsNullOrEmpty(endNo)) target.ManualThreeEndNo = endNo;
-                    }
-                    else if (type.Contains("特種"))
-                    {
-                        if (!string.IsNullOrEmpty(track)) target.SpecialTrack = track;
-                        if (!string.IsNullOrEmpty(startNo)) target.SpecialStartNo = startNo;
-                        if (!string.IsNullOrEmpty(endNo)) target.SpecialEndNo = endNo;
-                    }
-                    else if (type.Contains("收銀二聯") || type.Contains("二收"))
-                    {
-                        if (!string.IsNullOrEmpty(track)) target.CashTwoTrack = track;
-                        if (!string.IsNullOrEmpty(startNo)) target.CashTwoStartNo = startNo;
-                        if (!string.IsNullOrEmpty(endNo)) target.CashTwoEndNo = endNo;
-                    }
-                    else if (type.Contains("收銀三聯副") || type.Contains("三收副"))
-                    {
-                        if (!string.IsNullOrEmpty(track)) target.CashThreeSubTrack = track;
-                        if (!string.IsNullOrEmpty(startNo)) target.CashThreeSubStartNo = startNo;
-                        if (!string.IsNullOrEmpty(endNo)) target.CashThreeSubEndNo = endNo;
-                    }
-                    else if (type.Contains("收銀三聯") || type.Contains("三收"))
-                    {
-                        if (!string.IsNullOrEmpty(track)) target.CashThreeTrack = track;
-                        if (!string.IsNullOrEmpty(startNo)) target.CashThreeStartNo = startNo;
-                        if (!string.IsNullOrEmpty(endNo)) target.CashThreeEndNo = endNo;
+                        SetTrack(target, prefix + "beg", track);
+                        SetTrack(target, prefix + "begno", startNo);
+                        SetTrack(target, prefix + "endno", endNo);
                     }
 
                     matchedCount++;
                 }
 
-                await _context.SaveChangesAsync();
+                // 先逐筆寫 DBF，全部成功才同步 PostgreSQL
+                var rowsByRecno = dbList.GroupBy(x => x.RecordNumber).ToDictionary(g => g.Key, g => g.First());
+                var written = new List<(int Recno, Dictionary<string, object?> Fields)>();
+                foreach (var (recno, fields) in changes.OrderBy(c => c.Key))
+                {
+                    var row = rowsByRecno[recno];
+                    var dbfRes = await WriteTrackRowAsync(row, fields);
+                    if (!dbfRes.Success) return DbfWriteFailure(dbfRes, row, written.Count, "Excel 轉入");
+                    written.Add((recno, fields));
+                }
+
+                await SyncWrittenRowsAsync(written);
 
                 return Ok(new
                 {
@@ -468,7 +551,8 @@ namespace Wx3000.Backend.Controllers
                     totalItems = req.Items.Count,
                     matched = matchedCount,
                     unmatched = unmatchedCount,
-                    message = $"Excel 轉入完成！成功匹配 {matchedCount} 筆，未匹配 {unmatchedCount} 筆。"
+                    updated = written.Count,
+                    message = $"Excel 轉入完成！成功匹配 {matchedCount} 筆，未匹配 {unmatchedCount} 筆，更新 {written.Count} 筆購買紀錄。"
                 });
             }
             catch (Exception ex)
@@ -488,50 +572,33 @@ namespace Wx3000.Backend.Controllers
             {
                 var period = string.IsNullOrWhiteSpace(req.Period) ? "11505-06" : req.Period.Trim();
                 var cleanPeriod = period.Replace("-", "");
+                var dbfPeriod = NormalizeToDbfPeriod(period);
                 var times = string.IsNullOrWhiteSpace(req.Times) ? "1" : req.Times.Trim();
 
-                var list = await _context.InvoicePurchaseMasters
-                    .Where(x => (x.Period == period || x.Period == cleanPeriod) &&
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, DbfName, PgSchema, PgTable, SyncKeyField);
+
+                // DBF 的 yymm 是 6 碼，例如 11505-06 → 150506
+                var list = await _context.InvoicePurchaseMasters.AsNoTracking()
+                    .Where(x => (x.Period == period || x.Period == cleanPeriod || x.Period == dbfPeriod) &&
                                 (x.Times == times || x.Times == times.TrimStart('0')))
+                    .OrderBy(x => x.RecordNumber)
                     .ToListAsync();
 
+                // 只寫有字軌資料的列；先逐筆寫 DBF，全部成功才同步 PostgreSQL
+                var written = new List<(int Recno, Dictionary<string, object?> Fields)>();
                 foreach (var item in list)
                 {
-                    item.ManualTwoTrack = "";
-                    item.ManualTwoStartNo = "";
-                    item.ManualTwoEndNo = "";
+                    var trackFields = AssembleTrackFields(item);
+                    if (trackFields.Values.All(v => string.IsNullOrWhiteSpace(v as string))) continue;
 
-                    item.ManualTwoSubTrack = "";
-                    item.ManualTwoSubStartNo = "";
-                    item.ManualTwoSubEndNo = "";
-
-                    item.ManualThreeTrack = "";
-                    item.ManualThreeStartNo = "";
-                    item.ManualThreeEndNo = "";
-
-                    item.ManualThreeSubTrack = "";
-                    item.ManualThreeSubStartNo = "";
-                    item.ManualThreeSubEndNo = "";
-
-                    item.SpecialTrack = "";
-                    item.SpecialStartNo = "";
-                    item.SpecialEndNo = "";
-
-                    item.CashTwoTrack = "";
-                    item.CashTwoStartNo = "";
-                    item.CashTwoEndNo = "";
-
-                    item.CashThreeTrack = "";
-                    item.CashThreeStartNo = "";
-                    item.CashThreeEndNo = "";
-
-                    item.CashThreeSubTrack = "";
-                    item.CashThreeSubStartNo = "";
-                    item.CashThreeSubEndNo = "";
+                    var fields = trackFields.Keys.ToDictionary(k => k, _ => (object?)string.Empty);
+                    var dbfRes = await WriteTrackRowAsync(item, fields);
+                    if (!dbfRes.Success) return DbfWriteFailure(dbfRes, item, written.Count, "清除");
+                    written.Add((item.RecordNumber, fields));
                 }
 
-                await _context.SaveChangesAsync();
-                return Ok(new { success = true, cleared = list.Count, message = $"已清除期別 {period} 次數 {times} 之所有字軌資料。" });
+                await SyncWrittenRowsAsync(written);
+                return Ok(new { success = true, cleared = written.Count, message = $"已清除期別 {period} 次數 {times} 之所有字軌資料。" });
             }
             catch (Exception ex)
             {
