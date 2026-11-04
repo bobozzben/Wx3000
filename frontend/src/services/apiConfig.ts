@@ -268,6 +268,47 @@ export const applyServerSystemConfig = async (
 };
 
 /**
+ * ERP 後端請求攔截器：將 /api/... 請求導向當前配置之 ERP 後端伺服器，並附帶 X-Data-Drive
+ *
+ * 全域 axios 與 axios.create() 建立的後端 instance (例如 services/api.ts) 都必須掛上這個攔截器，
+ * 否則後端收不到標頭時會改用最後一次 POST /api/systemconfig 的磁碟機，切到測試磁碟機後仍可能讀寫正式資料。
+ * LocalAgent 專用的 localagentApi 刻意不掛。
+ */
+export const backendApiRequestInterceptor = (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
+  const currentServer = getApiServerUrl();
+  const isRelativeApi = Boolean(config.url && config.url.startsWith('/api'));
+  const isBackendApi = isRelativeApi ||
+    Boolean(config.url && config.url.startsWith(currentServer)) ||
+    Boolean(!config.url?.startsWith('http://') && !config.url?.startsWith('https://'));
+
+  if (isRelativeApi) {
+    config.baseURL = currentServer;
+  }
+
+  if (isBackendApi) {
+    if (!config.headers) {
+      config.headers = {} as any;
+    }
+    if (typeof (config.headers as any).set === 'function') {
+      (config.headers as any).set('X-Data-Drive', getDataDrive());
+    } else {
+      config.headers['X-Data-Drive'] = getDataDrive();
+    }
+  } else {
+    // 外部服務 (例如 LocalAgent http://localhost:5009)，徹底清除 X-Data-Drive 防止觸發跨域 CORS Preflight 攔截
+    if (config.headers) {
+      if (typeof (config.headers as any).delete === 'function') {
+        (config.headers as any).delete('X-Data-Drive');
+        (config.headers as any).delete('x-data-drive');
+      }
+      delete (config.headers as any)['X-Data-Drive'];
+      delete (config.headers as any)['x-data-drive'];
+    }
+  }
+  return config;
+};
+
+/**
  * 初始化 Axios 全域攔截器
  */
 export const initApiConfig = () => {
@@ -275,39 +316,7 @@ export const initApiConfig = () => {
   applyApiServerUrl(activeUrl);
 
   // 1. Axios 攔截器：統一將 /api/... 請求導向當前配置之 ERP 後端伺服器，並附帶 X-Data-Drive
-  axios.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-    const currentServer = getApiServerUrl();
-    const isRelativeApi = Boolean(config.url && config.url.startsWith('/api'));
-    const isBackendApi = isRelativeApi ||
-      Boolean(config.url && config.url.startsWith(currentServer)) ||
-      Boolean(!config.url?.startsWith('http://') && !config.url?.startsWith('https://'));
-
-    if (isRelativeApi) {
-      config.baseURL = currentServer;
-    }
-
-    if (isBackendApi) {
-      if (!config.headers) {
-        config.headers = {} as any;
-      }
-      if (typeof (config.headers as any).set === 'function') {
-        (config.headers as any).set('X-Data-Drive', getDataDrive());
-      } else {
-        config.headers['X-Data-Drive'] = getDataDrive();
-      }
-    } else {
-      // 外部服務 (例如 LocalAgent http://localhost:5009)，徹底清除 X-Data-Drive 防止觸發跨域 CORS Preflight 攔截
-      if (config.headers) {
-        if (typeof (config.headers as any).delete === 'function') {
-          (config.headers as any).delete('X-Data-Drive');
-          (config.headers as any).delete('x-data-drive');
-        }
-        delete (config.headers as any)['X-Data-Drive'];
-        delete (config.headers as any)['x-data-drive'];
-      }
-    }
-    return config;
-  });
+  axios.interceptors.request.use(backendApiRequestInterceptor);
 
   // 2. 原生 window.fetch 補丁
   if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
