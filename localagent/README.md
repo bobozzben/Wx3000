@@ -30,7 +30,7 @@
 - **DLL 白名單**：`/api/call`、`/report` (含相容路徑) 與 WebSocket 只能呼叫 `dlls.json` 登記的 DLL 與函數，未登記回 `errorType: "FORBIDDEN"`。新增報表函數時必須同步登記。
 - **Electron 限制**：目前 `file://` 頁面 (`webSecurity: false`) 的請求不帶 `Origin`，因此無 `Origin` 的跨站 POST 會放行；無 `Origin` 的跨站 GET 只放行唯讀端點 (`/`、`/test.html`、`/mac`、`/config`、`/dllList`、`/api/check-drive`、`/api/dbf/check_drive`)。若日後開啟 `webSecurity`，請將實際 Origin 加入放行規則。
 
-修改後請執行 `npm test` (`localagent/agent.test.js`，共 21 項；其中 `HTTP surface` 含 5 個子測試，`node --test` 統計為 26)。
+修改後請執行 `npm test` (`localagent/agent.test.js`，共 24 項；其中 `HTTP surface` 含 5 個子測試，`node --test` 統計為 29)。
 
 ## 🔌 主要 API 端點
 
@@ -40,7 +40,9 @@
 - `GET` / `POST /api/dbf/checksum`：高速計算地端 `.dbf` 檔案之 `SHA256:FileSize` 校驗碼。
 - `POST /api/dbf/get_pg_script`：產生 DBF 轉 PostgreSQL 的結構 (`STRUCT`) 或資料 (`DATA`) 腳本。
 - `POST /api/dbf/write`：新增、修改、刪除 DBF 記錄（別名、欄位名與鍵值運算式會先經過識別字檢查）。
-  - 由 LocalAgent 組成 VFP 腳本經 `EXEC_VFP` 執行：`INSERT` 用 `INSERT INTO`，`UPDATE` 用 `LOCATE FOR` + `REPLACE`，`DELETE` 用 `LOCATE FOR` + `DELETE`；回傳 `{ success, operation, recno }`，找不到記錄時回 `errorType: "RECORD_NOT_FOUND"`。
+  - 由 LocalAgent 組成 VFP 腳本經 `EXEC_VFP` 執行：`INSERT` 用 `INSERT INTO`，`UPDATE` 用 `LOCATE FOR` + `REPLACE`，`DELETE` 用 `LOCATE FOR` + `DELETE`；回傳 `{ success, operation, recno, checksumBefore, checksumAfter, otherChanges }`，找不到記錄時回 `errorType: "RECORD_NOT_FOUND"`。
+  - 寫入前後的 `.dbf` 與這次 VFP 腳本在同一個隊列項目內讀取，中間不會插進其他 LocalAgent 動作。checksum 格式與 `CHECKSUM` 相同，為小寫 SHA-256 hex 加上 `:` 與檔案位元組數。
+  - `otherChanges` 表示前後差異超出這次寫入會動到的位元組，也就是同時有舊系統或其他程式改了這個檔案。這次寫入會動到的位元組：檔頭前 32 個位元組、INSERT 的整筆與檔尾標記、UPDATE 寫入的欄位與 `_nullflags`、DELETE 的刪除旗標。後端據此決定能不能直接沿用快照。
   - `keyField` 可為欄位名、`RECNO()` 或 `ALLTRIM()` / `STR()` / `VAL()` / `TRANSFORM()` 包住的欄位，多個鍵以逗號分隔 (例如 `RECNO(),rno`)，`keyValue` 依同樣順序以逗號分隔；一般鍵以 `ALLTRIM(TRANSFORM(欄位)) == 值` 比對。
   - 欄位值只接受字串、數字、布林、`null` 與日期值；日期 (D) 欄位傳 `{ "$date": "yyyy-MM-dd" }`，會轉成 VFP `{^yyyy-MM-dd}`，`""` 或 `null` 代表空日期。一般字串一律當字元值；含換行或引號的字串以 CP950 + Base64 經 `STRCONV(..., 14)` 寫入。
   - DBF 被其他工作站獨佔或鎖定 (VFP 錯誤 3、108、109、130、1705) 時回 `errorType: "LOCK_TIMEOUT"`，後端據此回 409。

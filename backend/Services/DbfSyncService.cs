@@ -29,6 +29,17 @@ namespace Wx3000.Backend.Services
             PropertyNameCaseInsensitive = true
         };
 
+        /// <summary>這個請求 (服務實體) 對同一個 DBF 尚未提交 checksum 的連續寫入</summary>
+        private sealed class PendingWrites
+        {
+            public string? FirstBefore;
+            public string? LastAfter;
+            public bool Broken;
+        }
+
+        private readonly Dictionary<string, PendingWrites> _pendingWrites = new();
+        private readonly object _pendingLock = new();
+
         public DbfSyncService(
             HttpClient http,
             AppDbContext dbContext,
@@ -230,6 +241,7 @@ namespace Wx3000.Backend.Services
                     };
                 }
 
+                if (result.Success) TrackWrite(dbfPath, dbfName, result);
                 return result;
             }
             catch (Exception ex)
@@ -307,6 +319,79 @@ namespace Wx3000.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[DbfSync] 更新 Checksum 字典表失敗: {Message}", ex.Message);
+                return false;
+            }
+        }
+
+        private static string PendingKey(string dbfPath, string dbfName) => NormalizePath(dbfPath) + "|" + NormalizeDbf(dbfName);
+
+        /// <summary>記下成功寫入的前後 checksum；同一請求的連續寫入必須首尾相接，否則中間有別人改過檔案</summary>
+        private void TrackWrite(string dbfPath, string dbfName, DbfWriteResult result)
+        {
+            var key = PendingKey(dbfPath, dbfName);
+            lock (_pendingLock)
+            {
+                if (!_pendingWrites.TryGetValue(key, out var pending))
+                {
+                    pending = new PendingWrites { FirstBefore = result.ChecksumBefore };
+                    _pendingWrites[key] = pending;
+                }
+                else if (!string.Equals(pending.LastAfter, result.ChecksumBefore, StringComparison.OrdinalIgnoreCase))
+                {
+                    pending.Broken = true;
+                }
+
+                if (result.OtherChanges || string.IsNullOrEmpty(result.ChecksumBefore) || string.IsNullOrEmpty(result.ChecksumAfter))
+                {
+                    pending.Broken = true;
+                }
+                pending.LastAfter = result.ChecksumAfter;
+            }
+        }
+
+        public async Task<bool> CommitWriteChecksumAsync(string dbfPath, string dbfName)
+        {
+            PendingWrites? pending;
+            lock (_pendingLock)
+            {
+                var key = PendingKey(dbfPath, dbfName);
+                if (_pendingWrites.TryGetValue(key, out pending)) _pendingWrites.Remove(key);
+            }
+
+            if (pending == null || pending.Broken || string.IsNullOrEmpty(pending.FirstBefore) || string.IsNullOrEmpty(pending.LastAfter))
+            {
+                if (pending != null)
+                {
+                    _logger.LogInformation("[DbfSync] {Dbf} 寫入期間 DBF 另有變動或無法比對，不更新 Checksum，下次讀取將從 DBF 重灌快照", dbfName);
+                }
+                return false;
+            }
+
+            try
+            {
+                var conn = _dbContext.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+
+                // 字典必須仍是寫入前的 checksum：不是的話代表寫入前快照就已過期 (舊系統先改過)，或另一個請求先更新了字典
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE dictionary.w3000_dbf SET checksum = @after
+                    WHERE path = @p AND dbf = @d AND checksum = @before;";
+                var p1 = cmd.CreateParameter(); p1.ParameterName = "@p"; p1.Value = NormalizePath(dbfPath); cmd.Parameters.Add(p1);
+                var p2 = cmd.CreateParameter(); p2.ParameterName = "@d"; p2.Value = NormalizeDbf(dbfName); cmd.Parameters.Add(p2);
+                var p3 = cmd.CreateParameter(); p3.ParameterName = "@before"; p3.Value = pending.FirstBefore; cmd.Parameters.Add(p3);
+                var p4 = cmd.CreateParameter(); p4.ParameterName = "@after"; p4.Value = pending.LastAfter; cmd.Parameters.Add(p4);
+
+                var updated = await cmd.ExecuteNonQueryAsync() > 0;
+                if (!updated)
+                {
+                    _logger.LogInformation("[DbfSync] {Dbf} 快照的 Checksum 已不是寫入前的值，不更新，下次讀取將從 DBF 重灌快照", dbfName);
+                }
+                return updated;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[DbfSync] 提交寫入後 Checksum 失敗: {Message}", ex.Message);
                 return false;
             }
         }

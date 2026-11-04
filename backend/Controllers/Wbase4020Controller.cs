@@ -147,11 +147,7 @@ namespace Wx3000.Backend.Controllers
             await UpdateCustomerFieldsInPg(trimmedNo, fields, writeRes.Recno);
 
             // 3. 更新 Checksum
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "customer");
-            if (!string.IsNullOrEmpty(chk))
-            {
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "customer", chk);
-            }
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "customer");
 
             return Ok(new { success = true });
         }
@@ -192,11 +188,7 @@ namespace Wx3000.Backend.Controllers
 
             await UpdateCustomerFieldsInPg(trimmedNo, fields, writeRes.Recno);
 
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "customer");
-            if (!string.IsNullOrEmpty(chk))
-            {
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "customer", chk);
-            }
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "customer");
 
             return Ok(new { success = true, applied = fields });
         }
@@ -237,11 +229,7 @@ namespace Wx3000.Backend.Controllers
 
             await UpdateSingleRowTableInPg("accpara", fields);
 
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "accpara");
-            if (!string.IsNullOrEmpty(chk))
-            {
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "accpara", chk);
-            }
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "accpara");
 
             return Ok(new { success = true });
         }
@@ -343,11 +331,7 @@ namespace Wx3000.Backend.Controllers
 
             await UpdateCustomerFieldsInPg(trimmedNo, fields, writeRes.Recno);
 
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "customer");
-            if (!string.IsNullOrEmpty(chk))
-            {
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "customer", chk);
-            }
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "customer");
 
             return Ok(new { success = true });
         }
@@ -386,11 +370,7 @@ namespace Wx3000.Backend.Controllers
 
             await UpdateCustomerFieldsInPg(trimmedNo, fields, writeRes.Recno);
 
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "customer");
-            if (!string.IsNullOrEmpty(chk))
-            {
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "customer", chk);
-            }
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "customer");
 
             return Ok(new { success = true, applied = fields });
         }
@@ -429,11 +409,7 @@ namespace Wx3000.Backend.Controllers
 
             await UpdateSingleRowTableInPg("accpara", fields);
 
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "accpara");
-            if (!string.IsNullOrEmpty(chk))
-            {
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "accpara", chk);
-            }
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "accpara");
 
             return Ok(new { success = true });
         }
@@ -608,11 +584,9 @@ namespace Wx3000.Backend.Controllers
             }
 
             // 4. 更新 Checksum
-            var chk1 = await _dbfSyncService.GetChecksumAsync(DbfPath, "acc_st");
-            if (!string.IsNullOrEmpty(chk1)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "acc_st", chk1);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "acc_st");
 
-            var chk2 = await _dbfSyncService.GetChecksumAsync(DbfPath, "customer");
-            if (!string.IsNullOrEmpty(chk2)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "customer", chk2);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "customer");
 
             return Ok(new { success = true });
         }
@@ -772,8 +746,7 @@ namespace Wx3000.Backend.Controllers
                 await insCmd.ExecuteNonQueryAsync();
             }
 
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "descrip");
-            if (!string.IsNullOrEmpty(chk)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "descrip", chk);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "descrip");
 
             model.Accno = trimmedAccno;
             model.Serial = nextSerial;
@@ -813,8 +786,7 @@ namespace Wx3000.Backend.Controllers
                 await cmd.ExecuteNonQueryAsync();
             }
 
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "descrip");
-            if (!string.IsNullOrEmpty(chk)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "descrip", chk);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "descrip");
 
             return Ok(new { success = true });
         }
@@ -841,8 +813,7 @@ namespace Wx3000.Backend.Controllers
                 await cmd.ExecuteNonQueryAsync();
             }
 
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "descrip");
-            if (!string.IsNullOrEmpty(chk)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "descrip", chk);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "descrip");
 
             return Ok(new { success = true, deletedRecno = recno });
         }
@@ -903,8 +874,7 @@ namespace Wx3000.Backend.Controllers
                 await cmd.ExecuteNonQueryAsync();
             }
 
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "descrip");
-            if (!string.IsNullOrEmpty(chk)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "descrip", chk);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "descrip");
 
             return Ok(new { success = true });
         }
@@ -958,8 +928,7 @@ namespace Wx3000.Backend.Controllers
 
             await UpdateSingleRowTableInPg("pub_para", fields);
 
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, "pub_para");
-            if (!string.IsNullOrEmpty(chk)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "pub_para", chk);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "pub_para");
 
             return Ok(new { success = true, qqsel = sel });
         }

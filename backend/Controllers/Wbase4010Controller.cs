@@ -267,11 +267,7 @@ namespace Wx3000.Backend.Controllers
                 var recno = await InsertAccountToPg(dbfName, fields, writeResult.Recno);
 
                 // 更新 Checksum 字典表
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, dbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                {
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, dbfName, newChecksum);
-                }
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, dbfName);
 
                 model.Accno = accno;
                 model.Accname = finalAccname;
@@ -348,11 +344,7 @@ namespace Wx3000.Backend.Controllers
                 await UpdateAccountInPg(dbfName, trimmedAccno, fields);
 
                 // 更新 Checksum 字典表
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, dbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                {
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, dbfName, newChecksum);
-                }
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, dbfName);
 
                 return Ok(new { success = true, accno = trimmedAccno });
             }
@@ -444,11 +436,7 @@ namespace Wx3000.Backend.Controllers
                 // 從 PostgreSQL 刪除；失敗時不更新 Checksum，下次讀取會從 DBF 重灌快照
                 if (await TryDeleteAccountFromPgAsync(dbfName, trimmedAccno))
                 {
-                    var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, dbfName);
-                    if (!string.IsNullOrEmpty(newChecksum))
-                    {
-                        await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, dbfName, newChecksum);
-                    }
+                    await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, dbfName);
                 }
 
                 return Ok(new { success = true, deletedAccno = trimmedAccno });
@@ -526,11 +514,7 @@ namespace Wx3000.Backend.Controllers
                 }
 
                 // 更新 Checksum 字典表
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, dbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                {
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, dbfName, newChecksum);
-                }
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, dbfName);
 
                 return Ok(new { success = true, copiedCount, totalRequested = req.Accnos.Count });
             }

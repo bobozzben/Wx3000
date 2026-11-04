@@ -26,6 +26,18 @@ namespace Wx3000.Backend.Services
 
         [JsonPropertyName("elapsedMs")]
         public int ElapsedMs { get; set; }
+
+        /// <summary>寫入前的 DBF checksum (LocalAgent 在同一個隊列項目內讀取；舊版 LocalAgent 不回傳)</summary>
+        [JsonPropertyName("checksumBefore")]
+        public string? ChecksumBefore { get; set; }
+
+        /// <summary>寫入後的 DBF checksum</summary>
+        [JsonPropertyName("checksumAfter")]
+        public string? ChecksumAfter { get; set; }
+
+        /// <summary>寫入前後的差異超出這次寫入的範圍，代表同時有其他程式 (例如舊系統) 改了這個 DBF</summary>
+        [JsonPropertyName("otherChanges")]
+        public bool OtherChanges { get; set; } = true;
     }
 
     public class DbfReadResult
@@ -132,9 +144,17 @@ namespace Wx3000.Backend.Services
         Task<DbfReadResult> ReadRecordAsync(string dbfPath, string dbfName, string keyField, string keyValue, IEnumerable<string> fields);
 
         /// <summary>
-        /// 更新 PostgreSQL dictionary.w3000_dbf 快照校驗碼
+        /// 更新 PostgreSQL dictionary.w3000_dbf 快照校驗碼 (無條件覆寫；寫入 DBF 後請改用 CommitWriteChecksumAsync)
         /// </summary>
         Task<bool> UpdateDictionaryChecksumAsync(string dbfPath, string dbfName, string checksum);
+
+        /// <summary>
+        /// 寫完 DBF 與 PostgreSQL 後呼叫：只有這個請求對該 DBF 的寫入前後串得起來 (每次寫入前的 checksum
+        /// 等於上一次寫入後的 checksum)、寫入期間沒有其他程式改檔，而且字典記錄仍是第一次寫入前的 checksum 時，
+        /// 才把字典更新為最後一次寫入後的 checksum。否則不更新，下次讀取會從 DBF 重灌快照。
+        /// 回傳是否更新了字典。
+        /// </summary>
+        Task<bool> CommitWriteChecksumAsync(string dbfPath, string dbfName);
 
         /// <summary>
         /// 取得最近一次快照重載時發現的主鍵重複記錄 (無重複時回傳空清單)

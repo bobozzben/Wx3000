@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const net = require('net');
+const crypto = require('crypto');
 const { execFile, spawn } = require('child_process');
 const { StringDecoder } = require('string_decoder');
 
@@ -109,8 +110,19 @@ const CONFIG = {
 // ========== DBF Bridge 串列執行隊列 (保證單一 DBF/COM 不撞檔) ==========
 let dbfQueue = Promise.resolve();
 
+// 把一個動作排進隊列；前一個動作結束後才開始，同一時間只有一個動作在執行
+function enqueueDbf(task) {
+  const next = dbfQueue.then(task, task);
+  dbfQueue = next.catch(() => {});
+  return next;
+}
+
 function callDbfBridge(reqObj) {
-  const run = () => new Promise((resolve) => {
+  return enqueueDbf(() => runDbfBridge(reqObj));
+}
+
+function runDbfBridge(reqObj) {
+  return new Promise((resolve) => {
     const bridgeExe = CONFIG.getDbfBridgePath();
     if (!existsOnRealDisk(bridgeExe)) {
       resolve({ success: false, error: `DBFBridge.exe 不存在於實體磁碟: ${bridgeExe}` });
@@ -158,10 +170,81 @@ function callDbfBridge(reqObj) {
       }
     });
   });
+}
 
-  const next = dbfQueue.then(run, run);
-  dbfQueue = next;
-  return next;
+// ========== 寫入前後的 DBF 比對 (讓後端判斷快照能否直接沿用) ==========
+// 與 DBFBridge CHECKSUM (VFP CheckSum_SHA256) 相同的格式：小寫 SHA-256 hex + ":" + 檔案位元組數
+function dbfChecksum(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex') + ':' + buf.length;
+}
+
+async function readFileOrNull(filePath) {
+  try {
+    return await fs.promises.readFile(filePath);
+  } catch (e) {
+    return null;
+  }
+}
+
+function parseDbfLayout(buf) {
+  if (!buf || buf.length < 32) return null;
+  const count = buf.readUInt32LE(4);
+  const headerLen = buf.readUInt16LE(8);
+  const recLen = buf.readUInt16LE(10);
+  if (headerLen < 33 || recLen < 1 || headerLen > buf.length) return null;
+  const fields = new Map();
+  let off = 32;
+  let pos = 1; // 每筆的第 0 個位元組是刪除旗標
+  while (off + 32 <= headerLen && buf[off] !== 0x0d) {
+    const name = buf.toString('latin1', off, off + 11).replace(/\0[\s\S]*$/, '').toLowerCase();
+    const len = buf[off + 16];
+    fields.set(name, { offset: pos, len });
+    pos += len;
+    off += 32;
+  }
+  return { count, headerLen, recLen, fields };
+}
+
+// 確認寫入前後的差異只落在這次寫入會動到的位元組：
+//   檔頭前 32 個位元組 (最後更新日期、記錄數)，以及
+//   INSERT 新增的那一筆與其後的檔尾標記；UPDATE 該筆中有寫的欄位與 _nullflags；DELETE 該筆的刪除旗標。
+// 其他位元組有變動，代表舊系統或其他程式在同一段時間也改了這個檔案。
+function onlyExpectedChanges(before, after, { operation, recno, fieldNames = [] }) {
+  const lb = parseDbfLayout(before);
+  const la = parseDbfLayout(after);
+  if (!lb || !la || lb.headerLen !== la.headerLen || lb.recLen !== la.recLen || !(recno > 0)) return false;
+
+  const recStart = la.headerLen + (recno - 1) * la.recLen;
+  const allowed = [[0, 32]];
+  if (operation === 'INSERT') {
+    if (la.count !== lb.count + 1 || recno !== la.count) return false;
+    allowed.push([recStart, Math.max(before.length, after.length)]);
+  } else {
+    if (la.count !== lb.count || before.length !== after.length || recno > la.count) return false;
+    if (operation === 'DELETE') {
+      allowed.push([recStart, recStart + 1]);
+    } else {
+      for (const name of fieldNames.map((n) => String(n).toLowerCase())) {
+        const f = la.fields.get(name);
+        if (!f) return false;
+        allowed.push([recStart + f.offset, recStart + f.offset + f.len]);
+      }
+      const nullFlags = la.fields.get('_nullflags');
+      if (nullFlags) allowed.push([recStart + nullFlags.offset, recStart + nullFlags.offset + nullFlags.len]);
+    }
+  }
+
+  allowed.sort((a, b) => a[0] - b[0]);
+  const end = Math.max(before.length, after.length);
+  let cursor = 0;
+  for (const [start, stop] of [...allowed, [end, end]]) {
+    if (start > cursor) {
+      if (start > before.length || start > after.length) return false;
+      if (!before.subarray(cursor, start).equals(after.subarray(cursor, start))) return false;
+    }
+    cursor = Math.max(cursor, stop);
+  }
+  return true;
 }
 
 let koffi = null;
@@ -476,7 +559,14 @@ async function executeDbfWrite(payload) {
     return { success: false, error: `未知的操作類型: ${operation}` };
   }
 
-  const execRes = await callDbfBridge({ action: 'EXEC_VFP', script });
+  // 寫入前後的檔案內容在同一個隊列項目內讀取，中間不會插進其他 LocalAgent 動作；
+  // 舊系統 (VFP) 若在這段時間也改了檔案，onlyExpectedChanges 會發現多出來的差異
+  const { execRes, before, after } = await enqueueDbf(async () => {
+    const beforeBuf = await readFileOrNull(fullPath);
+    const res = await runDbfBridge({ action: 'EXEC_VFP', script });
+    const afterBuf = res.success && res.result !== 'RECORD_NOT_FOUND' ? await readFileOrNull(fullPath) : null;
+    return { execRes: res, before: beforeBuf, after: afterBuf };
+  });
   if (!execRes.success) {
     // EXEC_VFP 只回 lockHint (VFP 錯誤 3/108/109/130/1705)；轉成後端判斷 409 用的 LOCK_TIMEOUT
     if (execRes.lockHint) {
@@ -492,11 +582,20 @@ async function executeDbfWrite(payload) {
     };
   }
   const recno = parseInt(execRes.result, 10) || 0;
+  // 後端只有在 checksumBefore 等於快照記錄、且 otherChanges 為 false 時，才把 checksumAfter 記為快照的 checksum
+  const integrity = before && after
+    ? {
+        checksumBefore: dbfChecksum(before),
+        checksumAfter: dbfChecksum(after),
+        otherChanges: !onlyExpectedChanges(before, after, { operation, recno, fieldNames: Object.keys(fields) })
+      }
+    : { checksumBefore: null, checksumAfter: null, otherChanges: true };
   return {
     success: true,
     operation,
     recno,
-    elapsedMs: execRes.elapsedMs
+    elapsedMs: execRes.elapsedMs,
+    ...integrity
   };
 }
 
@@ -1073,6 +1172,8 @@ module.exports = {
   buildWhereClause,
   toVfpLiteral,
   executeDbfWrite,
+  dbfChecksum,
+  onlyExpectedChanges,
   validateCustbakRequest,
   buildCustbakExportScript,
   buildCustbakImportScript,

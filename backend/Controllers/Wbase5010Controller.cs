@@ -715,11 +715,7 @@ namespace Wx3000.Backend.Controllers
                 }
 
                 // 4. 更新 Checksum
-                var checksum = await _dbfSyncService.GetChecksumAsync(DbfPath, "bsdesc");
-                if (!string.IsNullOrEmpty(checksum))
-                {
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "bsdesc", checksum);
-                }
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "bsdesc");
 
                 return Ok(new { success = true, seq = nextSeq });
             }
@@ -788,11 +784,7 @@ namespace Wx3000.Backend.Controllers
                 }
 
                 // 3. 更新 Checksum
-                var checksum = await _dbfSyncService.GetChecksumAsync(DbfPath, "bsdesc");
-                if (!string.IsNullOrEmpty(checksum))
-                {
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "bsdesc", checksum);
-                }
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "bsdesc");
 
                 return Ok(new { success = true });
             }
@@ -835,11 +827,7 @@ namespace Wx3000.Backend.Controllers
                 }
 
                 // 3. 更新 Checksum
-                var checksum = await _dbfSyncService.GetChecksumAsync(DbfPath, "bsdesc");
-                if (!string.IsNullOrEmpty(checksum))
-                {
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "bsdesc", checksum);
-                }
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "bsdesc");
 
                 return Ok(new { success = true });
             }
@@ -956,11 +944,7 @@ namespace Wx3000.Backend.Controllers
                     return Ok(new { success = true });
                 }
 
-                var checksum = await _dbfSyncService.GetChecksumAsync(DbfPath, "bsdesc");
-                if (!string.IsNullOrEmpty(checksum))
-                {
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, "bsdesc", checksum);
-                }
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, "bsdesc");
 
                 return Ok(new { success = true });
             }
