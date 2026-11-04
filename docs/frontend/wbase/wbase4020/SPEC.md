@@ -128,7 +128,7 @@
 | `PUT` | `/api/wbase4020/stock-mode/{no}` | 4-4 存檔：寫 `acc_st` (DBF 回 `RECORD_NOT_FOUND` 才新增) 後連動 `customer` |
 | `GET` | `/api/wbase4020/descrip/accounts?keyword=` | 4-5 科目清單 (`xmaster`)，亦供科目選單使用 |
 | `GET` | `/api/wbase4020/descrip?accno=` | 4-5 摘要清單，依科目、`serial` 排序 |
-| `POST` | `/api/wbase4020/descrip` | 新增摘要 (`serial` = 該科目最大值 + 1) |
+| `POST` | `/api/wbase4020/descrip` | 新增摘要 (`serial` = 該科目最大值 + 1，由 VFP 在 DBF 檔頭鎖內取號，多人同時新增也不重號) |
 | `PUT` / `DELETE` | `/api/wbase4020/descrip/{recno}` | 修改內容 / 刪除摘要 |
 | `POST` | `/api/wbase4020/descrip/swap-order` | Body `{ recno1, serial1, recno2, serial2 }`，交換兩筆的 `serial` |
 | `GET` / `PUT` | `/api/wbase4020/pub-para` | 4-6 `qqsel` |

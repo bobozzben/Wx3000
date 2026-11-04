@@ -171,7 +171,7 @@ backend/
 
 | 動作 | operation | keyField | 寫入欄位 |
 | :--- | :--- | :--- | :--- |
-| 新增 | `INSERT` | `seq` | `seq`、`no`、`desc`、`sel`、`serial` (= `seq`)；PostgreSQL 的 `_record_number` 取現有最大值 + 1 |
+| 新增 | `INSERT` | `seq` | `seq`、`no`、`desc`、`sel`、`serial` (= `seq`)。自動取號時由 VFP 在 DBF 檔頭鎖內取 `MAX(seq)+1` (`DbfWriteOptions.AutoNumber`，同時寫入 `serial`)；指定 `seq` 時 DBF 已有同一個 `seq` 回 409。PostgreSQL 的 `_record_number` 為 DBF 回傳的 RECNO |
 | 修改 | `UPDATE` | `seq` | `no`、`desc`、`sel` |
 | 刪除 | `DELETE` | `seq` | - |
 | 批次重編 | `UPDATE` | `serial` (舊值) | `seq`、`serial` 依清單順序重編為 1..n，另寫 `no`、`desc`、`sel` |
@@ -189,7 +189,7 @@ backend/
 | `POST` | `/api/wbase5010/print/business-status` | Body `{ year, startMonth, endMonth, startNo, endNo }`；依 `no` 排序；`startMonth`、`endMonth` 原樣回填 (未傳時 `01`、`12`) |
 | `POST` | `/api/wbase5010/print/finance-status` | Body `{ year, startNo, endNo }`；依 `no` 排序；`year` 原樣回填 |
 | `GET` | `/api/wbase5010/bsdesc` | 委任書條文，依 `seq`、`serial` 排序 |
-| `POST` | `/api/wbase5010/bsdesc` | 新增；`seq > 0` 時用傳入值，否則取 PostgreSQL `MAX(seq) + 1`；回傳 `{ success, seq }` |
+| `POST` | `/api/wbase5010/bsdesc` | 新增；`seq > 0` 時用傳入值 (DBF 已有同一個 `seq` 回 409)，否則由 VFP 在 DBF 取 `MAX(seq) + 1`，多人同時新增或舊系統剛新增時也不重號；回傳 `{ success, seq }` |
 | `PUT` | `/api/wbase5010/bsdesc/{seq}` | 修改 `no`、`desc`、`sel` |
 | `DELETE` | `/api/wbase5010/bsdesc/{seq}` | 刪除 |
 | `PUT` | `/api/wbase5010/bsdesc/batch` | Body `{ rpdate, comphidno, endyear, items }`；依 `items` 順序重編 `seq`、`serial`；`rpdate`、`comphidno`、`endyear` 未使用；畫面未呼叫 |

@@ -248,15 +248,17 @@ namespace Wx3000.Backend.Controllers
             foreach (var item in validItems)
             {
                 var op = existingCodes.Contains(item.FeeCode) ? "UPDATE" : "INSERT";
-                var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, item.FeeCode, RecitemFields(item.FeeCode, item));
+                var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, item.FeeCode, RecitemFields(item.FeeCode, item), DbfWriteOptions.UniqueKeyIfInsert(op));
                 if (!dbfRes.Success)
                 {
-                    if (dbfRes.ErrorType == "LOCK_TIMEOUT")
+                    if (dbfRes.IsConflict)
                     {
                         return StatusCode(StatusCodes.Status409Conflict, new
                         {
                             error = dbfRes.Error,
-                            message = $"項目 [{item.FeeCode}] 正被地端其他工作站編輯中，批次存檔取消"
+                            message = dbfRes.ErrorType == "DUPLICATE_KEY"
+                                ? $"項目 [{item.FeeCode}] 已被其他工作站新增，批次存檔取消，請重新整理後再試"
+                                : $"項目 [{item.FeeCode}] 正被地端其他工作站編輯中，批次存檔取消"
                         });
                     }
                     return BadRequest(new
@@ -397,7 +399,7 @@ namespace Wx3000.Backend.Controllers
         /// <summary>新增一筆收費項目；成功回傳 null，DBF 寫入失敗回傳錯誤回應</summary>
         private async Task<ObjectResult?> InsertAsync(string code, FeeItemMaster model)
         {
-            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "INSERT", KeyField, code, RecitemFields(code, model));
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "INSERT", KeyField, code, RecitemFields(code, model), DbfWriteOptions.UniqueKey);
             if (!dbfResult.Success) return DbfError(dbfResult, "存檔");
 
             model.FeeCode = code;
@@ -471,7 +473,8 @@ namespace Wx3000.Backend.Controllers
 
         private ObjectResult DbfError(DbfWriteResult res, string action)
         {
-            if (res.ErrorType == "LOCK_TIMEOUT")
+            // DUPLICATE_KEY：DBF 已有這個代號 (快照過期或剛被其他工作站新增)，LocalAgent 的 message 已說明
+            if (res.IsConflict)
             {
                 return StatusCode(StatusCodes.Status409Conflict, new
                 {

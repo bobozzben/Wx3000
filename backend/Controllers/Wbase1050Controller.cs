@@ -151,10 +151,10 @@ namespace Wx3000.Backend.Controllers
             };
 
             // 2. 核心原則：DBF 絕對權威！先寫 DBF
-            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, code, fields);
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, code, fields, DbfWriteOptions.UniqueKeyIfInsert(operation));
             if (!dbfResult.Success)
             {
-                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                if (dbfResult.IsConflict)
                 {
                     return StatusCode(StatusCodes.Status409Conflict, new
                     {
@@ -233,10 +233,10 @@ namespace Wx3000.Backend.Controllers
             };
 
             // 2. 核心原則：DBF 絕對權威！先寫 DBF
-            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, targetCode, fields);
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, targetCode, fields, DbfWriteOptions.UniqueKeyIfInsert(operation));
             if (!dbfResult.Success)
             {
-                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                if (dbfResult.IsConflict)
                 {
                     return StatusCode(StatusCodes.Status409Conflict, new
                     {
@@ -297,7 +297,7 @@ namespace Wx3000.Backend.Controllers
             var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "DELETE", KeyField, targetCode, new Dictionary<string, object?>());
             if (!dbfResult.Success)
             {
-                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                if (dbfResult.IsConflict)
                 {
                     return StatusCode(StatusCodes.Status409Conflict, new
                     {

@@ -64,7 +64,8 @@ namespace Wx3000.Backend.Controllers
             @"""recdate"", TRIM(""cno"") COLLATE ""C"""
         };
 
-        // 新增單號取「本年度最大號 + 1」，同一個後端內序列化，避免兩個請求拿到同一個號碼
+        // 新增單號取「本年度最大號 + 1」：由 VFP 在 DBF 檔頭鎖內取號 (ReceiptNumbering)，網頁之間與舊系統的新增都不會重號。
+        // 這個鎖讓同一個後端內的新增、批次與改單號依序執行 (批次的重複檢查、改單號的「單號重覆」檢查都依賴它)
         private static readonly SemaphoreSlim NumberingLock = new(1, 1);
 
         private static readonly Encoding Big5Strict = CreateBig5();
@@ -141,8 +142,9 @@ namespace Wx3000.Backend.Controllers
                     ["sum"] = 0m,
                     ["memo"] = memo
                 };
-                var res = await _dbfSyncService.WriteRecordAsync(DbfPath, MomTable, "INSERT", "rno", rno, fields);
+                var res = await _dbfSyncService.WriteRecordAsync(DbfPath, MomTable, "INSERT", "rno", rno, fields, ReceiptNumbering(today));
                 if (!res.Success) return DbfError(res, "新增收費單");
+                rno = string.IsNullOrEmpty(res.AutoNumber) ? rno : res.AutoNumber;
 
                 var receipt = new FeeReceiptDto { Rno = rno, Recdate = FormatDate(today), Memo = memo, RecordNumber = res.Recno };
                 await PgWriteAsync(MomTable, () => InsertReceiptPgAsync(receipt));
@@ -479,7 +481,7 @@ namespace Wx3000.Backend.Controllers
                 for (var i = 0; i < customers.Count; i++)
                 {
                     var c = customers[i];
-                    var rno = numbers[i];
+                    var rno = numbers[i]; // 只給舊版 LocalAgent 用；實際單號以 VFP 取到的為準
                     var momFields = new Dictionary<string, object?>
                     {
                         ["rno"] = rno,
@@ -491,8 +493,9 @@ namespace Wx3000.Backend.Controllers
                         ["memo"] = memo,
                         ["note"] = TruncateBig5(itemText, NoteBytes)
                     };
-                    var res = await _dbfSyncService.WriteRecordAsync(DbfPath, MomTable, "INSERT", "rno", rno, momFields);
+                    var res = await _dbfSyncService.WriteRecordAsync(DbfPath, MomTable, "INSERT", "rno", rno, momFields, ReceiptNumbering(recdate));
                     if (!res.Success) return BatchFailure(res, created, numbers);
+                    if (!string.IsNullOrEmpty(res.AutoNumber)) numbers[i] = rno = res.AutoNumber;
                     var receipt = new FeeReceiptDto
                     {
                         Rno = rno, Recdate = FormatDate(recdate), Notamt = c.Recamt, Cno = c.No,
@@ -824,11 +827,28 @@ namespace Wx3000.Backend.Controllers
         private static string LineKeyValue(FeeReceiptLineDto line) =>
             line.RecordNumber.ToString(CultureInfo.InvariantCulture) + "," + line.Rno;
 
-        /// <summary>單號 = "A" + 民國年 3 碼 + 流水號 6 碼，取該年度最大號加 1 (VFP recmom.insert.Click)</summary>
-        private async Task<List<string>> NextReceiptNumbersAsync(DateTime date, int count)
+        private const int ReceiptSerialWidth = 6;
+
+        /// <summary>單號前綴："A" + 民國年 3 碼</summary>
+        private static string ReceiptPrefix(DateTime date)
         {
             var roc = date.Year > 1911 ? date.Year - 1911 : date.Year;
-            var prefix = "A" + roc.ToString("D3", CultureInfo.InvariantCulture);
+            return "A" + roc.ToString("D3", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>新增表頭時由 VFP 在 DBF 檔頭鎖內取號：前綴 + MAX(VAL(流水號)) + 1 補零到 6 位，不含已刪除的單</summary>
+        private static DbfWriteOptions ReceiptNumbering(DateTime date) => new()
+        {
+            AutoNumber = new DbfAutoNumber { Field = "rno", Prefix = ReceiptPrefix(date), Width = ReceiptSerialWidth }
+        };
+
+        /// <summary>
+        /// 單號 = "A" + 民國年 3 碼 + 流水號 6 碼，取該年度最大號加 1 (VFP recmom.insert.Click)。
+        /// 依 PostgreSQL 快照計算，只在舊版 LocalAgent 不支援 ReceiptNumbering 時寫入 DBF。
+        /// </summary>
+        private async Task<List<string>> NextReceiptNumbersAsync(DateTime date, int count)
+        {
+            var prefix = ReceiptPrefix(date);
             using var cmd = await CommandAsync();
             cmd.CommandText = $@"SELECT TRIM(""rno"") FROM ""{PgSchema}"".""recmom"" WHERE LEFT(TRIM(""rno""), 4) = @p;";
             AddParam(cmd, "@p", prefix);
@@ -849,7 +869,7 @@ namespace Wx3000.Backend.Controllers
             var next = max + 1;
             while (list.Count < count)
             {
-                var candidate = prefix + next.ToString("D6", CultureInfo.InvariantCulture);
+                var candidate = prefix + next.ToString("D" + ReceiptSerialWidth, CultureInfo.InvariantCulture);
                 if (!existing.Contains(candidate)) list.Add(candidate);
                 next++;
             }
