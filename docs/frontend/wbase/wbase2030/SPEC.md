@@ -12,7 +12,7 @@
 1. **轉檔列印密碼 (`TransferPasswordModal.tsx`)**：進入兩個畫面前都要輸入 (`motherp.txt` 第 101–110 bytes，6-2 變更)。放棄回選單；錯誤顯示「密碼錯誤!」後回選單，不重試 (同 VFP)。比對只在後端，前端只收集輸入。
 2. **2-2 匯出 (`Wbase2020Export.tsx`)**：列出全部客戶 (依代號排序，一開始全部未勾選)，勾選後 `F8` 由後端產生 `custbak.dbf`，以瀏覽器下載 (Electron 會跳出另存新檔)，完成後回選單。
 3. **2-3 匯入 (`Wbase2030Import.tsx`)**：`Enter` 選擇 `custbak.dbf` 上傳 → 預覽 (每筆標示「新增」或「覆蓋」，全部未勾選) → 勾選後 `F9` 確認新增／覆蓋筆數 → 寫入 `customer.dbf` → 顯示結果後回選單。
-4. **共用元件**：`CustomerSelectGrid.tsx` (唯讀複選清單，複選欄顯示 `=>`)、`AssignCustomerModal.tsx` (`F6` 連續指定客戶)、`Wbase2030Dialogs.tsx` (確認 / 訊息視窗)、`Toast.tsx` + `useToast.ts` (非阻斷提示)；API 在 `frontend/src/services/wbase2030.ts`。
+4. **共用元件**：`index.tsx` (`Wbase2030Page`，props `mode: 'export' | 'import'`；主選單選 `wbase2020` 傳 `export`、選 `wbase2030` 傳 `import`，以 `key` 區分兩次掛載；`WbasePageHeader` 顯示對應程式代號；密碼通過前不顯示清單)、`CustomerSelectGrid.tsx` (唯讀複選清單，複選欄顯示 `=>`)、`AssignCustomerModal.tsx` (`F6` 連續指定客戶)、`Wbase2030Dialogs.tsx` (確認 / 訊息視窗)、`Toast.tsx` + `useToast.ts` (非阻斷提示)；API 在 `frontend/src/services/wbase2030.ts`。
 
 `CustomerSelectGrid` 不使用 `FoxProGridV2`：這裡是唯讀複選清單，`FoxProGridV2` 的 `Ins`、末格 `Enter`/`Tab` 會新增空白列，也無法由外部移動游標 (`F6` 指定、`F9` 查詢都要定位)。視覺依工作區規範 (Consolas 16px、列高 38px、表頭 `#1e3a8a`、黃色焦點框、深淺色主題)。
 
@@ -48,7 +48,7 @@
 | 檔案 | 匯出 | 匯入 |
 | :--- | :--- | :--- |
 | `customer.dbf` | 讀 (LocalAgent `COPY TO`) | 依 `no` 新增或整筆覆蓋 (LocalAgent，CDX tag `no`) |
-| PostgreSQL `customer` | 讀清單 (`no`, `name`, `unino`) | 預覽比對新增／覆蓋；匯入後整表重灌 |
+| PostgreSQL `customer` | 讀清單 (`no`, `name`, `unino`；讀前 `EnsureTableSyncedAsync`，keyFields `no`) | 預覽比對新增／覆蓋；匯入後整表重灌 (keyFields `no`) |
 | `motherp.txt` | 讀第 101–110 bytes | 同左 |
 | `mopath.txt` | 不使用 | 不使用 |
 | 後端暫存 `%TEMP%\Wx3000\custbak\<guid>\custbak.dbf` | 產生後回傳即刪除 | 上傳後保留到匯入完成或離開畫面；超過一天的由後端清除 |

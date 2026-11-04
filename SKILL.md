@@ -6,6 +6,8 @@
 ## 環境速記
 - Lazarus 4.6:`C:\fpcupdeluxe4\lazarus`(可編 32/64 bit);VFP9:`C:\Program Files (x86)\Microsoft Visual FoxPro 9`
 - FoxBin2PRG:`C:\Thor\Thor\Tools\Components\FoxBin2PRG\FoxBin2Prg.exe`(分析 .scx/.vcx)
+- VFP 原始碼:`F:\W3000SOUR\SourS9BASE\`(`PROGS`、`FORMS`、`LIBS`、`REPORTS`);選單按鈕對應 `base20.prg` 等檔裡的 `wbasemenuNNcmdMM` 函數,全域環境見 `PROGS\w3000func.prg` 的 `w_init_env`(`SET DELETED ON`;`SET EXACT` 未設定,字串 `=` 可能是前綴比對)。`.scx`/`.vcx`/`.frx` 本身是 DBF 表(memo 在 `.sct`/`.vct`/`.frt`),文字是 Big5 (cp950)
+- 報表 DLL 編譯:`Wx3000-Manager.ps1` `[13]` 依序找環境變數 `LAZBUILD`、PATH 上的 `lazbuild`、`C:\fpcupdeluxe\lazarus`、`C:\lazarus`、`C:\Program Files\Lazarus`;要指定用 4.6 編譯時,設定 `LAZBUILD=C:\fpcupdeluxe4\lazarus\lazbuild.exe`
 
 
 ## 角色分工與權限

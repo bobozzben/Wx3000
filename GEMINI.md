@@ -18,15 +18,21 @@
 
 2. **混合雲地雙向資料同步與動態磁碟機架構 (DBF 絕對權威原則)**
    - 系統透過 `ISystemConfigService` (`/api/systemconfig`) 與前端 `X-Data-Drive` Header 搭配 EF Core `DynamicModelCacheKeyFactory`，支援動態切換資料來源磁碟機（如 `C:` 或 `F:` 碟），自動對應地端 `<Drive>:\w3000\comm\*.dbf` 與 PostgreSQL 16 (`localhost:54320`, DB: `w3000`, Schema: `<drive>:/w3000/comm`)。
-   - 讀取前透過 `IDbfSyncService.EnsureTableSyncedAsync` 比對地端 DBF SHA256 Checksum，若有外部異動自動重灌快照；寫入（新增/修改/刪除）時優先透過 `LocalAgent` (`http://localhost:5009/api/dbf/*` ➔ `DBFBridge.exe` ➔ `w3000_dbf.dll`) 寫入地端 DBF，成功後才同步寫入 PostgreSQL 並更新 `dictionary.w3000_dbf` 校驗碼。
+   - 讀取前透過 `IDbfSyncService.EnsureTableSyncedAsync` 比對地端 DBF SHA256 Checksum，若有外部異動自動重灌快照（單一交易內清空舊快照、移除舊唯一索引後重建；`keyFields` 會成為 PostgreSQL 唯一鍵，沒有唯一鍵的表傳 `""`）；寫入（新增/修改/刪除）時優先透過 `LocalAgent` (`http://localhost:5009/api/dbf/*` ➔ `DBFBridge.exe` ➔ `w3000_dbf.dll`) 寫入地端 DBF，成功後才同步寫入 PostgreSQL 並更新 `dictionary.w3000_dbf` 校驗碼；DBF 寫入失敗（如 `LOCK_TIMEOUT` → HTTP 409）時不可單邊寫 PostgreSQL。
+   - `LocalAgent` 只監聽 `127.0.0.1` / `::1`，`/api/dbf/*` 只供後端呼叫，不接受瀏覽器請求；前端不可直接呼叫 DBF 端點。
 
 3. **本機報表與週邊整合 (LocalAgent + Lazarus FastReport)**
-   - 傳統中一刀/A4 報表預覽與直印透過 `LocalAgent` (`http://localhost:5009`) 以 **64-bit `WbaseBridge.exe`** 或 `Koffi` 呼叫 64-bit Lazarus 編譯之 `wbaseRP.dll`（如 `waccrep3101_b`、`wbase320_buyinv`、`wbase350_buyinv_list`）。
+   - 傳統中一刀/A4 報表預覽與直印透過 `LocalAgent` (`http://localhost:5009`) 以 **64-bit `WbaseBridge.exe`** 或 `Koffi` 呼叫 64-bit Lazarus 編譯之 `wbaseRP.dll`（如 `waccrep3101_b`、`wbase320_buyinv`、`wbase350_buyinv_list`、`wbase2040_receipt`、`wbase2040_bill`）。
+   - 只能呼叫 `localagent/dlls.json` 登記的函數（未登記回 `FORBIDDEN`）。新增報表要改 `report/wbase/wbase_unit1.lfm`/`.pas`（`TfrxReport` 範本，資料集名 `MTable`）、`wbase_repunit1.pas`（stdcall 函數）、`wbaseRP.lpr`（匯出）與 `dlls.json`（登記），再以 `Wx3000-Manager.ps1` `[13]` 編譯、`[8]` 重新打包並重啟 LocalAgent。
    - ⚠️ **位元架構防呆**：`DBFBridge.exe` 必須為 **32-bit (x86)**（橋接 32-bit VFP COM `w3000_dbf.dll`）；`WbaseBridge.exe` 必須為 **64-bit (x64)**（橋接 64-bit `wbaseRP.dll`），嚴禁混淆以避免 Windows `Code=193` 錯誤。
 
 4. **工程品質、台灣稅務檢核與 Big5 相容性 (`validation.ts`)**
    - 寫代碼前先閱讀源碼，禁止憑空猜測 API 簽名、元件 Props 或資料庫 Schema（注意 DBF 對應之小寫欄位名如 `no`, `name`, `yymm`, `_record_number`）。
    - 統一使用 `frontend/src/services/validation.ts` 執行欄位檢核與加解密（台灣 8 碼統編、10 碼身分證/居留證、9 碼稅籍編號、12 碼房屋稅籍、民國年日期正規化、Big5 位元組長度截斷與罕字/Emoji 哨兵、`w3000` 位移式加解密 `psw`/`onepassno`）。提示性檢核（如 Email、統編/身分證警告）應採非阻斷式（Non-blocking）友善警告，不強制阻斷舊有歷史資料之存檔。
-   - 宣告完成前必須通過實機編譯驗證（`pnpm --filter frontend build` 與 `dotnet build backend/Wx3000.Backend.csproj`）。
+   - 宣告完成前必須通過實機編譯驗證（`pnpm --filter frontend build`、`pnpm --filter frontend lint` 與 `dotnet build backend/Wx3000.Backend.csproj`；修改 `localagent/` 時另跑 `cd localagent; npm test`）。
+   - 新增前端模組時，除了 `frontend/src/wbase/menu/menuConfig.ts`，還必須在 `wbaseMainPage.tsx` 的 `handleSelectAction` 與 render 分支註冊。
+
+5. **發版**
+   - 推送 tag 只會由 GitHub Actions 建立草稿 Release；報表 DLL 與 `WbaseBridge.exe` 無法在 CI 編譯，正式發版一律使用 `Wx3000-Manager.ps1` `[14]`（本機編譯報表元件 ➔ 推送 tag ➔ 補傳 `Wx3000_ReportBin_<版本>.zip` ➔ 正式發佈）。
 
 詳細規格請參閱 [.agents/rules/foxpro_ux_and_quality.md](file:///f:/ADSProject/Wx3000/.agents/rules/foxpro_ux_and_quality.md)、[WORKSPACE.md](file:///f:/ADSProject/Wx3000/WORKSPACE.md)、[BUILD_AND_DEPLOY.md](file:///f:/ADSProject/Wx3000/BUILD_AND_DEPLOY.md)、[SKILL.md](file:///f:/ADSProject/Wx3000/SKILL.md) 與 [docs/SPEC.md](file:///f:/ADSProject/Wx3000/docs/SPEC.md)。
