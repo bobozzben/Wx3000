@@ -38,6 +38,74 @@ namespace Wx3000.Backend.Services
         /// <summary>寫入前後的差異超出這次寫入的範圍，代表同時有其他程式 (例如舊系統) 改了這個 DBF</summary>
         [JsonPropertyName("otherChanges")]
         public bool OtherChanges { get; set; } = true;
+
+        /// <summary>
+        /// 以 DbfWriteOptions.AutoNumber 新增時，VFP 在檔頭鎖內取到的號碼 (數值欄位為十進位字串)。
+        /// 舊版 LocalAgent 不支援取號，此值為 null，DBF 寫入的是呼叫端放在 fields 裡的號碼。
+        /// </summary>
+        [JsonPropertyName("autoNumber")]
+        public string? AutoNumber { get; set; }
+
+        /// <summary>
+        /// LOCK_TIMEOUT (記錄或檔案被其他工作站鎖定) 或 DUPLICATE_KEY (DBF 已有相同主鍵)：都是別的工作站造成的，控制器回 409
+        /// </summary>
+        [JsonIgnore]
+        public bool IsConflict => ErrorType is "LOCK_TIMEOUT" or "DUPLICATE_KEY";
+
+        /// <summary>取到的號碼；沒有取號 (或舊版 LocalAgent) 時回傳 fallback</summary>
+        public decimal AutoNumberOr(decimal fallback) =>
+            decimal.TryParse(AutoNumber, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : fallback;
+    }
+
+    /// <summary>
+    /// INSERT 的防重複與取號：由 LocalAgent 在同一段 VFP 腳本內先鎖 DBF 檔頭，再檢查主鍵 / 取號後新增，
+    /// 網頁之間與舊系統 (VFP) 的新增都會排隊，不會因 PostgreSQL 快照過期或多人同時新增而重複。
+    /// </summary>
+    public sealed class DbfWriteOptions
+    {
+        /// <summary>DBF 已有 keyField = keyValue 的記錄 (不含已刪除) 時不新增，回 ErrorType = DUPLICATE_KEY</summary>
+        public bool Unique { get; init; }
+
+        /// <summary>由 VFP 取號後新增，號碼回傳在 DbfWriteResult.AutoNumber</summary>
+        public DbfAutoNumber? AutoNumber { get; init; }
+
+        /// <summary>新增時要求主鍵不重複</summary>
+        public static readonly DbfWriteOptions UniqueKey = new() { Unique = true };
+
+        /// <summary>operation 為 INSERT 時要求主鍵不重複；UPDATE / DELETE 回傳 null (LocalAgent 不接受在 UPDATE / DELETE 使用)</summary>
+        public static DbfWriteOptions? UniqueKeyIfInsert(string operation) =>
+            string.Equals(operation, "INSERT", System.StringComparison.OrdinalIgnoreCase) ? UniqueKey : null;
+    }
+
+    /// <summary>
+    /// 新增時取號：Field = MAX(Field) + 1 (只看未刪除且符合 ScopeField = ScopeValue 的記錄)；
+    /// 有 Prefix 時 Field 為字元欄，號碼 = Prefix + 補零到 Width 位的 (MAX(VAL(去掉前綴的部分)) + 1)。
+    /// 號碼同時寫入 AssignTo 列出的欄位。呼叫端仍要在 fields 放入自己算的號碼，給不支援取號的舊版 LocalAgent 使用。
+    /// </summary>
+    public sealed class DbfAutoNumber
+    {
+        [JsonPropertyName("field")]
+        public string Field { get; init; } = string.Empty;
+
+        [JsonPropertyName("assignTo")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string[]? AssignTo { get; init; }
+
+        [JsonPropertyName("scopeField")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? ScopeField { get; init; }
+
+        [JsonPropertyName("scopeValue")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? ScopeValue { get; init; }
+
+        [JsonPropertyName("prefix")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Prefix { get; init; }
+
+        [JsonPropertyName("width")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? Width { get; init; }
     }
 
     public class DbfReadResult
@@ -134,9 +202,10 @@ namespace Wx3000.Backend.Services
 
         /// <summary>
         /// 依據 DBF 絕對權威原則，向地端 DBF 發動 INSERT / UPDATE / DELETE 寫入
-        /// 若遭其他工作站鎖定 (Lock Timeout) 立即回報失敗，絕不單邊寫入 PostgreSQL
+        /// 若遭其他工作站鎖定 (Lock Timeout) 立即回報失敗，絕不單邊寫入 PostgreSQL。
+        /// INSERT 可帶 options 要求主鍵不重複 (DUPLICATE_KEY) 或由 VFP 取號 (AutoNumber)，見 DbfWriteOptions。
         /// </summary>
-        Task<DbfWriteResult> WriteRecordAsync(string dbfPath, string dbfName, string operation, string keyField, string keyValue, Dictionary<string, object?> fields);
+        Task<DbfWriteResult> WriteRecordAsync(string dbfPath, string dbfName, string operation, string keyField, string keyValue, Dictionary<string, object?> fields, DbfWriteOptions? options = null);
 
         /// <summary>
         /// 直接從地端 DBF 讀取指定主鍵之記錄

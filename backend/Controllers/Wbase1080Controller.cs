@@ -126,10 +126,10 @@ namespace Wx3000.Backend.Controllers
             };
 
             // 2. 核心原則：DBF 絕對權威！先寫 DBF
-            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, code, fields);
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, code, fields, DbfWriteOptions.UniqueKeyIfInsert(operation));
             if (!dbfResult.Success)
             {
-                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                if (dbfResult.IsConflict)
                 {
                     return StatusCode(StatusCodes.Status409Conflict, new
                     {
@@ -193,10 +193,10 @@ namespace Wx3000.Backend.Controllers
             };
 
             // 2. 核心原則：DBF 絕對權威！先寫 DBF
-            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, targetCode, fields);
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, targetCode, fields, DbfWriteOptions.UniqueKeyIfInsert(operation));
             if (!dbfResult.Success)
             {
-                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                if (dbfResult.IsConflict)
                 {
                     return StatusCode(StatusCodes.Status409Conflict, new
                     {
@@ -262,7 +262,7 @@ namespace Wx3000.Backend.Controllers
             var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "DELETE", KeyField, targetCode, new Dictionary<string, object?>());
             if (!dbfResult.Success)
             {
-                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                if (dbfResult.IsConflict)
                 {
                     return StatusCode(StatusCodes.Status409Conflict, new
                     {
@@ -315,15 +315,17 @@ namespace Wx3000.Backend.Controllers
                     ["memo"] = item.Memo
                 };
 
-                var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, item.Mno, fields);
+                var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, item.Mno, fields, DbfWriteOptions.UniqueKeyIfInsert(op));
                 if (!dbfRes.Success)
                 {
-                    if (dbfRes.ErrorType == "LOCK_TIMEOUT")
+                    if (dbfRes.IsConflict)
                     {
                         return StatusCode(StatusCodes.Status409Conflict, new
                         {
                             error = dbfRes.Error,
-                            message = $"收費摘要 [{item.Mno}] 正被地端其他工作站編輯中，批次存檔取消"
+                            message = dbfRes.ErrorType == "DUPLICATE_KEY"
+                                ? $"收費摘要 [{item.Mno}] 已被其他工作站新增，批次存檔取消，請重新整理後再試"
+                                : $"收費摘要 [{item.Mno}] 正被地端其他工作站編輯中，批次存檔取消"
                         });
                     }
                     return BadRequest(new

@@ -211,20 +211,24 @@ namespace Wx3000.Backend.Services
             string operation,
             string keyField,
             string keyValue,
-            Dictionary<string, object?> fields)
+            Dictionary<string, object?> fields,
+            DbfWriteOptions? options = null)
         {
             var sw = Stopwatch.StartNew();
             try
             {
-                var payload = new
+                var payload = new Dictionary<string, object?>
                 {
-                    dbfPath,
-                    dbfName,
-                    operation = operation.ToUpperInvariant(),
-                    keyField,
-                    keyValue,
-                    fields
+                    ["dbfPath"] = dbfPath,
+                    ["dbfName"] = dbfName,
+                    ["operation"] = operation.ToUpperInvariant(),
+                    ["keyField"] = keyField,
+                    ["keyValue"] = keyValue,
+                    ["fields"] = fields
                 };
+                // 沒有用到的選項不送，LocalAgent 不接受在 UPDATE / DELETE 帶 unique、autoNumber
+                if (options?.Unique == true) payload["unique"] = true;
+                if (options?.AutoNumber != null) payload["autoNumber"] = options.AutoNumber;
 
                 var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
                 var resp = await _http.PostAsync("/api/dbf/write", content);

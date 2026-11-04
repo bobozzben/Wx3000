@@ -129,11 +129,29 @@ PostgreSQL Table 名稱與 DBF 檔名相同；`同步 keyFields` 是呼叫 `Ensu
    - 快照的 `_record_number` 等於 DBF 實體 RECNO，已刪除列不在快照中。
 2. **DBF 絕對權威寫入 (`WriteRecordAsync`)**：
    - 執行 `INSERT` / `UPDATE` / `DELETE` 時，先透過 `LocalAgent` (`POST /api/dbf/write`) 寫入地端 `.dbf`。`keyField` 可為逗號分隔的多個欄位或 `RECNO()` (例如 `RECNO(),rno`)，`keyValue` 以同樣順序逗號分隔；日期欄位傳 `{"$date":"yyyy-MM-dd"}`。
-   - 若地端 DBF 正被其他 FoxPro 工作站獨佔或鎖定，LocalAgent 會回傳 `errorType: "LOCK_TIMEOUT"`，C# Controller 回傳 HTTP `409 Conflict`，**絕不單邊修改 PostgreSQL**；找不到記錄時回 `errorType: "RECORD_NOT_FOUND"`。
+   - 若地端 DBF 正被其他 FoxPro 工作站獨佔或鎖定，LocalAgent 會回傳 `errorType: "LOCK_TIMEOUT"`，C# Controller 回傳 HTTP `409 Conflict`，**絕不單邊修改 PostgreSQL**；找不到記錄時回 `errorType: "RECORD_NOT_FOUND"`；帶 `Unique` 新增而 DBF 已有相同主鍵時回 `errorType: "DUPLICATE_KEY"` (同樣回 409，見下方「新增時的防重複與取號」)。
    - 寫入 DBF 成功後，才更新 PostgreSQL，再呼叫 `CommitWriteChecksumAsync(dbfPath, dbfName)` 更新快照校驗碼；PostgreSQL 寫入失敗時不呼叫，下次讀取會自動重灌。
    - LocalAgent 在同一個隊列項目內讀取寫入前後的 `.dbf`，回傳 `checksumBefore`、`checksumAfter`；並比對寫入前後的位元組，以 `otherChanges` 標示是否有這次寫入以外的變動。只有檔頭前 32 個位元組，以及本次 INSERT 的整筆、UPDATE 寫入的欄位、DELETE 的刪除旗標可以改變。
    - `WriteRecordAsync` 會記下同一請求對每個 DBF 的連續寫入。`CommitWriteChecksumAsync` 只在三個條件都成立時，才執行 `UPDATE dictionary.w3000_dbf SET checksum = <最後一次寫入後> WHERE checksum = <第一次寫入前>`：每次寫入前的 checksum 都等於上一次寫入後的 checksum、沒有 `otherChanges`、字典仍是第一次寫入前的值。條件不成立時不動字典，下次讀取會重灌。
    - 這樣可以避免舊系統在網頁存檔的同時修改 DBF 時，字典記下包含舊系統修改的 checksum，而快照卻沒有那筆修改。控制器不要自行呼叫 `GetChecksumAsync` 加 `UpdateDictionaryChecksumAsync`。
+   - **新增時的防重複與取號 (`DbfWriteOptions`)**：只查 PostgreSQL 快照就決定「代號不存在」或取 `MAX()+1`，多人同時新增、或舊系統剛新增而快照還沒重灌時，DBF 會出現重複主鍵或重號 (DBF 沒有唯一限制)。INSERT 可以帶 `DbfWriteOptions`，LocalAgent 會在同一段 VFP 腳本內先以 `RLOCK("0")` 鎖住 DBF 檔頭，再檢查或取號，最後才 `INSERT`：
+     - 檔頭鎖住時，舊系統與其他程式的 `APPEND` / `INSERT` 會等到這段腳本結束，修改既有記錄則不受影響。檔頭被別人鎖住時最多等 2 秒，之後回 `LOCK_TIMEOUT`。
+     - `Unique`：以 `keyField` / `keyValue` 做 `LOCATE`，不含已刪除的記錄。DBF 已有這筆時不新增，回 `errorType: "DUPLICATE_KEY"`。`DbfWriteResult.IsConflict` 涵蓋 `LOCK_TIMEOUT` 與 `DUPLICATE_KEY`，控制器回 409。
+     - `AutoNumber`：用 `CALCULATE MAX()` 取號，不含已刪除的記錄。可以用 `ScopeField` / `ScopeValue` 限定範圍。字元單號可以用 `Prefix` + `Width`，取號方式是前綴 + `MAX(VAL(流水號)) + 1` 補零。號碼會寫進 `Field` 與 `AssignTo` 的欄位，並回傳在 `DbfWriteResult.AutoNumber`；控制器以 `AutoNumberOr(後端自算的號碼)` 取得後再寫 PostgreSQL。
+     - 舊版 LocalAgent 不認得這兩個選項。`Unique` 會變回一般的 INSERT；`AutoNumber` 會照 `fields` 寫入，所以控制器仍要在 `fields` 放入由快照算出的號碼。新版 LocalAgent 一律改用 VFP 取到的號碼。
+     - 寫完 DBF 到寫 PostgreSQL 之間，其他請求可能已經把快照重灌，這筆就已在快照中。5-6、4-5 的 PostgreSQL 新增會先確認 `_record_number` 不存在，避免唯一鍵衝突或重複列。
+
+     | 模組 | 新增路徑 | 選項 |
+     | :--- | :--- | :--- |
+     | `1020`、`1030`、`1050`、`1070`、`1080`、`2010`、`3010` | `POST`、`PUT` 在快照查無時新增；`1070`、`1080`、`3010` 另有批次存檔 | `Unique` (主鍵)；重複回 409，批次存檔中止並說明是哪個代號 |
+     | `1060` | 新增、批次存檔 | `Unique` (`itemno`) |
+     | `3020` | 新增、`PUT` 查無時新增、批次、F3 轉檔 | `Unique` (`yymm,times,no`)；F3 轉檔遇到 DBF 已有的公司就略過，並且不更新 checksum |
+     | `4010` | 新增、批次複製 | `Unique` (`accno`) + `AutoNumber` (`serial`) |
+     | `4020` | 4-4 `acc_st` 查無才新增；4-5 `descrip` 新增 | `acc_st`：`Unique` (`no`)，重複時改回更新；`descrip`：`AutoNumber` (`serial`，範圍為同一個 `accno`) |
+     | `5010` | `bsdesc` 新增 | 自動取號：`AutoNumber` (`seq`，同時寫 `serial`)；呼叫端指定 `seq` 時用 `Unique` (`seq`) |
+     | `2040` | 收費單新增、批次產生 | `AutoNumber` (`rno`，前綴 `A` + 民國年 3 碼，流水號 6 位) |
+
+   - 尚未涵蓋：以 UPDATE 改代號 (1060 改項目代號、2040 改單號) 仍只查快照；`recsmemo` 空表時的第一筆新增；舊系統自己取號 (在 `APPEND` 之前就算好號碼) 時，仍可能與網頁取到同一號。
 3. **整批匯出 / 匯入 (`ExportCustbakAsync` / `ImportCustbakAsync`，2-2 / 2-3)**：
    - 透過 `LocalAgent` (`POST /api/dbf/export_custbak`、`/api/dbf/import_custbak`) 以固定 VFP 範本 `COPY TO` / `APPEND FROM` + `SEEK`/`GATHER` 處理 `custbak.dbf`。
    - 匯入逐筆回報鎖定失敗；完成後 (含部分失敗) 一律呼叫 `EnsureTableSyncedAsync` 整表重灌，不手動寫 PostgreSQL、不直接更新校驗碼。

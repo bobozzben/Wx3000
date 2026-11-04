@@ -13,6 +13,10 @@ const {
   validateDbfWrite,
   buildWhereClause,
   toVfpLiteral,
+  validateInsertGuard,
+  buildDbfWriteScript,
+  parseWriteResult,
+  runDbfBridge,
   executeDbfWrite,
   dbfChecksum,
   onlyExpectedChanges,
@@ -297,6 +301,269 @@ test('onlyExpectedChanges notices changes made by someone else at the same time'
   assert.equal(onlyExpectedChanges(null, before, { operation: 'UPDATE', recno: 1, fieldNames: ['tel'] }), false);
   assert.equal(onlyExpectedChanges(before, before, { operation: 'UPDATE', recno: 1, fieldNames: ['nope'] }), false);
   assert.equal(onlyExpectedChanges(before, before, { operation: 'UPDATE', recno: 0, fieldNames: ['tel'] }), false);
+});
+
+// ---------- 新增時的防重複與取號 (unique / autoNumber) ----------
+
+test('validateInsertGuard accepts what the backend sends', () => {
+  assert.equal(validateInsertGuard('INSERT', {}), null);
+  assert.equal(validateInsertGuard('UPDATE', { unique: false, autoNumber: null }), null, 'absent options are fine on any operation');
+  assert.equal(validateInsertGuard('INSERT', { unique: true }), null);
+  assert.equal(validateInsertGuard('INSERT', { autoNumber: { field: 'seq', assignTo: ['serial'] } }), null);
+  assert.equal(validateInsertGuard('INSERT', { autoNumber: { field: 'serial', scopeField: 'accno', scopeValue: '1101' } }), null);
+  assert.equal(validateInsertGuard('INSERT', { autoNumber: { field: 'rno', prefix: 'A114', width: 6 } }), null);
+  assert.equal(validateInsertGuard('INSERT', { unique: true, autoNumber: { field: 'seq' } }), null);
+});
+
+test('validateInsertGuard rejects misuse and VFP injection', () => {
+  assert.ok(validateInsertGuard('UPDATE', { unique: true }), 'unique only makes sense for INSERT');
+  assert.ok(validateInsertGuard('DELETE', { autoNumber: { field: 'seq' } }));
+  assert.ok(validateInsertGuard('INSERT', { unique: 'yes' }));
+  for (const autoNumber of [
+    'seq',
+    ['seq'],
+    {},
+    { field: 'seq) TO x\r\nRUN calc.exe\r\n*' },
+    { field: 'seq', assignTo: 'serial' },
+    { field: 'seq', assignTo: ['serial WITH 1'] },
+    { field: 'serial', scopeField: 'accno OR .T.', scopeValue: '1' },
+    { field: 'serial', scopeField: 'accno', scopeValue: 1 },
+    { field: 'rno', prefix: 'A"+x+"', width: 6 },
+    { field: 'rno', prefix: 'A114' },
+    { field: 'rno', prefix: 'A114', width: 0 },
+    { field: 'rno', prefix: 'A114', width: 19 },
+    { field: 'seq', width: 6 }
+  ]) {
+    assert.ok(validateInsertGuard('INSERT', { autoNumber }), JSON.stringify(autoNumber));
+  }
+});
+
+const scriptOf = (opts) => buildDbfWriteScript({
+  operation: 'INSERT', vfpFullPath: 'X:\\\\w3000\\\\comm\\\\t.dbf', cAlias: 't', keyField: 'no', keyValue: 'A1', fields: { no: 'A1', name: 'x' }, ...opts
+});
+const lineIndex = (script, re) => script.split('\r\n').findIndex((l) => re.test(l));
+
+test('plain INSERT keeps the original script without any lock', () => {
+  const s = scriptOf({});
+  assert.ok(!/RLOCK|LOCATE|CALCULATE/.test(s), s);
+  assert.match(s, /INSERT INTO t \(no, name\) VALUES \('A1', 'x'\)\r\nlnRec = RECNO\("t"\)/);
+  assert.match(s, /RETURN TRANSFORM\(lnRec\)$/);
+});
+
+test('unique INSERT checks the key inside the header lock before inserting', () => {
+  const s = scriptOf({ unique: true });
+  const lock = lineIndex(s, /^IF !RLOCK\("0", "t"\)$/);
+  const locate = lineIndex(s, /^LOCATE FOR ALLTRIM\(TRANSFORM\(no\)\) == 'A1'$/);
+  const dup = lineIndex(s, /RETURN "DUPLICATE_KEY"/);
+  const insert = lineIndex(s, /^INSERT INTO t /);
+  const unlock = lineIndex(s, /^UNLOCK IN t$/);
+  assert.ok(lock > 0 && lock < locate && locate < dup && dup < insert, s);
+  assert.ok(lineIndex(s, /^SET DELETED ON$/) >= 0, 'deleted records must not count as duplicates');
+  assert.ok(lineIndex(s, /^SET REPROCESS TO \d+ SECONDS$/) >= 0);
+  assert.ok(s.split('\r\n').lastIndexOf('UNLOCK IN t') > insert && unlock >= 0);
+  assert.ok(!/CALCULATE/.test(s));
+});
+
+test('autoNumber computes MAX()+1 in VFP and writes it to every numbered field', () => {
+  const s = scriptOf({
+    keyField: 'seq', keyValue: '0',
+    fields: { seq: 7, no: '', desc: 'x', serial: 7 },
+    autoNumber: { field: 'seq', assignTo: ['serial'] }
+  });
+  const calc = lineIndex(s, /^CALCULATE MAX\(seq\) TO lnWxMax$/);
+  assert.ok(calc > lineIndex(s, /^IF !RLOCK\("0", "t"\)$/), s);
+  assert.ok(lineIndex(s, /^lvWxNo = lnWxMax \+ 1$/) > calc);
+  // fields 裡的 7 是給舊版 LocalAgent 用的，新版一律寫 VFP 算出的號碼
+  assert.match(s, /INSERT INTO t \(no, desc, seq, serial\) VALUES \('', 'x', lvWxNo, lvWxNo\)/);
+  assert.match(s, /RETURN "OK" \+ CHR\(9\) \+ TRANSFORM\(lnRec\) \+ CHR\(9\) \+ TRANSFORM\(lvWxNo\)$/);
+
+  const scoped = scriptOf({ fields: { accno: '1101', descrip: 'x' }, autoNumber: { field: 'serial', scopeField: 'accno', scopeValue: '1101' } });
+  assert.match(scoped, /CALCULATE MAX\(serial\) TO lnWxMax FOR ALLTRIM\(TRANSFORM\(accno\)\) == '1101'/);
+  assert.match(scoped, /INSERT INTO t \(accno, descrip, serial\) VALUES \('1101', 'x', lvWxNo\)/);
+});
+
+test('autoNumber with a prefix numbers character keys like VFP recmom', () => {
+  const s = scriptOf({ keyField: 'rno', keyValue: 'A114000001', fields: { rno: 'A114000001', amt: 0 }, autoNumber: { field: 'rno', prefix: 'A114', width: 6 } });
+  assert.match(s, /CALCULATE MAX\(VAL\(SUBSTR\(ALLTRIM\(rno\), 5\)\)\) TO lnWxMax FOR LEFT\(ALLTRIM\(rno\), 4\) == 'A114'/);
+  assert.match(s, /lvWxNo = 'A114' \+ PADL\(TRANSFORM\(lnWxMax \+ 1\), 6, "0"\)/);
+  assert.match(s, /INSERT INTO t \(amt, rno\) VALUES \(0, lvWxNo\)/);
+});
+
+test('parseWriteResult reads plain and guarded results', () => {
+  assert.deepEqual(parseWriteResult('12'), { recno: 12, autoNumber: '' });
+  assert.deepEqual(parseWriteResult('OK\t5\t'), { recno: 5, autoNumber: '' });
+  assert.deepEqual(parseWriteResult('OK\t5\t17'), { recno: 5, autoNumber: '17' });
+  assert.deepEqual(parseWriteResult('OK\t5\tA114000003'), { recno: 5, autoNumber: 'A114000003' });
+});
+
+function makeDbfFixture(t, rows = baseRows) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wx3000-write-test-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 't.dbf');
+  fs.writeFileSync(file, makeDbf(rows));
+  return { dir, file };
+}
+
+test('executeDbfWrite returns the number VFP assigned together with the checksums', async (t) => {
+  const { dir, file } = makeDbfFixture(t);
+  const before = fs.readFileSync(file);
+  let sent;
+  const result = await executeDbfWrite({
+    operation: 'INSERT', dbfPath: dir, dbfName: 't', keyField: 'no', keyValue: '03',
+    fields: { no: '03', tel: '5555', fax: '0' }, unique: true, autoNumber: { field: 'fax' }
+  }, {
+    runBridge: async (req) => {
+      sent = req;
+      fs.writeFileSync(file, makeDbf([...baseRows, { no: '03', tel: '5555', fax: '7' }]));
+      return { success: true, result: 'OK\t3\t7', elapsedMs: 1 };
+    }
+  });
+  assert.equal(sent.action, 'EXEC_VFP');
+  assert.match(sent.script, /RETURN "DUPLICATE_KEY"/);
+  assert.equal(result.success, true);
+  assert.equal(result.recno, 3);
+  assert.equal(result.autoNumber, '7');
+  assert.equal(result.checksumBefore, dbfChecksum(before));
+  assert.equal(result.checksumAfter, dbfChecksum(fs.readFileSync(file)));
+  assert.equal(result.otherChanges, false);
+});
+
+test('executeDbfWrite reports a duplicate key as DUPLICATE_KEY without touching checksums', async (t) => {
+  const { dir } = makeDbfFixture(t);
+  const result = await executeDbfWrite({
+    operation: 'INSERT', dbfPath: dir, dbfName: 't', keyField: 'no', keyValue: '01', fields: { no: '01' }, unique: true
+  }, { runBridge: async () => ({ success: true, result: 'DUPLICATE_KEY', elapsedMs: 1 }) });
+  assert.equal(result.success, false);
+  assert.equal(result.errorType, 'DUPLICATE_KEY');
+  assert.match(result.message, /01/);
+  assert.equal(result.checksumAfter, undefined);
+
+  const locked = await executeDbfWrite({
+    operation: 'INSERT', dbfPath: dir, dbfName: 't', keyField: 'no', keyValue: '04', fields: { no: '04' }, unique: true
+  }, { runBridge: async () => ({ success: true, result: 'LOCK_TIMEOUT', elapsedMs: 1 }) });
+  assert.equal(locked.errorType, 'LOCK_TIMEOUT', 'the backend turns this into 409 like other lock errors');
+  assert.ok(locked.message);
+});
+
+test('executeDbfWrite keeps plain writes unchanged and refuses guards on UPDATE', async (t) => {
+  const { dir, file } = makeDbfFixture(t);
+  const plain = await executeDbfWrite({
+    operation: 'INSERT', dbfPath: dir, dbfName: 't', keyField: 'no', keyValue: '03', fields: { no: '03' }
+  }, {
+    runBridge: async (req) => {
+      assert.ok(!/RLOCK/.test(req.script));
+      fs.writeFileSync(file, makeDbf([...baseRows, { no: '03', tel: '', fax: '' }]));
+      return { success: true, result: '3', elapsedMs: 1 };
+    }
+  });
+  assert.equal(plain.recno, 3);
+  assert.ok(!('autoNumber' in plain));
+
+  let called = false;
+  const bad = await executeDbfWrite({
+    operation: 'UPDATE', dbfPath: dir, dbfName: 't', keyField: 'no', keyValue: '01', fields: { tel: '1' }, unique: true
+  }, { runBridge: async () => { called = true; return { success: true, result: '1' }; } });
+  assert.equal(bad.errorType, 'INVALID_REQUEST');
+  assert.equal(called, false);
+});
+
+// ---------- 用真的 VFP 驗證腳本 (需要 DBFBridge.exe 與 w3000_dbf.dll；找不到時略過) ----------
+// 預設找 localagent\DBFBridge.exe 與 localagent\bridge\lazarus\DBFBridge.exe，也可用環境變數 WX3000_DBFBRIDGE 指定
+const REAL_BRIDGE = [process.env.WX3000_DBFBRIDGE, path.join(__dirname, 'DBFBridge.exe'), path.join(__dirname, 'bridge', 'lazarus', 'DBFBridge.exe')]
+  .find((p) => p && fs.existsSync(p));
+
+test('guarded INSERT against real VFP', { skip: REAL_BRIDGE ? false : '找不到 DBFBridge.exe' }, async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wx3000-vfp-test-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const vfp = (script) => runDbfBridge({ action: 'EXEC_VFP', script: script.join('\r\n') }, REAL_BRIDGE);
+  const tablePath = path.join(dir, 'wxg.dbf');
+  const created = await vfp([
+    `CREATE TABLE "${tablePath}" FREE (no C(4), accno C(8), seq N(11), serial N(4), rno C(10))`,
+    "INSERT INTO wxg (no, accno, seq, serial, rno) VALUES ('A1', '1101', 1, 1, 'A114000001')",
+    "INSERT INTO wxg (no, accno, seq, serial, rno) VALUES ('A2', '1101', 9, 9, 'A114000009')",
+    "INSERT INTO wxg (no, accno, seq, serial, rno) VALUES ('A3', '2201', 3, 3, 'A113000050')",
+    "DELETE FOR ALLTRIM(no) == 'A2'",
+    'USE IN wxg',
+    "RETURN 'OK'"
+  ]);
+  assert.equal(created.result, 'OK', JSON.stringify(created));
+  const write = (payload) => executeDbfWrite({ operation: 'INSERT', dbfPath: dir, dbfName: 'wxg', ...payload }, { runBridge: (req) => runDbfBridge(req, REAL_BRIDGE) });
+
+  await t.test('unique refuses a key that already exists', async () => {
+    const r = await write({ keyField: 'no', keyValue: 'A1', fields: { no: 'A1' }, unique: true });
+    assert.equal(r.errorType, 'DUPLICATE_KEY', JSON.stringify(r));
+  });
+
+  await t.test('unique ignores deleted records, like VFP with SET DELETED ON', async () => {
+    const r = await write({ keyField: 'no', keyValue: 'A2', fields: { no: 'A2', accno: '9999' }, unique: true });
+    assert.equal(r.success, true, JSON.stringify(r));
+    assert.equal(r.recno, 4);
+    assert.equal(r.otherChanges, false);
+  });
+
+  await t.test('composite keys are checked as a whole', async () => {
+    const dup = await write({ keyField: 'no,accno', keyValue: 'A3,2201', fields: { no: 'A3', accno: '2201' }, unique: true });
+    assert.equal(dup.errorType, 'DUPLICATE_KEY');
+    const ok = await write({ keyField: 'no,accno', keyValue: 'A3,1101', fields: { no: 'A3', accno: '1101' }, unique: true });
+    assert.equal(ok.success, true, JSON.stringify(ok));
+  });
+
+  await t.test('autoNumber skips deleted records and fills every numbered field', async () => {
+    // 未刪除的最大 seq 是 3 (seq 9 那筆已刪除)；新增的兩筆 seq 都是空的 0
+    const r = await write({ keyField: 'seq', keyValue: '0', fields: { no: 'N1', seq: 99, serial: 99 }, autoNumber: { field: 'seq', assignTo: ['serial'] } });
+    assert.equal(r.success, true, JSON.stringify(r));
+    assert.equal(r.autoNumber, '4');
+    const r2 = await write({ keyField: 'seq', keyValue: '0', fields: { no: 'N2' }, autoNumber: { field: 'seq', assignTo: ['serial'] } });
+    assert.equal(r2.autoNumber, '5');
+  });
+
+  await t.test('autoNumber within a scope', async () => {
+    const r = await write({ keyField: 'accno', keyValue: '2201', fields: { accno: '2201' }, autoNumber: { field: 'serial', scopeField: 'accno', scopeValue: '2201' } });
+    assert.equal(r.autoNumber, '4');
+  });
+
+  await t.test('autoNumber with a prefix', async () => {
+    const r = await write({ keyField: 'rno', keyValue: '', fields: { no: 'R1' }, autoNumber: { field: 'rno', prefix: 'A114', width: 6 } });
+    assert.equal(r.autoNumber, 'A114000002', 'A114000009 is deleted');
+    const other = await write({ keyField: 'rno', keyValue: '', fields: { no: 'R2' }, autoNumber: { field: 'rno', prefix: 'A115', width: 6 } });
+    assert.equal(other.autoNumber, 'A115000001');
+  });
+
+  await t.test('rows written by VFP match the returned numbers', async () => {
+    const r = await vfp([
+      `USE "${tablePath}" IN 0 ALIAS wxg SHARED AGAIN`,
+      'SELECT wxg',
+      'lcOut = ""',
+      "SCAN FOR INLIST(ALLTRIM(no), 'N1', 'N2', 'R1')",
+      '  lcOut = lcOut + ALLTRIM(no) + "=" + TRANSFORM(seq) + "/" + TRANSFORM(serial) + "/" + ALLTRIM(rno) + ";"',
+      'ENDSCAN',
+      'USE IN wxg',
+      'RETURN lcOut'
+    ]);
+    assert.equal(r.result, 'N1=4/4/;N2=5/5/;R1=0/0/A114000002;');
+  });
+
+  await t.test('waits for a header lock held by another workstation, then gives up', async () => {
+    // 另一個 DBFBridge 程序 (不經 LocalAgent 隊列，等同舊系統) 鎖住檔頭 4 秒
+    const holder = vfp([
+      'SET MULTILOCKS ON',
+      `USE "${tablePath}" IN 0 ALIAS wxg SHARED AGAIN`,
+      "llOk = RLOCK('0', 'wxg')",
+      'lnT = SECONDS()',
+      'DO WHILE SECONDS() - lnT < 4',
+      'ENDDO',
+      'USE IN wxg',
+      'RETURN TRANSFORM(llOk)'
+    ]);
+    await new Promise((r) => setTimeout(r, 700));
+    const started = Date.now();
+    const r = await write({ keyField: 'no', keyValue: 'L1', fields: { no: 'L1' }, unique: true });
+    assert.equal(r.errorType, 'LOCK_TIMEOUT', JSON.stringify(r));
+    assert.ok(Date.now() - started >= 1500, 'should retry for about INSERT_LOCK_SECONDS');
+    assert.equal((await holder).result, '.T.');
+    const again = await write({ keyField: 'no', keyValue: 'L1', fields: { no: 'L1' }, unique: true });
+    assert.equal(again.success, true, JSON.stringify(again));
+  });
 });
 
 // 只建空檔，validateCustbakRequest 只檢查路徑，不讀內容
