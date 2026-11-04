@@ -437,14 +437,18 @@ namespace Wx3000.Backend.Controllers
                     return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeResult.Error, message = writeResult.Message ?? "刪除 DBF 失敗" });
                 }
 
-                // 從 PostgreSQL 刪除並重整 serial
-                await DeleteAccountFromPg(dbfName, trimmedAccno, existing.Serial ?? 0);
+                // 與 VFP 不同：VFP (wbase401010delete) 刪除後會 update serial=serial-1 where serial>mserial。
+                // LocalAgent 沒有批次更新，照做要逐筆寫 DBF，一次刪除最多約 20 秒，因此兩邊都不重編，serial 留空號。
+                // 新增科目取 MAX(serial)+1，空號不會造成重號；VFP 開啟會計科目維護時會依 accno 重編全部 serial。
 
-                // 更新 Checksum 字典表
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, dbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
+                // 從 PostgreSQL 刪除；失敗時不更新 Checksum，下次讀取會從 DBF 重灌快照
+                if (await TryDeleteAccountFromPgAsync(dbfName, trimmedAccno))
                 {
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, dbfName, newChecksum);
+                    var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, dbfName);
+                    if (!string.IsNullOrEmpty(newChecksum))
+                    {
+                        await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, dbfName, newChecksum);
+                    }
                 }
 
                 return Ok(new { success = true, deletedAccno = trimmedAccno });
@@ -563,8 +567,11 @@ namespace Wx3000.Backend.Controllers
 
             if (!string.IsNullOrWhiteSpace(keyword))
             {
-                var kw = keyword.Trim().Replace("'", "''");
-                sql.Append($@"WHERE accno ILIKE '%{kw}%' OR accname ILIKE '%{kw}%' OR accnamel ILIKE '%{kw}%' OR engaccname ILIKE '%{kw}%' ");
+                sql.Append(@"WHERE accno ILIKE @kw OR accname ILIKE @kw OR accnamel ILIKE @kw OR engaccname ILIKE @kw ");
+                var pKw = cmd.CreateParameter();
+                pKw.ParameterName = "@kw";
+                pKw.Value = $"%{keyword.Trim()}%";
+                cmd.Parameters.Add(pKw);
             }
 
             sql.Append("ORDER BY accno ASC;");
@@ -688,26 +695,33 @@ namespace Wx3000.Backend.Controllers
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private async Task DeleteAccountFromPg(string tableName, string accno, int serial)
+        /// <summary>
+        /// DBF 刪除成功後從 PostgreSQL 刪除該列 (不重編 serial，與 DBF 一致)。
+        /// 失敗時回傳 false，呼叫端不更新 Checksum，下次讀取會從 DBF 重灌快照。
+        /// </summary>
+        private async Task<bool> TryDeleteAccountFromPgAsync(string tableName, string accno)
         {
-            var conn = _context.Database.GetDbConnection();
-            if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+            try
+            {
+                var conn = _context.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
 
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = $@"DELETE FROM ""{PgSchema}"".""{tableName}"" WHERE TRIM(""accno"") = @accno;
-                                 UPDATE ""{PgSchema}"".""{tableName}"" SET serial = serial - 1 WHERE serial > @serial;";
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = $@"DELETE FROM ""{PgSchema}"".""{tableName}"" WHERE TRIM(""accno"") = @accno;";
 
-            var pKey = cmd.CreateParameter();
-            pKey.ParameterName = "@accno";
-            pKey.Value = accno.Trim().ToUpper();
-            cmd.Parameters.Add(pKey);
+                var pKey = cmd.CreateParameter();
+                pKey.ParameterName = "@accno";
+                pKey.Value = accno.Trim().ToUpper();
+                cmd.Parameters.Add(pKey);
 
-            var pSer = cmd.CreateParameter();
-            pSer.ParameterName = "@serial";
-            pSer.Value = serial;
-            cmd.Parameters.Add(pSer);
-
-            await cmd.ExecuteNonQueryAsync();
+                await cmd.ExecuteNonQueryAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Wbase4010 刪除後 PostgreSQL 同步失敗，下次讀取將重灌快照: {ex.Message}");
+                return false;
+            }
         }
 
         private static List<AccountMaster> ParseDbfAccounts(string fullDbfPath)

@@ -675,7 +675,7 @@ namespace Wx3000.Backend.Controllers
                 var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "bsdesc", "INSERT", "seq", nextSeq.ToString(), fields);
                 if (!writeRes.Success)
                 {
-                    return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "寫入 bsdesc.dbf 失敗" });
+                    return BsdescWriteFailure(writeRes, "寫入 bsdesc.dbf 失敗");
                 }
 
                 // 3. 同步至 PostgreSQL
@@ -750,7 +750,7 @@ namespace Wx3000.Backend.Controllers
                 var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "bsdesc", "UPDATE", "seq", seqStr, fields);
                 if (!writeRes.Success)
                 {
-                    return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "更新 bsdesc.dbf 失敗" });
+                    return BsdescWriteFailure(writeRes, "更新 bsdesc.dbf 失敗");
                 }
 
                 // 2. 同步至 PostgreSQL
@@ -817,7 +817,7 @@ namespace Wx3000.Backend.Controllers
                 var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "bsdesc", "DELETE", "seq", seqStr, new Dictionary<string, object?>());
                 if (!writeRes.Success)
                 {
-                    return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeRes.Error, message = "刪除 bsdesc.dbf 失敗" });
+                    return BsdescWriteFailure(writeRes, "刪除 bsdesc.dbf 失敗");
                 }
 
                 // 2. 同步至 PostgreSQL
@@ -858,7 +858,45 @@ namespace Wx3000.Backend.Controllers
 
             try
             {
-                // 逐筆更新 DBF
+                // 先讓快照與 DBF 一致，_record_number 才等於目前的 RECNO
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, "bsdesc", PgSchema, "bsdesc", "seq");
+
+                var conn = _context.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+
+                var snapshot = new List<(int Recno, decimal Serial)>();
+                using (var readCmd = conn.CreateCommand())
+                {
+                    readCmd.CommandText = $@"SELECT ""_record_number"", ""serial"" FROM ""{PgSchema}"".""bsdesc"";";
+                    using var reader = await readCmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        var recno = Convert.ToInt32(reader["_record_number"]);
+                        var serial = reader["serial"] == DBNull.Value ? 0m : Convert.ToDecimal(reader["serial"]);
+                        snapshot.Add((recno, serial));
+                    }
+                }
+
+                // 寫入前先決定每筆的 RECNO：重編會讓新舊 serial 互相撞號，不能邊寫邊用 serial 找記錄
+                var targets = new List<int>();
+                foreach (var item in model.Items)
+                {
+                    var matches = item.RecordNumber is > 0
+                        ? snapshot.Where(s => s.Recno == item.RecordNumber.Value && s.Serial == item.Serial).ToList()
+                        : snapshot.Where(s => s.Serial == item.Serial).ToList();
+                    if (matches.Count != 1)
+                    {
+                        return Conflict(new { message = $"條文 (序號 {item.Serial}) 已被其他工作站異動或無法唯一定位，請重新查詢後再試" });
+                    }
+                    if (targets.Contains(matches[0].Recno))
+                    {
+                        return BadRequest(new { message = $"條文 (序號 {item.Serial}) 重複出現在批次資料中" });
+                    }
+                    targets.Add(matches[0].Recno);
+                }
+
+                // 逐筆寫 DBF；任一筆失敗就停止，PostgreSQL 與 Checksum 都不動 (已寫入的部分讓下次讀取重灌快照)
+                var allFields = new List<Dictionary<string, object?>>();
                 for (int i = 0; i < model.Items.Count; i++)
                 {
                     var item = model.Items[i];
@@ -871,27 +909,51 @@ namespace Wx3000.Backend.Controllers
                         ["sel"] = item.Sel ?? "",
                         ["serial"] = newSeq
                     };
-                    await _dbfSyncService.WriteRecordAsync(DbfPath, "bsdesc", "UPDATE", "serial", item.Serial.ToString(), fields);
+                    var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "bsdesc", "UPDATE", "RECNO()", targets[i].ToString(), fields);
+                    if (!writeRes.Success)
+                    {
+                        var context = i > 0 ? $"前 {i} 筆已寫入，批次儲存 bsdesc.dbf 中止" : "批次儲存 bsdesc.dbf 失敗";
+                        return BsdescWriteFailure(writeRes, context);
+                    }
+                    allFields.Add(fields);
                 }
 
-                // 同步至 PostgreSQL
-                var conn = _context.Database.GetDbConnection();
-                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
-
-                using (var cmd = conn.CreateCommand())
+                // 同步至 PostgreSQL (參數化，以 _record_number 定位)
+                try
                 {
-                    for (int i = 0; i < model.Items.Count; i++)
+                    using var tx = await conn.BeginTransactionAsync();
+                    // seq 有唯一索引，逐筆重編會暫時撞號；先把這些列移到負數 (以 _record_number 保證不重複)
+                    using (var parkCmd = conn.CreateCommand())
                     {
-                        var item = model.Items[i];
-                        var newSeq = i + 1;
+                        parkCmd.Transaction = tx;
+                        parkCmd.CommandText = $@"UPDATE ""{PgSchema}"".""bsdesc"" SET ""seq"" = -""_record_number"" WHERE ""_record_number"" = ANY(@recnos);";
+                        AddParam(parkCmd, "@recnos", targets.ToArray());
+                        await parkCmd.ExecuteNonQueryAsync();
+                    }
+                    for (int i = 0; i < targets.Count; i++)
+                    {
+                        var fields = allFields[i];
+                        using var cmd = conn.CreateCommand();
+                        cmd.Transaction = tx;
                         cmd.CommandText = $@"
                             UPDATE ""{PgSchema}"".""bsdesc""
-                            SET ""seq"" = {newSeq}, ""no"" = '{item.No?.Replace("'", "''")}', 
-                                ""desc"" = '{item.Desc?.Replace("'", "''")}', ""sel"" = '{item.Sel?.Replace("'", "''")}',
-                                ""serial"" = {newSeq}
-                            WHERE ""serial"" = {item.Serial};";
+                            SET ""seq"" = @seq, ""no"" = @no, ""desc"" = @desc, ""sel"" = @sel, ""serial"" = @serial
+                            WHERE ""_record_number"" = @recno;";
+                        AddParam(cmd, "@seq", fields["seq"]);
+                        AddParam(cmd, "@no", fields["no"]);
+                        AddParam(cmd, "@desc", fields["desc"]);
+                        AddParam(cmd, "@sel", fields["sel"]);
+                        AddParam(cmd, "@serial", fields["serial"]);
+                        AddParam(cmd, "@recno", targets[i]);
                         await cmd.ExecuteNonQueryAsync();
                     }
+                    await tx.CommitAsync();
+                }
+                catch (Exception pgEx)
+                {
+                    // DBF 已寫入；不更新 Checksum，下次讀取會從 DBF 重灌快照
+                    _logger.LogWarning(pgEx, "BatchSaveBsdesc PostgreSQL 同步失敗，下次讀取將重灌快照");
+                    return Ok(new { success = true });
                 }
 
                 var checksum = await _dbfSyncService.GetChecksumAsync(DbfPath, "bsdesc");
@@ -907,6 +969,29 @@ namespace Wx3000.Backend.Controllers
                 _logger.LogError(ex, "BatchSaveBsdesc 失敗");
                 return StatusCode(StatusCodes.Status500InternalServerError, new { error = ex.Message });
             }
+        }
+
+        /// <summary>bsdesc.dbf 寫入失敗：LOCK_TIMEOUT 回 409，其他錯誤回 500 並附上 LocalAgent 的錯誤訊息</summary>
+        private ObjectResult BsdescWriteFailure(DbfWriteResult writeRes, string message)
+        {
+            if (writeRes.ErrorType == "LOCK_TIMEOUT")
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new { error = writeRes.Error, message = $"{message}：資料正被地端其他工作站鎖定中" });
+            }
+            var detail = writeRes.Message ?? writeRes.Error;
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                error = writeRes.Error,
+                message = string.IsNullOrWhiteSpace(detail) ? message : $"{message}: {detail}"
+            });
+        }
+
+        private static void AddParam(System.Data.Common.DbCommand cmd, string name, object? value)
+        {
+            var p = cmd.CreateParameter();
+            p.ParameterName = name;
+            p.Value = value ?? DBNull.Value;
+            cmd.Parameters.Add(p);
         }
     }
 }
