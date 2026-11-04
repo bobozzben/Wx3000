@@ -783,8 +783,7 @@ namespace Wx3000.Backend.Controllers
             try
             {
                 await pgAction();
-                var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, table);
-                if (!string.IsNullOrEmpty(chk)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, table, chk);
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, table);
             }
             catch (Exception ex)
             {

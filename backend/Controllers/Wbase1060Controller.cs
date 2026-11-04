@@ -457,8 +457,7 @@ namespace Wx3000.Backend.Controllers
 
         private async Task RefreshChecksumAsync(string dbfName)
         {
-            var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, dbfName);
-            if (!string.IsNullOrEmpty(chk)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, dbfName, chk);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, dbfName);
         }
 
         private Task<bool> SyncAsync() =>

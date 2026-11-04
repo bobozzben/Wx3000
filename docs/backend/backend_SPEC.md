@@ -130,7 +130,10 @@ PostgreSQL Table 名稱與 DBF 檔名相同；`同步 keyFields` 是呼叫 `Ensu
 2. **DBF 絕對權威寫入 (`WriteRecordAsync`)**：
    - 執行 `INSERT` / `UPDATE` / `DELETE` 時，先透過 `LocalAgent` (`POST /api/dbf/write`) 寫入地端 `.dbf`。`keyField` 可為逗號分隔的多個欄位或 `RECNO()` (例如 `RECNO(),rno`)，`keyValue` 以同樣順序逗號分隔；日期欄位傳 `{"$date":"yyyy-MM-dd"}`。
    - 若地端 DBF 正被其他 FoxPro 工作站獨佔或鎖定，LocalAgent 會回傳 `errorType: "LOCK_TIMEOUT"`，C# Controller 回傳 HTTP `409 Conflict`，**絕不單邊修改 PostgreSQL**；找不到記錄時回 `errorType: "RECORD_NOT_FOUND"`。
-   - 寫入 DBF 成功後，才更新 PostgreSQL，並重新取得 Checksum 呼叫 `UpdateDictionaryChecksumAsync` 更新快照校驗碼；PostgreSQL 寫入失敗時不更新校驗碼，下次讀取會自動重灌。
+   - 寫入 DBF 成功後，才更新 PostgreSQL，再呼叫 `CommitWriteChecksumAsync(dbfPath, dbfName)` 更新快照校驗碼；PostgreSQL 寫入失敗時不呼叫，下次讀取會自動重灌。
+   - LocalAgent 在同一個隊列項目內讀取寫入前後的 `.dbf`，回傳 `checksumBefore`、`checksumAfter`；並比對寫入前後的位元組，以 `otherChanges` 標示是否有這次寫入以外的變動。只有檔頭前 32 個位元組，以及本次 INSERT 的整筆、UPDATE 寫入的欄位、DELETE 的刪除旗標可以改變。
+   - `WriteRecordAsync` 會記下同一請求對每個 DBF 的連續寫入。`CommitWriteChecksumAsync` 只在三個條件都成立時，才執行 `UPDATE dictionary.w3000_dbf SET checksum = <最後一次寫入後> WHERE checksum = <第一次寫入前>`：每次寫入前的 checksum 都等於上一次寫入後的 checksum、沒有 `otherChanges`、字典仍是第一次寫入前的值。條件不成立時不動字典，下次讀取會重灌。
+   - 這樣可以避免舊系統在網頁存檔的同時修改 DBF 時，字典記下包含舊系統修改的 checksum，而快照卻沒有那筆修改。控制器不要自行呼叫 `GetChecksumAsync` 加 `UpdateDictionaryChecksumAsync`。
 3. **整批匯出 / 匯入 (`ExportCustbakAsync` / `ImportCustbakAsync`，2-2 / 2-3)**：
    - 透過 `LocalAgent` (`POST /api/dbf/export_custbak`、`/api/dbf/import_custbak`) 以固定 VFP 範本 `COPY TO` / `APPEND FROM` + `SEEK`/`GATHER` 處理 `custbak.dbf`。
    - 匯入逐筆回報鎖定失敗；完成後 (含部分失敗) 一律呼叫 `EnsureTableSyncedAsync` 整表重灌，不手動寫 PostgreSQL、不直接更新校驗碼。

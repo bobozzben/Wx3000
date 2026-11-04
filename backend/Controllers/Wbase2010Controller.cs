@@ -290,9 +290,7 @@ namespace Wx3000.Backend.Controllers
                 if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
 
                 await _context.SaveChangesAsync();
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
                 return Ok(existing);
             }
@@ -300,9 +298,7 @@ namespace Wx3000.Backend.Controllers
             if (dbfResult.Recno > 0) model.RecordNumber = dbfResult.Recno;
             _context.CompanyMasters.Add(model);
             await _context.SaveChangesAsync();
-            var newCsum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(newCsum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newCsum);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
             return CreatedAtAction(nameof(GetByCode), new { code = model.CompanyCode }, model);
         }
@@ -377,9 +373,7 @@ namespace Wx3000.Backend.Controllers
                 if (dbfResult.Recno > 0) model.RecordNumber = dbfResult.Recno;
                 _context.CompanyMasters.Add(model);
                 await _context.SaveChangesAsync();
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
                 return Ok(model);
             }
@@ -409,9 +403,7 @@ namespace Wx3000.Backend.Controllers
             if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
 
             await _context.SaveChangesAsync();
-            var updatedChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(updatedChecksum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, updatedChecksum);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
             return Ok(existing);
         }
@@ -451,9 +443,7 @@ namespace Wx3000.Backend.Controllers
             // 2. DBF 成功刪除後才刪除 PostgreSQL
             _context.CompanyMasters.Remove(existing);
             await _context.SaveChangesAsync();
-            var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(newChecksum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
             return Ok(new { message = $"已成功刪除公司編號 {code}" });
         }

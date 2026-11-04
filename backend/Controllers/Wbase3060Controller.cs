@@ -369,9 +369,7 @@ namespace Wx3000.Backend.Controllers
                 return;
             }
 
-            var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(newChecksum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
         }
 
         private static Dictionary<string, object?> AssembleTrackFields(InvoicePurchaseMaster item)

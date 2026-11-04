@@ -155,9 +155,7 @@ namespace Wx3000.Backend.Controllers
                 if (dbfResult.Recno > 0) existing.RecordNumber = dbfResult.Recno;
 
                 await _context.SaveChangesAsync();
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
                 return Ok(existing);
             }
@@ -165,9 +163,7 @@ namespace Wx3000.Backend.Controllers
             if (dbfResult.Recno > 0) model.RecordNumber = dbfResult.Recno;
             _context.NoteMasters.Add(model);
             await _context.SaveChangesAsync();
-            var newCsum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(newCsum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newCsum);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
             return CreatedAtAction(nameof(GetByCode), new { noteCode = model.Noteno }, model);
         }
@@ -228,9 +224,7 @@ namespace Wx3000.Backend.Controllers
                 if (dbfResult.Recno > 0) model.RecordNumber = dbfResult.Recno;
                 _context.NoteMasters.Add(model);
                 await _context.SaveChangesAsync();
-                var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-                if (!string.IsNullOrEmpty(newChecksum))
-                    await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
                 return Ok(model);
             }
@@ -247,9 +241,7 @@ namespace Wx3000.Backend.Controllers
             }
 
             await _context.SaveChangesAsync();
-            var updatedChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(updatedChecksum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, updatedChecksum);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
             return Ok(existing);
         }
@@ -289,9 +281,7 @@ namespace Wx3000.Backend.Controllers
             // 2. DBF 成功刪除後才刪除 PostgreSQL
             _context.NoteMasters.Remove(existing);
             await _context.SaveChangesAsync();
-            var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(newChecksum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
             return Ok(new { message = "刪除成功" });
         }
@@ -355,9 +345,7 @@ namespace Wx3000.Backend.Controllers
             }
 
             await _context.SaveChangesAsync();
-            var newChecksum = await _dbfSyncService.GetChecksumAsync(DbfPath, DbfName);
-            if (!string.IsNullOrEmpty(newChecksum))
-                await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, DbfName, newChecksum);
+            await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
 
             return Ok(new { message = "批次儲存成功", count = validItems.Count });
         }

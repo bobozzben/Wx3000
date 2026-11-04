@@ -17,6 +17,9 @@ pnpm --filter frontend lint            # oxlint
 dotnet build backend/Wx3000.Backend.csproj
 cd localagent; npm test                # node --test agent.test.js
 cd localagent; node --test --test-name-pattern "<測試名稱>" agent.test.js   # 單一測試
+
+# 多人壓力測試 (CI 無法執行；需先啟動後端與 LocalAgent，自動建立 subst 複本並在測完清除，見 tests/stress/README.md)
+.\tests\stress\Run-StressTest.ps1 [-Scenarios 'read-load,legacy-race'] [-ApiUrl http://127.0.0.1:5017]
 ```
 
 - 後端實際監聽 `appsettings.json` 的 `Urls` (`http://0.0.0.0:5007`)；Vite 把 `/api` 代理到 `127.0.0.1:5007`。
@@ -31,14 +34,14 @@ cd localagent; node --test --test-name-pattern "<測試名稱>" agent.test.js   
 
 ### DBF 權威讀寫 (`IDbfSyncService`)
 - **讀**：先呼叫 `EnsureTableSyncedAsync(dbfPath, dbfName, schema, table, keyFields)`。它比對 DBF 的 `SHA256:FileSize` 與 `dictionary.w3000_dbf`，不同才整表重灌快照。重灌在單一交易內：清空舊快照並移除先前的 `ux_` 唯一索引 → 結構腳本 → 資料腳本；任何一步失敗整個回復、保留舊快照。`keyFields` 會成為 PostgreSQL 的唯一鍵；DBF 主鍵重複時，資料腳本回到 savepoint，改為每個主鍵只保留 RECNO 最小的一筆，並記在 `dictionary.w3000_dbf_dupkey` (`GetDuplicateKeysAsync` 可讀)。需要看到所有列的表傳 `""`。同一張 DBF 被不同畫面以不同 `keyFields` 同步時 (例如 `customer`)，快照內容取決於 DBF 變動後第一個觸發重灌的畫面。快照的 `_record_number` 等於實體 RECNO，已刪除列不在快照中。
-- **寫**：一律先 `WriteRecordAsync(..., operation, keyField, keyValue, fields)` 寫 DBF，成功後才寫 PostgreSQL 並更新 checksum；DBF 失敗時不可單邊寫 PostgreSQL。`keyField` 可以是 VFP 運算式 (例如沒有唯一鍵的 `recmod` 用 `"RECNO(),rno"`)。日期欄傳 `{"$date":"yyyy-MM-dd"}`。LocalAgent 回 `LOCK_TIMEOUT` (VFP 獨佔或鎖定) 時後端回 409。
+- **寫**：一律先 `WriteRecordAsync(..., operation, keyField, keyValue, fields)` 寫 DBF，成功後才寫 PostgreSQL，再呼叫 `CommitWriteChecksumAsync(dbfPath, dbfName)` 更新 checksum；DBF 失敗時不可單邊寫 PostgreSQL，PostgreSQL 失敗時不要呼叫 Commit。**不要**在寫入後自己 `GetChecksumAsync` + `UpdateDictionaryChecksumAsync`：舊系統若在同一段時間改了 DBF，字典會記下包含舊系統修改的 checksum，網頁從此讀不到那筆修改。LocalAgent 在同一個隊列項目內讀取寫入前後的 DBF，回傳 `checksumBefore`、`checksumAfter`，並比對位元組，用 `otherChanges` 標示是否有這次寫入以外的變動。Commit 只有在同一請求的寫入首尾相接、沒有其他變動，而且字典仍是寫入前的 checksum 時，才以條件式 UPDATE 改成寫入後的 checksum；否則不動字典，下次讀取重灌。`keyField` 可以是 VFP 運算式 (例如沒有唯一鍵的 `recmod` 用 `"RECNO(),rno"`)。日期欄傳 `{"$date":"yyyy-MM-dd"}`。LocalAgent 回 `LOCK_TIMEOUT` (VFP 獨佔或鎖定) 時後端回 409。
 - LocalAgent 把寫入組成 `EXEC_VFP` 的 VFP 腳本執行 (`INSERT INTO`、`LOCATE FOR` + `REPLACE`、`LOCATE FOR` + `DELETE`；找不到記錄回 `RECORD_NOT_FOUND`)。正式 DBF 的格式可能和 VFP 原始碼裡的樣板不同 (例如 FoxPro 2.x / dBase III、金額 F/N 而非 Currency)，不要假設欄位型別。
 - 控制器有兩種寫法：EF Core 實體 (`Models/*Master.cs` + `AppDbContext`，如 1020、1030、1050~1080、2010、3010、3020、3050、3060)，以及 ADO + DTO (`GetDbConnection()`，如 2030、2040、2050、4010、4020、5010)。新模組比照最接近的既有模組。
 
 ### LocalAgent (`localagent/agent.js`)
 - 只聽本機 (`127.0.0.1` / `::1` 的 5009)；`/api/dbf/*` 拒絕帶 `Origin` / `Sec-Fetch-Site` 的瀏覽器請求，只給後端用。可轉送給 DBFBridge 的動作有白名單 (`DBF_BRIDGE_ACTIONS`：`PING`、`CHECKSUM`、`READ`、`GET_PG_SCRIPT`)，`EXEC_VFP` 只能由 `executeDbfWrite` 與 custbak 匯出入的固定範本內部使用。
 - 報表：`POST /report` 把 `jsonData` 寫成 `%TEMP%\Wx3000\` 暫存 JSON，交給 64-bit `WbaseBridge.exe` 呼叫 `wbaseRP.dll`。`/report`、`/api/call` 只能呼叫 `localagent/dlls.json` 登記過的函數 (目前 `wbaseRP` 10 個)，未登記回 `FORBIDDEN`。DLL 路徑依 `dlls.json` 的 `path` / `fallback_paths` (可用絕對路徑)，環境變數 `WBASE_DLL_PATH` 可整個覆蓋。
-- 修改後跑 `npm test` (21 項，含子測試共 26)。`agent_v*.js`、`test_v*.html`、`README_v1.md` 是歷史留存 (Port 18889)，不用改。
+- 修改後跑 `npm test` (24 項，含子測試共 29)。`agent_v*.js`、`test_v*.html`、`README_v1.md` 是歷史留存 (Port 18889)，不用改。
 
 ### 報表 DLL (`report/wbase/`, Lazarus + FastReport)
 - 新增一張報表要改四處：`wbase_unit1.lfm` / `.pas` 加 `TfrxReport` 範本 (資料集名 `MTable`)、`wbase_repunit1.pas` 加 stdcall 函數、`wbaseRP.lpr` 匯出、`localagent/dlls.json` 登記。`WbaseBridge_Generic.lpr` 依參數個數分派，命令列參數要 base64。`IsPrint`：`0` 預覽、`1` 直接列印、`999` 只 PrepareReport 不開視窗 (適合自動驗證)。

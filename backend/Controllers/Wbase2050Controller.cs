@@ -445,8 +445,7 @@ namespace Wx3000.Backend.Controllers
         {
             try
             {
-                var chk = await _dbfSyncService.GetChecksumAsync(DbfPath, Table);
-                if (!string.IsNullOrEmpty(chk)) await _dbfSyncService.UpdateDictionaryChecksumAsync(DbfPath, Table, chk);
+                await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, Table);
             }
             catch (Exception ex)
             {

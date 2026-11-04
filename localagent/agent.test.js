@@ -14,6 +14,8 @@ const {
   buildWhereClause,
   toVfpLiteral,
   executeDbfWrite,
+  dbfChecksum,
+  onlyExpectedChanges,
   validateCustbakRequest,
   buildCustbakExportScript,
   buildCustbakImportScript,
@@ -215,6 +217,86 @@ test('executeDbfWrite validates before touching the bridge', async () => {
     fields: {}
   });
   assert.equal(result.errorType, 'INVALID_REQUEST');
+});
+
+// 組一個最小的 DBF：欄位 no C(2)、tel C(4)、fax C(4)，每筆 11 個位元組 (含刪除旗標)，結尾有 0x1A
+function makeDbf(rows) {
+  const fieldDefs = [['NO', 2], ['TEL', 4], ['FAX', 4]];
+  const headerLen = 32 + fieldDefs.length * 32 + 1;
+  const recLen = 1 + fieldDefs.reduce((a, [, len]) => a + len, 0);
+  const buf = Buffer.alloc(headerLen + rows.length * recLen + 1, 0x20);
+  buf.fill(0, 0, headerLen);
+  buf[0] = 0x30;
+  buf.writeUInt32LE(rows.length, 4);
+  buf.writeUInt16LE(headerLen, 8);
+  buf.writeUInt16LE(recLen, 10);
+  fieldDefs.forEach(([name, len], i) => {
+    const off = 32 + i * 32;
+    buf.write(name, off, 'latin1');
+    buf[off + 11] = 0x43; // 'C'
+    buf[off + 16] = len;
+  });
+  buf[headerLen - 1] = 0x0d;
+  rows.forEach((r, i) => {
+    const base = headerLen + i * recLen;
+    buf.write(r.no.padEnd(2), base + 1, 'latin1');
+    buf.write(r.tel.padEnd(4), base + 3, 'latin1');
+    buf.write(r.fax.padEnd(4), base + 7, 'latin1');
+  });
+  buf[buf.length - 1] = 0x1a;
+  return buf;
+}
+
+const baseRows = [{ no: '01', tel: '1111', fax: '2222' }, { no: '02', tel: '3333', fax: '4444' }];
+
+test('dbfChecksum matches the DBFBridge CHECKSUM format', () => {
+  const buf = makeDbf(baseRows);
+  assert.match(dbfChecksum(buf), new RegExp(`^[0-9a-f]{64}:${buf.length}$`));
+});
+
+test('onlyExpectedChanges accepts a write that touched only its own bytes', () => {
+  const before = makeDbf(baseRows);
+
+  const updated = makeDbf([{ ...baseRows[0], tel: '9999' }, baseRows[1]]);
+  updated[1] = 0x7e; // VFP 更新檔頭的最後修改日期
+  assert.equal(onlyExpectedChanges(before, updated, { operation: 'UPDATE', recno: 1, fieldNames: ['tel'] }), true);
+
+  const inserted = makeDbf([...baseRows, { no: '03', tel: '5555', fax: '6666' }]);
+  assert.equal(onlyExpectedChanges(before, inserted, { operation: 'INSERT', recno: 3, fieldNames: ['no', 'tel', 'fax'] }), true);
+
+  const deleted = Buffer.from(before);
+  deleted[before.readUInt16LE(8) + before.readUInt16LE(10)] = 0x2a; // 第 2 筆的刪除旗標
+  assert.equal(onlyExpectedChanges(before, deleted, { operation: 'DELETE', recno: 2 }), true);
+});
+
+test('onlyExpectedChanges notices changes made by someone else at the same time', () => {
+  const before = makeDbf(baseRows);
+
+  // 寫第 1 筆的 tel 時，舊系統改了第 2 筆
+  const otherRecord = makeDbf([{ ...baseRows[0], tel: '9999' }, { ...baseRows[1], fax: '0000' }]);
+  assert.equal(onlyExpectedChanges(before, otherRecord, { operation: 'UPDATE', recno: 1, fieldNames: ['tel'] }), false);
+
+  // 同一筆，但舊系統改的是沒有寫的欄位
+  const otherField = makeDbf([{ ...baseRows[0], tel: '9999', fax: '0000' }, baseRows[1]]);
+  assert.equal(onlyExpectedChanges(before, otherField, { operation: 'UPDATE', recno: 1, fieldNames: ['tel'] }), false);
+
+  // 新增時舊系統也新增了一筆
+  const twoInserts = makeDbf([...baseRows, { no: '03', tel: '5555', fax: '6666' }, { no: '04', tel: '7777', fax: '8888' }]);
+  assert.equal(onlyExpectedChanges(before, twoInserts, { operation: 'INSERT', recno: 3, fieldNames: ['no', 'tel', 'fax'] }), false);
+
+  // 新增時舊系統改了既有的一筆
+  const insertAndEdit = makeDbf([{ ...baseRows[0], fax: '0000' }, baseRows[1], { no: '03', tel: '5555', fax: '6666' }]);
+  assert.equal(onlyExpectedChanges(before, insertAndEdit, { operation: 'INSERT', recno: 3, fieldNames: ['no', 'tel', 'fax'] }), false);
+
+  // 刪除時舊系統改了別筆
+  const deleteAndEdit = makeDbf([{ ...baseRows[0], fax: '0000' }, baseRows[1]]);
+  deleteAndEdit[before.readUInt16LE(8) + before.readUInt16LE(10)] = 0x2a;
+  assert.equal(onlyExpectedChanges(before, deleteAndEdit, { operation: 'DELETE', recno: 2 }), false);
+
+  // 讀不到檔案、欄位不存在、記錄號不合理時一律視為有其他變動
+  assert.equal(onlyExpectedChanges(null, before, { operation: 'UPDATE', recno: 1, fieldNames: ['tel'] }), false);
+  assert.equal(onlyExpectedChanges(before, before, { operation: 'UPDATE', recno: 1, fieldNames: ['nope'] }), false);
+  assert.equal(onlyExpectedChanges(before, before, { operation: 'UPDATE', recno: 0, fieldNames: ['tel'] }), false);
 });
 
 // 只建空檔，validateCustbakRequest 只檢查路徑，不讀內容
