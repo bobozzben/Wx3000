@@ -173,9 +173,12 @@ export const updateCustomerTax = async (no: string, item: CustomerTaxItem): Prom
   await api.put(`/api/wbase4020/taxop/${encodeURIComponent(no)}`, item);
 };
 
-export const applyDefaultTaxAccounts = async (no: string): Promise<CustomerTaxItem> => {
-  const res = await api.post(`/api/wbase4020/taxop/apply-default/${encodeURIComponent(no)}`);
-  return res.data;
+// 後端回 { success, applied: { 欄位: 值 } }，只取 applied 合併回畫面列
+export const applyDefaultTaxAccounts = async (no: string): Promise<Partial<CustomerTaxItem>> => {
+  const res = await api.post<{ success: boolean; applied?: Partial<CustomerTaxItem> }>(
+    `/api/wbase4020/taxop/apply-default/${encodeURIComponent(no)}`
+  );
+  return res.data?.applied ?? {};
 };
 
 export const fetchAccParaTaxAccounts = async (): Promise<AccParaTax> => {
@@ -198,9 +201,12 @@ export const updateCustomerVoucher = async (no: string, item: CustomerVoucherIte
   await api.put(`/api/wbase4020/voucher/${encodeURIComponent(no)}`, item);
 };
 
-export const applyDefaultVoucherParams = async (no: string): Promise<CustomerVoucherItem> => {
-  const res = await api.post(`/api/wbase4020/voucher/apply-default/${encodeURIComponent(no)}`);
-  return res.data;
+// 後端回 { success, applied: { 欄位: 值 } }，只取 applied 合併回畫面列
+export const applyDefaultVoucherParams = async (no: string): Promise<Partial<CustomerVoucherItem>> => {
+  const res = await api.post<{ success: boolean; applied?: Partial<CustomerVoucherItem> }>(
+    `/api/wbase4020/voucher/apply-default/${encodeURIComponent(no)}`
+  );
+  return res.data?.applied ?? {};
 };
 
 export const fetchAccParaVoucherParams = async (): Promise<AccParaVoucher> => {

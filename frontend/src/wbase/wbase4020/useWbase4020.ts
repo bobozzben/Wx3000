@@ -130,18 +130,19 @@ export const useWbase4020 = (initialTab: Wbase4020Tab = '4020'): UseWbase4020Ret
   const applyDefaultTax = useCallback(
     async (row: CustomerTaxItem, rowIndex: number) => {
       try {
-        const res = await applyDefaultTaxAccounts(row.no);
-        const updated = [...taxRows];
-        updated[rowIndex] = {
-          ...row,
-          ...res,
-        };
-        setTaxRows(updated);
+        const applied = await applyDefaultTaxAccounts(row.no);
+        setTaxRows((prev) => {
+          const idx = prev[rowIndex]?.no === row.no ? rowIndex : prev.findIndex((r) => r.no === row.no);
+          if (idx < 0) return prev;
+          const updated = [...prev];
+          updated[idx] = { ...prev[idx], ...applied };
+          return updated;
+        });
       } catch (err: any) {
         alert('套用標準參數失敗: ' + (err?.response?.data?.error || err?.response?.data?.message || err.message));
       }
     },
-    [taxRows]
+    []
   );
 
   // 4-3 儲存列
@@ -163,18 +164,19 @@ export const useWbase4020 = (initialTab: Wbase4020Tab = '4020'): UseWbase4020Ret
   const applyDefaultVoucher = useCallback(
     async (row: CustomerVoucherItem, rowIndex: number) => {
       try {
-        const res = await applyDefaultVoucherParams(row.no);
-        const updated = [...voucherRows];
-        updated[rowIndex] = {
-          ...row,
-          ...res,
-        };
-        setVoucherRows(updated);
+        const applied = await applyDefaultVoucherParams(row.no);
+        setVoucherRows((prev) => {
+          const idx = prev[rowIndex]?.no === row.no ? rowIndex : prev.findIndex((r) => r.no === row.no);
+          if (idx < 0) return prev;
+          const updated = [...prev];
+          updated[idx] = { ...prev[idx], ...applied };
+          return updated;
+        });
       } catch (err: any) {
         alert('套用標準轉檔參數失敗: ' + (err?.response?.data?.error || err?.response?.data?.message || err.message));
       }
     },
-    [voucherRows]
+    []
   );
 
   // 4-4 儲存列
