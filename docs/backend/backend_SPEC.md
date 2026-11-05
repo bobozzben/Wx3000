@@ -130,6 +130,9 @@ PostgreSQL Table 名稱與 DBF 檔名相同；`同步 keyFields` 是呼叫 `Ensu
 2. **DBF 絕對權威寫入 (`WriteRecordAsync`)**：
    - 執行 `INSERT` / `UPDATE` / `DELETE` 時，先透過 `LocalAgent` (`POST /api/dbf/write`) 寫入地端 `.dbf`。`keyField` 可為逗號分隔的多個欄位或 `RECNO()` (例如 `RECNO(),rno`)，`keyValue` 以同樣順序逗號分隔；日期欄位傳 `{"$date":"yyyy-MM-dd"}`。
    - 若地端 DBF 正被其他 FoxPro 工作站獨佔或鎖定，LocalAgent 會回傳 `errorType: "LOCK_TIMEOUT"`，C# Controller 回傳 HTTP `409 Conflict`，**絕不單邊修改 PostgreSQL**；找不到記錄時回 `errorType: "RECORD_NOT_FOUND"`。
+   - **新增前在 DBF 檢查鍵值**：`INSERT` 的 VFP 腳本先以 `LOCATE FOR <鍵值條件> AND NOT DELETED()` 找相同鍵值的記錄，有就回 `errorType: "DUPLICATE_KEY"`，不新增。控制器判斷「新增或修改」只看 PostgreSQL 快照，快照過期或多人同時新增同一代號時，這是最後一道防線。鍵值本來就會重複的表傳 `allowDuplicateKey: true` (收費明細 `recmod` 以 `rno`、會計摘要 `descrip` 以 `accno` 新增)；`keyField` 含 `RECNO()` 時一律不檢查。和舊系統之間仍有幾毫秒的空窗，沒有用 `FLOCK()`，因為舊系統編輯時常持有記錄鎖。
+   - **排隊逾時不寫入**：後端在請求帶 `queueTimeoutMs` (呼叫 LocalAgent 的逾時 60 秒減 15 秒，即 45 秒)。寫入在 LocalAgent 隊列裡等超過這個時間、或後端已斷線，LocalAgent 就不執行，回 `errorType: "AGENT_BUSY"`。大表重灌把隊列塞住時，使用者會收到「這次沒有寫入」的明確回覆，而不是後端放棄後由 LocalAgent 在背景寫入。
+   - **結果未確認**：後端等 LocalAgent 超過 60 秒 (只有寫入本身做太久才會發生) 時，`WriteRecordAsync` 回 `errorType: "WRITE_UNCONFIRMED"`。這時寫入可能已經執行，控制器以 `DbfWriteResult.FailureText(...)` 或 `IsUnconfirmed` 回「無法確認是否已寫入，請重新整理確認」，不可說成寫入失敗，也不可自動重試。
    - 寫入 DBF 成功後，才更新 PostgreSQL，再呼叫 `CommitWriteChecksumAsync(dbfPath, dbfName)` 更新快照校驗碼；PostgreSQL 寫入失敗時不呼叫，下次讀取會自動重灌。
    - LocalAgent 在同一個隊列項目內讀取寫入前後的 `.dbf`，回傳 `checksumBefore`、`checksumAfter`；並比對寫入前後的位元組，以 `otherChanges` 標示是否有這次寫入以外的變動。只有檔頭前 32 個位元組，以及本次 INSERT 的整筆、UPDATE 寫入的欄位、DELETE 的刪除旗標可以改變。
    - `WriteRecordAsync` 會記下同一請求對每個 DBF 的連續寫入。`CommitWriteChecksumAsync` 只在三個條件都成立時，才執行 `UPDATE dictionary.w3000_dbf SET checksum = <最後一次寫入後> WHERE checksum = <第一次寫入前>`：每次寫入前的 checksum 都等於上一次寫入後的 checksum、沒有 `otherChanges`、字典仍是第一次寫入前的值。條件不成立時不動字典，下次讀取會重灌。

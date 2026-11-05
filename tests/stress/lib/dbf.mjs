@@ -33,8 +33,11 @@ function decodeField(buf, offset, field) {
   }
 }
 
-/** 讀取整個 DBF，回傳欄位定義與所有記錄 (含已刪除記錄，以 _deleted 標示；_recno 為實體 RECNO)。 */
-export function readDbf(filePath) {
+/**
+ * 讀取整個 DBF，回傳欄位定義與所有記錄 (含已刪除記錄，以 _deleted 標示；_recno 為實體 RECNO)。
+ * options.fields 可只解碼指定的欄位 (小寫欄位名)：大檔只需核對少數欄位時快很多。
+ */
+export function readDbf(filePath, options = {}) {
   const buf = readFileSync(filePath);
   const count = buf.readUInt32LE(4);
   const headerLen = buf.readUInt16LE(8);
@@ -52,18 +55,21 @@ export function readDbf(filePath) {
     off += 32;
   }
 
+  const wanted = options.fields ? new Set(options.fields.map((n) => n.toLowerCase())) : null;
+  const decoded = wanted ? fields.filter((f) => wanted.has(f.name)) : fields;
+
   const rows = [];
   for (let i = 0; i < count; i++) {
     const base = headerLen + i * recLen;
     if (base + recLen > buf.length) break;
     const row = { _recno: i + 1, _deleted: buf[base] === 0x2a };
-    for (const f of fields) row[f.name] = decodeField(buf, base + f.pos, f);
+    for (const f of decoded) row[f.name] = decodeField(buf, base + f.pos, f);
     rows.push(row);
   }
   return { fields, rows };
 }
 
 /** 只回傳未刪除的記錄 (等同 VFP SET DELETED ON)。 */
-export function readActiveRows(filePath) {
-  return readDbf(filePath).rows.filter((r) => !r._deleted);
+export function readActiveRows(filePath, options = {}) {
+  return readDbf(filePath, options).rows.filter((r) => !r._deleted);
 }

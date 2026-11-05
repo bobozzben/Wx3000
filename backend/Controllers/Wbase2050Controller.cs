@@ -474,14 +474,17 @@ namespace Wx3000.Backend.Controllers
         {
             if (res.ErrorType == "LOCK_TIMEOUT") return $"{action}失敗：資料正被地端其他工作站鎖定中，請稍後再試";
             if (res.ErrorType == "RECORD_NOT_FOUND") return $"{action}失敗：地端資料已變動，請重新整理後再試";
+            if (res.IsUnconfirmed) return $"{action}：{res.Message}";
             return $"{action}失敗：{res.Message ?? res.Error ?? "寫入 DBF 失敗"}";
         }
 
         private ObjectResult DbfError(DbfWriteResult res, string action)
         {
-            var status = res.ErrorType is "LOCK_TIMEOUT" or "RECORD_NOT_FOUND"
-                ? StatusCodes.Status409Conflict
-                : StatusCodes.Status500InternalServerError;
+            var status = res.IsUnconfirmed
+                ? StatusCodes.Status504GatewayTimeout
+                : res.ErrorType is "LOCK_TIMEOUT" or "RECORD_NOT_FOUND"
+                    ? StatusCodes.Status409Conflict
+                    : StatusCodes.Status500InternalServerError;
             return StatusCode(status, new { error = res.Error, errorType = res.ErrorType, message = DescribeDbfError(res, action) });
         }
 

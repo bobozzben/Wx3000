@@ -211,7 +211,8 @@ namespace Wx3000.Backend.Services
             string operation,
             string keyField,
             string keyValue,
-            Dictionary<string, object?> fields)
+            Dictionary<string, object?> fields,
+            bool allowDuplicateKey = false)
         {
             var sw = Stopwatch.StartNew();
             try
@@ -223,7 +224,9 @@ namespace Wx3000.Backend.Services
                     operation = operation.ToUpperInvariant(),
                     keyField,
                     keyValue,
-                    fields
+                    fields,
+                    allowDuplicateKey,
+                    queueTimeoutMs = WriteQueueTimeoutMs()
                 };
 
                 var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
@@ -243,6 +246,21 @@ namespace Wx3000.Backend.Services
 
                 if (result.Success) TrackWrite(dbfPath, dbfName, result);
                 return result;
+            }
+            catch (TaskCanceledException ex)
+            {
+                // HttpClient.Timeout：請求已送到 LocalAgent，寫入可能已經開始，不能告訴使用者「沒有寫入」。
+                // LocalAgent 會在 queueTimeoutMs 內回覆排隊逾時，所以只有寫入本身做太久才會走到這裡。
+                sw.Stop();
+                _logger.LogError(ex, "[DbfSync] 寫入 DBF 逾時，無法確認是否已寫入 ({Path}/{Dbf} {Op} {Key}={Value})，耗時 {Elapsed}ms",
+                    dbfPath, dbfName, operation, keyField, keyValue, sw.ElapsedMilliseconds);
+                return new DbfWriteResult
+                {
+                    Success = false,
+                    ErrorType = "WRITE_UNCONFIRMED",
+                    Error = ex.Message,
+                    Message = $"等候地端 LocalAgent 超過 {(int)_http.Timeout.TotalSeconds} 秒，無法確認這次是否已寫入 DBF。請重新整理畫面確認資料後再決定是否重存"
+                };
             }
             catch (Exception ex)
             {
@@ -321,6 +339,19 @@ namespace Wx3000.Backend.Services
                 _logger.LogError(ex, "[DbfSync] 更新 Checksum 字典表失敗: {Message}", ex.Message);
                 return false;
             }
+        }
+
+        // 寫入本身 (讀寫入前後的 DBF + VFP) 預留的時間；大表一次寫入約 1～3 秒
+        private const int WriteExecutionAllowanceMs = 15000;
+
+        /// <summary>
+        /// 寫入最多在 LocalAgent 排隊多久：比呼叫 LocalAgent 的逾時短，排太久時 LocalAgent 會回 AGENT_BUSY 且不執行，
+        /// 後端才收得到「沒有寫入」的明確回覆，而不是逾時後由 LocalAgent 在背景寫入
+        /// </summary>
+        private int WriteQueueTimeoutMs()
+        {
+            if (_http.Timeout == Timeout.InfiniteTimeSpan) return 0;
+            return (int)Math.Max(_http.Timeout.TotalMilliseconds - WriteExecutionAllowanceMs, 1000);
         }
 
         private static string PendingKey(string dbfPath, string dbfName) => NormalizePath(dbfPath) + "|" + NormalizeDbf(dbfName);

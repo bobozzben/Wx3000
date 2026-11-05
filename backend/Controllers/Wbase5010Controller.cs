@@ -962,6 +962,10 @@ namespace Wx3000.Backend.Controllers
             {
                 return StatusCode(StatusCodes.Status409Conflict, new { error = writeRes.Error, message = $"{message}：資料正被地端其他工作站鎖定中" });
             }
+            if (writeRes.IsUnconfirmed)
+            {
+                return StatusCode(StatusCodes.Status504GatewayTimeout, new { error = writeRes.Error, message = $"{message}：{writeRes.Message}" });
+            }
             var detail = writeRes.Message ?? writeRes.Error;
             return StatusCode(StatusCodes.Status500InternalServerError, new
             {

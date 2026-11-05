@@ -456,6 +456,18 @@ async function numbering() {
     details.push('只防得住同一台後端內的同時新增；舊系統同時新增收費單仍可能取到同一號');
     report('numbering', dup.length ? 'FAIL' : 'PASS',
       dup.length ? '2-4 收費單號重複' : '2-4 收費單號沒有重複', details);
+
+    // 一張收費單有多筆明細 (recmod 以 rno 新增，rno 本來就會重複)，不能被 LocalAgent 的重複代號檢查擋下
+    const rno = trim(res.find((r) => r.ok)?.json?.receipt?.rno);
+    if (rno) {
+      const lines = await Promise.all([1, 2].map(() => api('POST', `/api/wbase2040/${encodeURIComponent(rno)}/lines`)));
+      const count = dbfRows('recmod').filter((r) => trim(r.rno) === rno).length;
+      const ok = lines.every((r) => r.ok) && count >= 2;
+      report('numbering', ok ? 'PASS' : 'FAIL', `2-4 同一張收費單 ${rno} 同時新增 2 筆明細：DBF 有 ${count} 筆`, [
+        `狀態：${statusCounts(lines)}`,
+        ...(lines.some((r) => !r.ok) ? [`錯誤範例：${errorSample(lines)}`] : []),
+      ]);
+    }
   }
 }
 

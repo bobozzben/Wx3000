@@ -38,6 +38,16 @@ namespace Wx3000.Backend.Services
         /// <summary>寫入前後的差異超出這次寫入的範圍，代表同時有其他程式 (例如舊系統) 改了這個 DBF</summary>
         [JsonPropertyName("otherChanges")]
         public bool OtherChanges { get; set; } = true;
+
+        /// <summary>後端等 LocalAgent 逾時，寫入可能已經執行：不可告訴使用者「寫入失敗」</summary>
+        [JsonIgnore]
+        public bool IsUnconfirmed => ErrorType == "WRITE_UNCONFIRMED";
+
+        /// <summary>
+        /// 給使用者看的失敗說明：一般錯誤是 failedPrefix + 錯誤訊息；結果未確認時只回訊息本身，不加「寫入失敗」字樣
+        /// </summary>
+        public string FailureText(string failedPrefix) =>
+            IsUnconfirmed ? (Message ?? Error ?? string.Empty) : failedPrefix + (Message ?? Error);
     }
 
     public class DbfReadResult
@@ -134,9 +144,15 @@ namespace Wx3000.Backend.Services
 
         /// <summary>
         /// 依據 DBF 絕對權威原則，向地端 DBF 發動 INSERT / UPDATE / DELETE 寫入
-        /// 若遭其他工作站鎖定 (Lock Timeout) 立即回報失敗，絕不單邊寫入 PostgreSQL
+        /// 若遭其他工作站鎖定 (Lock Timeout) 立即回報失敗，絕不單邊寫入 PostgreSQL。
+        /// 失敗時的 ErrorType：
+        ///   LOCK_TIMEOUT      VFP 獨佔或鎖定，沒有寫入
+        ///   DUPLICATE_KEY     INSERT 時 DBF 已有相同鍵值的未刪除記錄，沒有寫入 (allowDuplicateKey 為 true 時不檢查)
+        ///   AGENT_BUSY        LocalAgent 隊列排太久或後端已斷線，沒有寫入
+        ///   WRITE_UNCONFIRMED 後端等 LocalAgent 逾時，無法確認是否已寫入；不可當成「沒有寫入」再自動重試
         /// </summary>
-        Task<DbfWriteResult> WriteRecordAsync(string dbfPath, string dbfName, string operation, string keyField, string keyValue, Dictionary<string, object?> fields);
+        /// <param name="allowDuplicateKey">鍵值本來就會重複的表 (例如收費明細以 rno 新增) 傳 true；鍵值含 RECNO() 時 LocalAgent 一律不檢查</param>
+        Task<DbfWriteResult> WriteRecordAsync(string dbfPath, string dbfName, string operation, string keyField, string keyValue, Dictionary<string, object?> fields, bool allowDuplicateKey = false);
 
         /// <summary>
         /// 直接從地端 DBF 讀取指定主鍵之記錄

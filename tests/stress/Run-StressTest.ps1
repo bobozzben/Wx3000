@@ -1,12 +1,17 @@
 ﻿# Run-StressTest.ps1
-# Wx3000 多人使用壓力測試：建立 DBF 測試複本 → subst 成一個空的磁碟機代號 → 執行 stress.mjs → 清除複本與 PostgreSQL 測試資料。
+# Wx3000 壓力測試：建立 DBF 測試複本 → subst 成一個空的磁碟機代號 → 執行測試 → 清除複本與 PostgreSQL 測試資料。
+#   -Suite multiuser (預設)：stress.mjs，多人同時使用的競態與負載
+#   -Suite large：large-data.mjs，把資料表灌到上萬筆後量測同步、讀取與寫入 (-Burst 未指定時用 5)
 # 適用 Windows PowerShell 5.1 與 PowerShell 7。執行前請先啟動後端與 LocalAgent (例如 pnpm dev，或已安裝的服務)。
 #
 #   .\tests\stress\Run-StressTest.ps1
 #   .\tests\stress\Run-StressTest.ps1 -Users '1,5,10,20,30' -Duration 30 -Burst 20
 #   .\tests\stress\Run-StressTest.ps1 -Scenarios 'read-load,legacy-race'
+#   .\tests\stress\Run-StressTest.ps1 -Suite large -Rows '10000,30000' -Tables 'buyinv,recmom,customer' -Users '1,5,10'
 
 param(
+    [ValidateSet('multiuser', 'large')]
+    [string]$Suite = 'multiuser',
     [string]$SourceDir = 'C:\w3000\comm',
     [string]$Drive = '',
     [string]$ApiUrl = 'http://localhost:5007',
@@ -16,6 +21,8 @@ param(
     [int]$Burst = 10,
     [int]$Rounds = 20,
     [string]$Scenarios = 'all',
+    [string]$Rows = '10000,30000',
+    [string]$Tables = 'buyinv,recmom,customer',
     [string]$PsqlPath = 'C:\Program Files\PostgreSQL\16\bin\psql.exe',
     [string]$PgHost = 'localhost',
     [int]$PgPort = 54320,
@@ -102,18 +109,15 @@ try {
     Invoke-PgCleanup $Drive
 
     # ------------------------------------------------------------ 執行
-    Write-Step '執行壓力測試'
-    $nodeArgs = @(
-        (Join-Path $scriptDir 'stress.mjs'),
-        '--drive', $Drive,
-        '--api', $ApiUrl,
-        '--agent', $AgentUrl,
-        '--users', $Users,
-        '--duration', "$Duration",
-        '--burst', "$Burst",
-        '--rounds', "$Rounds",
-        '--scenarios', $Scenarios
-    )
+    Write-Step "執行壓力測試 ($Suite)"
+    $common = @('--drive', $Drive, '--api', $ApiUrl, '--agent', $AgentUrl, '--users', $Users, '--duration', "$Duration")
+    if ($Suite -eq 'large') {
+        # 大表每次重灌要數十秒，同時開畫面的人數預設少一點
+        if (-not $PSBoundParameters.ContainsKey('Burst')) { $Burst = 5 }
+        $nodeArgs = @((Join-Path $scriptDir 'large-data.mjs')) + $common + @('--burst', "$Burst", '--rows', $Rows, '--tables', $Tables)
+    } else {
+        $nodeArgs = @((Join-Path $scriptDir 'stress.mjs')) + $common + @('--burst', "$Burst", '--rounds', "$Rounds", '--scenarios', $Scenarios)
+    }
     & node @nodeArgs
     $exitCode = $LASTEXITCODE
 }

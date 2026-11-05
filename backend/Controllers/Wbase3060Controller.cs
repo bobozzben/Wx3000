@@ -319,6 +319,14 @@ namespace Wx3000.Backend.Controllers
                     message = $"{prefix}發票購買紀錄 [{code}] 已被其他工作站異動，{action}中止，請重新查詢後再試"
                 });
             }
+            if (res.IsUnconfirmed)
+            {
+                return StatusCode(StatusCodes.Status504GatewayTimeout, new
+                {
+                    error = res.Error,
+                    message = $"{prefix}發票購買紀錄 [{code}] {action}中止：{res.Message}"
+                });
+            }
             return StatusCode(StatusCodes.Status500InternalServerError, new
             {
                 error = res.Error,

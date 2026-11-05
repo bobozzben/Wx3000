@@ -165,7 +165,7 @@ namespace Wx3000.Backend.Controllers
                 return BadRequest(new
                 {
                     error = dbfResult.Error,
-                    message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                    message = dbfResult.FailureText("地端 DBF 寫入失敗: ")
                 });
             }
 
@@ -247,7 +247,7 @@ namespace Wx3000.Backend.Controllers
                 return BadRequest(new
                 {
                     error = dbfResult.Error,
-                    message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                    message = dbfResult.FailureText("地端 DBF 寫入失敗: ")
                 });
             }
 

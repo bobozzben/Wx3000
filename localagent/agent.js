@@ -117,6 +117,34 @@ function enqueueDbf(task) {
   return next;
 }
 
+// 排進隊列，但最多等 timeoutMs 毫秒 (0 表示不限)：輪到之前就逾時，或 isCancelled() 表示呼叫端已經離開，就不執行 task。
+// 回傳 { value } (已執行)、{ error } (task 拋出例外) 或 { skipped: 'QUEUE_TIMEOUT' | 'CLIENT_GONE' } (沒有執行)。
+// 寫入一定要用這個：後端等不到回覆就會告訴使用者失敗，之後才執行的寫入等於偷偷存進 DBF。
+function enqueueDbfWithin(task, { timeoutMs = 0, isCancelled } = {}) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = timeoutMs > 0
+      ? setTimeout(() => {
+          if (!settled) { settled = true; resolve({ skipped: 'QUEUE_TIMEOUT' }); }
+        }, timeoutMs)
+      : null;
+    enqueueDbf(async () => {
+      if (timer) clearTimeout(timer);
+      if (settled) return;
+      settled = true;
+      if (isCancelled && isCancelled()) {
+        resolve({ skipped: 'CLIENT_GONE' });
+        return;
+      }
+      try {
+        resolve({ value: await task() });
+      } catch (error) {
+        resolve({ error });
+      }
+    });
+  });
+}
+
 function callDbfBridge(reqObj) {
   return enqueueDbf(() => runDbfBridge(reqObj));
 }
@@ -491,13 +519,93 @@ function validateDbfWrite(cAlias, keyField, fields) {
   return null;
 }
 
-async function executeDbfWrite(payload) {
+// 鍵值含 RECNO() 的新增 (例如共用摘要以 "RECNO()","0" 新增) 本來就沒有可比對的鍵值
+function shouldCheckDuplicateKey(operation, keyField, allowDuplicateKey) {
+  return operation === 'INSERT' && !allowDuplicateKey && !/RECNO\(\)/i.test(String(keyField));
+}
+
+/**
+ * 組出寫入用的 VFP 腳本；未知的操作回傳 null。
+ * checkDuplicate：新增前在同一段腳本內找未刪除、鍵值相同的記錄，有就回傳 "DUPLICATE_KEY:<RECNO>" 而不新增。
+ * 後端判斷「新增或修改」只看 PostgreSQL 快照，快照過期或多人同時新增時，DBF 是最後一道防線。
+ * LocalAgent 的隊列讓網頁之間的寫入依序執行；和舊系統 (VFP) 之間仍有幾毫秒的空窗，沒有用 FLOCK()，
+ * 因為舊系統編輯記錄時常持有記錄鎖，FLOCK() 會讓網頁的新增經常失敗。
+ */
+function buildDbfWriteScript(operation, { vfpFullPath, cAlias, whereClause, fields, checkDuplicate }) {
+  const open = [
+    `USE "${vfpFullPath}" IN 0 ALIAS ${cAlias} SHARED AGAIN`,
+    `SELECT ${cAlias}`
+  ];
+  if (operation === 'INSERT') {
+    const cols = Object.keys(fields).join(', ');
+    const vals = Object.values(fields).map(toVfpLiteral).join(', ');
+    const duplicateCheck = checkDuplicate
+      ? [
+          `LOCATE FOR (${whereClause}) AND NOT DELETED()`,
+          `IF FOUND()`,
+          `  lnRec = RECNO("${cAlias}")`,
+          `  USE IN ${cAlias}`,
+          `  RETURN "DUPLICATE_KEY:" + TRANSFORM(lnRec)`,
+          `ENDIF`
+        ]
+      : [];
+    return [
+      ...open,
+      ...duplicateCheck,
+      `INSERT INTO ${cAlias} (${cols}) VALUES (${vals})`,
+      `lnRec = RECNO("${cAlias}")`,
+      `USE IN ${cAlias}`,
+      `RETURN TRANSFORM(lnRec)`
+    ].join('\r\n');
+  }
+  if (operation === 'UPDATE') {
+    // 採用 FoxPro 原生 REPLACE [alias.]field WITH ...，徹底避免 SQL UPDATE 遇到保留字 (如 desc, order, date, status 等) 拋出語法錯誤 10
+    const replList = Object.entries(fields).map(([k, v]) => `${cAlias}.${k} WITH ${toVfpLiteral(v)}`);
+    const cReplace = replList.length > 0 ? `REPLACE ${replList.join(', ')}` : `* no fields to update`;
+    return [
+      ...open,
+      `LOCATE FOR ${whereClause}`,
+      `IF EOF()`,
+      `  USE IN ${cAlias}`,
+      `  RETURN "RECORD_NOT_FOUND"`,
+      `ENDIF`,
+      `lnRec = RECNO("${cAlias}")`,
+      cReplace,
+      `USE IN ${cAlias}`,
+      `RETURN TRANSFORM(lnRec)`
+    ].join('\r\n');
+  }
+  if (operation === 'DELETE') {
+    return [
+      ...open,
+      `LOCATE FOR ${whereClause}`,
+      `IF EOF()`,
+      `  USE IN ${cAlias}`,
+      `  RETURN "RECORD_NOT_FOUND"`,
+      `ENDIF`,
+      `lnRec = RECNO("${cAlias}")`,
+      `DELETE`,
+      `USE IN ${cAlias}`,
+      `RETURN TRANSFORM(lnRec)`
+    ].join('\r\n');
+  }
+  return null;
+}
+
+// 寫入最多排隊多久 (毫秒)：後端傳 queueTimeoutMs，要比它呼叫 LocalAgent 的逾時短，後端才收得到「沒有寫入」的明確回覆
+const MAX_WRITE_QUEUE_MS = 10 * 60 * 1000;
+
+/**
+ * options.isCancelled()：呼叫端 (後端) 已經斷線時回傳 true，還沒輪到的寫入就不執行。
+ */
+async function executeDbfWrite(payload, options = {}) {
   const operation = (payload.operation || 'UPDATE').toUpperCase();
   const dbfPath = payload.dbfPath || 'C:\\w3000\\comm';
   const dbfName = payload.dbfName || 'keyin';
   const keyField = payload.keyField || 'no';
   const keyValue = payload.keyValue || '';
   const fields = payload.fields || {};
+  const queueTimeoutMs = Math.min(Math.max(Number(payload.queueTimeoutMs) || 0, 0), MAX_WRITE_QUEUE_MS);
 
   const cAlias = path.basename(dbfName, path.extname(dbfName));
   const invalid = validateDbfWrite(cAlias, keyField, fields);
@@ -511,68 +619,59 @@ async function executeDbfWrite(payload) {
 
   const vfpFullPath = fullPath.replace(/\\/g, '\\\\');
   const whereClause = buildWhereClause(keyField, keyValue);
-
-  let script = '';
-  if (operation === 'INSERT') {
-    const cols = Object.keys(fields).join(', ');
-    const vals = Object.values(fields).map(toVfpLiteral).join(', ');
-    script = [
-      `USE "${vfpFullPath}" IN 0 ALIAS ${cAlias} SHARED AGAIN`,
-      `SELECT ${cAlias}`,
-      `INSERT INTO ${cAlias} (${cols}) VALUES (${vals})`,
-      `lnRec = RECNO("${cAlias}")`,
-      `USE IN ${cAlias}`,
-      `RETURN TRANSFORM(lnRec)`
-    ].join('\r\n');
-  } else if (operation === 'UPDATE') {
-    // 採用 FoxPro 原生 REPLACE [alias.]field WITH ...，徹底避免 SQL UPDATE 遇到保留字 (如 desc, order, date, status 等) 拋出語法錯誤 10
-    const replList = Object.entries(fields).map(([k, v]) => `${cAlias}.${k} WITH ${toVfpLiteral(v)}`);
-    const cReplace = replList.length > 0 ? `REPLACE ${replList.join(', ')}` : `* no fields to update`;
-    script = [
-      `USE "${vfpFullPath}" IN 0 ALIAS ${cAlias} SHARED AGAIN`,
-      `SELECT ${cAlias}`,
-      `LOCATE FOR ${whereClause}`,
-      `IF EOF()`,
-      `  USE IN ${cAlias}`,
-      `  RETURN "RECORD_NOT_FOUND"`,
-      `ENDIF`,
-      `lnRec = RECNO("${cAlias}")`,
-      cReplace,
-      `USE IN ${cAlias}`,
-      `RETURN TRANSFORM(lnRec)`
-    ].join('\r\n');
-  } else if (operation === 'DELETE') {
-    script = [
-      `USE "${vfpFullPath}" IN 0 ALIAS ${cAlias} SHARED AGAIN`,
-      `SELECT ${cAlias}`,
-      `LOCATE FOR ${whereClause}`,
-      `IF EOF()`,
-      `  USE IN ${cAlias}`,
-      `  RETURN "RECORD_NOT_FOUND"`,
-      `ENDIF`,
-      `lnRec = RECNO("${cAlias}")`,
-      `DELETE`,
-      `USE IN ${cAlias}`,
-      `RETURN TRANSFORM(lnRec)`
-    ].join('\r\n');
-  } else {
+  const script = buildDbfWriteScript(operation, {
+    vfpFullPath,
+    cAlias,
+    whereClause,
+    fields,
+    checkDuplicate: shouldCheckDuplicateKey(operation, keyField, payload.allowDuplicateKey)
+  });
+  if (!script) {
     return { success: false, error: `未知的操作類型: ${operation}` };
   }
 
   // 寫入前後的檔案內容在同一個隊列項目內讀取，中間不會插進其他 LocalAgent 動作；
   // 舊系統 (VFP) 若在這段時間也改了檔案，onlyExpectedChanges 會發現多出來的差異
-  const { execRes, before, after } = await enqueueDbf(async () => {
+  const queued = await enqueueDbfWithin(async () => {
     const beforeBuf = await readFileOrNull(fullPath);
     const res = await runDbfBridge({ action: 'EXEC_VFP', script });
-    const afterBuf = res.success && res.result !== 'RECORD_NOT_FOUND' ? await readFileOrNull(fullPath) : null;
+    const wrote = res.success && res.result !== 'RECORD_NOT_FOUND' && !String(res.result).startsWith('DUPLICATE_KEY');
+    const afterBuf = wrote ? await readFileOrNull(fullPath) : null;
     return { execRes: res, before: beforeBuf, after: afterBuf };
-  });
+  }, { timeoutMs: queueTimeoutMs, isCancelled: options.isCancelled });
+
+  if (queued.skipped) {
+    const reason = queued.skipped === 'QUEUE_TIMEOUT'
+      ? `地端 LocalAgent 忙碌，排隊超過 ${Math.round(queueTimeoutMs / 1000)} 秒仍未輪到`
+      : '呼叫端已中斷連線';
+    return {
+      success: false,
+      errorType: 'AGENT_BUSY',
+      error: `${reason}，未執行寫入 (${operation} ${cAlias})`,
+      message: `${reason}，這次沒有寫入 DBF，請稍後再試`
+    };
+  }
+  if (queued.error) {
+    return { success: false, error: `寫入 DBF 發生例外: ${queued.error.message || queued.error}` };
+  }
+
+  const { execRes, before, after } = queued.value;
   if (!execRes.success) {
     // EXEC_VFP 只回 lockHint (VFP 錯誤 3/108/109/130/1705)；轉成後端判斷 409 用的 LOCK_TIMEOUT
     if (execRes.lockHint) {
       return { ...execRes, errorType: 'LOCK_TIMEOUT', message: execRes.lockHint };
     }
     return execRes;
+  }
+  if (String(execRes.result).startsWith('DUPLICATE_KEY')) {
+    const existingRecno = parseInt(String(execRes.result).split(':')[1], 10) || 0;
+    return {
+      success: false,
+      errorType: 'DUPLICATE_KEY',
+      recno: existingRecno,
+      error: `DBF 已有相同鍵值的記錄 (第 ${existingRecno} 筆): ${whereClause}`,
+      message: `${cAlias}.dbf 已有 ${keyValue} 的資料，這次沒有新增。網頁上的資料可能還沒同步，請重新整理後再確認`
+    };
   }
   if (execRes.result === 'RECORD_NOT_FOUND') {
     return {
@@ -938,7 +1037,10 @@ const handleRequest = async (req, res) => {
           const payload = JSON.parse(getBody() || '{}');
 
           if (dbfAction === 'WRITE') {
-            const result = await executeDbfWrite(payload);
+            // 後端逾時放棄時會斷線；還沒輪到的寫入就不執行，免得使用者看到失敗、DBF 卻在之後被寫入
+            let clientGone = false;
+            res.on('close', () => { if (!res.writableFinished) clientGone = true; });
+            const result = await executeDbfWrite(payload, { isCancelled: () => clientGone });
             res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify(result));
             return;
@@ -1171,6 +1273,10 @@ module.exports = {
   validateDbfWrite,
   buildWhereClause,
   toVfpLiteral,
+  buildDbfWriteScript,
+  shouldCheckDuplicateKey,
+  enqueueDbf,
+  enqueueDbfWithin,
   executeDbfWrite,
   dbfChecksum,
   onlyExpectedChanges,
