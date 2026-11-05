@@ -14,7 +14,7 @@
    - 支援 `dotnet run` / `pnpm dev:api` 本地開發偵錯 (同樣監聽 `5007`)。
    - 支援發佈為獨立單一執行檔 (`pnpm build:api` ➔ `publish/backend/Release/Wx3000.Backend.exe`) 或含 `wwwroot` 靜態前端之完整伺服器包 (`pnpm publish:server` ➔ `publish/Wx3000_Server/api`，前端 `dist` 複製到 `api/wwwroot`)。
    - 支援安裝為 Windows Service (服務名稱 `Wx3000Api`)，透過 `builder.Host.UseWindowsService()` 實現開機背景自啟；以服務執行時 Content Root 為執行檔目錄。
-   - 靜態網頁依序尋找 `../../../frontend/dist`、`../../../backend/wwwroot`、`<執行檔目錄>/wwwroot`，找到第一個存在的目錄後提供靜態檔，非 API 路徑一律回 `index.html` (SPA Fallback)。
+   - 靜態網頁依序尋找 `../../../frontend/dist`、`../../../backend/wwwroot`、`<執行檔目錄>/wwwroot`，找到第一個存在的目錄後提供靜態檔，非 API 路徑一律回 `index.html` (SPA Fallback)。不存在的 `/api/*` 路徑回 404 JSON `{ message }`，不會落到 SPA Fallback (否則舊版後端缺新模組的控制器時，前端會把 `index.html` 當成 API 回應)。
    - 一律開啟 Swagger (`/swagger`)，並提供 `GET /health` 健康檢查；CORS 採 `AllowAll`。
 2. **動態資料磁碟機與 Schema 切換 (`SystemConfigService` + `DynamicModelCacheKeyFactory`)**：
    - 磁碟機代號以請求標頭 `X-Data-Drive` (前端 Axios 攔截器帶入，如 `C` 或 `F`) 為準；沒有標頭時使用 `system_config.json` (位於執行檔目錄) 的設定，兩者皆無時為 `C`。代號一律正規化為單一英文字母。
