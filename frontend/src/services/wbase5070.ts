@@ -51,11 +51,20 @@ export const apiErrorMessage = (err: any, fallback = '操作失敗'): string =>
 /** 錯誤是否為密碼錯誤 (後端 403) */
 export const isWrongPassword = (err: any): boolean => err?.response?.status === 403;
 
+/**
+ * 檢查回應是預期的 JSON。舊版後端沒有 /api/wbase5070 時會被 SPA Fallback 回 index.html (200)，
+ * 不擋下來會變成「list.map is not a function」之類看不懂的錯誤
+ */
+const expectShape = <T>(data: unknown, valid: (d: any) => boolean): T => {
+  if (!valid(data)) throw new Error('後端沒有回應碳健檢企業名單 API (/api/wbase5070)，請確認後端已更新並重新啟動');
+  return data as T;
+};
+
 export const fetchCarbonCustomers = async (): Promise<CarbonCustomer[]> =>
-  (await axios.get<CarbonCustomer[]>(`${API_BASE}/customers`)).data;
+  expectShape((await axios.get(`${API_BASE}/customers`)).data, Array.isArray);
 
 export const verifyCarbonPassword = async (password: string): Promise<boolean> =>
-  (await axios.post<{ ok: boolean }>(`${API_BASE}/verify-password`, { password })).data.ok;
+  expectShape<{ ok: boolean }>((await axios.post(`${API_BASE}/verify-password`, { password })).data, (d) => typeof d?.ok === 'boolean').ok;
 
 /**
  * 依序分批計算勾選客戶的年度銷售額 (每家至少一次 LocalAgent 呼叫，上百家時需要一些時間)。
@@ -71,9 +80,10 @@ export const fetchCarbonSales = async (
   onProgress?.(0, nos.length);
   for (let i = 0; i < nos.length; i += SALES_BATCH_SIZE) {
     const batch = nos.slice(i, i + SALES_BATCH_SIZE);
-    const res = await axios.post<CarbonSalesResult>(`${API_BASE}/sales`, { password, ...cond, nos: batch });
-    result.rows.push(...res.data.rows);
-    result.missing.push(...res.data.missing);
+    const res = await axios.post(`${API_BASE}/sales`, { password, ...cond, nos: batch });
+    const data = expectShape<CarbonSalesResult>(res.data, (d) => Array.isArray(d?.rows) && Array.isArray(d?.missing));
+    result.rows.push(...data.rows);
+    result.missing.push(...data.missing);
     onProgress?.(Math.min(nos.length, i + batch.length), nos.length);
   }
   return result;
