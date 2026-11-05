@@ -26,6 +26,15 @@ const {
   parseCustbakResult,
   executeCustbakExport,
   executeCustbakImport,
+  WORD_TEMPLATES,
+  resolveWordTemplate,
+  toWordText,
+  validateWordMerge,
+  buildWordMergeJob,
+  WORD_MERGE_SCRIPT,
+  OFFICE_OPEN_SCRIPT,
+  openWordTemplate,
+  mergeWordTemplate,
   isAllowedOrigin,
   authorizeRequest,
   buildDbfBridgeRequest,
@@ -446,6 +455,79 @@ test('executeCustbak validates before touching the bridge', async () => {
   }
 });
 
+test('resolveWordTemplate only builds the fixed <drive>:\\W3000\\comm path', () => {
+  assert.equal(resolveWordTemplate('bsdesc', 'f').filePath, 'F:\\W3000\\comm\\wbase001.DOC');
+  for (const drive of ['', 'CC', 'C:', 'C:\\', '..', '1', null, 5]) {
+    assert.ok(resolveWordTemplate('bsdesc', drive).error, String(drive));
+  }
+  for (const template of ['wbase001.DOC', '../bsdesc', 'toString', '__proto__', '', null]) {
+    assert.ok(resolveWordTemplate(template, 'C').error, String(template));
+  }
+});
+
+test('validateWordMerge accepts what 5-6 sends and rejects anything else', () => {
+  const ok = { template: 'bsdesc', drive: 'C', paragraphs: ['第一條', ''], copies: [{ NAME: '【委任人名稱】', COMPHIDNO: 'A123456789' }] };
+  assert.equal(validateWordMerge(ok), null);
+  const bad = [
+    { ...ok, template: 'other' },
+    { ...ok, drive: 'C:\\temp' },
+    { ...ok, paragraphs: '第一條' },
+    { ...ok, paragraphs: [1] },
+    { ...ok, paragraphs: ['x'.repeat(20001)] },
+    { ...ok, copies: [] },
+    { ...ok, copies: {} },
+    { ...ok, copies: Array.from({ length: 201 }, () => ({})) },
+    { ...ok, copies: [['NAME']] },
+    { ...ok, copies: [{ EVIL: 'x' }] },
+    { ...ok, copies: [{ THINGS: 'x' }] }, // 清單巨集只能由 paragraphs 提供
+    { ...ok, copies: [{ NAME: 1 }] },
+    { ...ok, copies: [JSON.parse('{"__proto__": "x"}')] }
+  ];
+  for (const payload of bad) assert.ok(validateWordMerge(payload), JSON.stringify(payload).slice(0, 80));
+});
+
+test('buildWordMergeJob lines values up with the macros and turns newlines into Word line breaks', () => {
+  const spec = WORD_TEMPLATES.bsdesc;
+  const job = buildWordMergeJob(spec, {
+    templatePath: 'C:\\W3000\\comm\\wbase001.DOC',
+    workPath: 'w.doc',
+    outputPath: 'o.docx',
+    paragraphs: ['第一條', '第二條\r\n第二行', 'a\x07b'],
+    copies: [{ NAME: '甲\n乙', RPDATE: '一一五 年 一 月 一 日 ' }, {}]
+  });
+  assert.equal(job.macros[0], '[THINGS]');
+  assert.equal(job.macros.length, spec.macros.length + 1);
+  assert.equal(job.copies.length, 2);
+  assert.equal(job.copies[0][0], '第一條\r第二條\v第二行\rab');
+  assert.equal(job.copies[0][job.macros.indexOf('[NAME]')], '甲\v乙');
+  assert.equal(job.copies[0][job.macros.indexOf('[RPDATE]')], '一一五 年 一 月 一 日 ');
+  assert.equal(job.copies[0][job.macros.indexOf('[TEL]')], '');
+  assert.deepEqual(job.copies[1].slice(1), spec.macros.map(() => ''));
+  assert.equal(job.open, true);
+  assert.equal(toWordText(null), '');
+});
+
+test('Word scripts are fixed text that only read their input from environment variables', () => {
+  for (const script of [WORD_MERGE_SCRIPT, OFFICE_OPEN_SCRIPT]) {
+    assert.ok(!script.includes('${'), 'no JS interpolation left in the script');
+    assert.ok(script.includes('$env:WX3000_OFFICE_RESULT'));
+  }
+  assert.ok(WORD_MERGE_SCRIPT.includes('$env:WX3000_OFFICE_JOB'));
+  assert.ok(WORD_MERGE_SCRIPT.includes('AutomationSecurity = 3'), 'template macros must not run');
+  assert.ok(!/Replacement\.Text/.test(WORD_MERGE_SCRIPT), 'Replacement.Text is limited to 255 chars and expands ^ codes');
+  assert.ok(OFFICE_OPEN_SCRIPT.includes('Start-Process -FilePath $env:WX3000_OFFICE_FILE'));
+});
+
+test('Word endpoints validate before starting PowerShell', async () => {
+  assert.equal((await openWordTemplate({ template: 'bsdesc', drive: '..' })).errorType, 'INVALID_REQUEST');
+  assert.equal((await mergeWordTemplate({ template: 'bsdesc', drive: 'C', paragraphs: [], copies: [{ EVIL: 'x' }] })).errorType, 'INVALID_REQUEST');
+  // 路徑合法但範本不存在時回 NOT_FOUND，也不啟動 PowerShell
+  if (!fs.existsSync('Q:\\W3000\\comm\\wbase001.DOC')) {
+    assert.equal((await openWordTemplate({ template: 'bsdesc', drive: 'Q' })).errorType, 'NOT_FOUND');
+    assert.equal((await mergeWordTemplate({ template: 'bsdesc', drive: 'Q', paragraphs: [], copies: [{}] })).errorType, 'NOT_FOUND');
+  }
+});
+
 test('HTTP surface', async (t) => {
   const server = http.createServer(handleRequest);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -488,6 +570,26 @@ test('HTTP surface', async (t) => {
     const body = JSON.stringify({ action: 'EXEC_VFP', script: 'RETURN 1' });
     assert.equal((await send('POST', '/api/dbf/call', {}, [body])).status, 404);
     assert.equal((await send('POST', '/api/dbf/exec_vfp', {}, [body])).status, 404);
+  });
+
+  await t.test('Word status is readable from the frontend and from Electron file:// pages', async () => {
+    for (const headers of [{ Origin: 'http://192.168.1.10:5007' }, { 'Sec-Fetch-Site': 'cross-site' }]) {
+      const res = await send('GET', '/api/office/status', headers);
+      assert.equal(res.status, 200);
+      assert.equal(typeof JSON.parse(res.body).word, 'boolean');
+    }
+    assert.equal((await send('GET', '/api/office/status', { Origin: 'https://evil.example.com' })).status, 403);
+  });
+
+  await t.test('Word open / merge refuse other sites and bad input', async () => {
+    const body = JSON.stringify({ template: 'bsdesc', drive: 'C', paragraphs: [], copies: [{ EVIL: 'x' }] });
+    assert.equal((await send('POST', '/api/office/word/merge', { Origin: 'https://evil.example.com' }, [body])).status, 403);
+    const res = await send('POST', '/api/office/word/merge', { Origin: 'http://localhost:5173' }, [body]);
+    assert.equal(res.status, 200);
+    assert.equal(JSON.parse(res.body).errorType, 'INVALID_REQUEST');
+    const open = await send('POST', '/api/office/word/open', { Origin: 'http://localhost:5173' }, [JSON.stringify({ template: 'bsdesc', drive: 'C:\\Windows' })]);
+    assert.equal(JSON.parse(open.body).errorType, 'INVALID_REQUEST');
+    assert.equal((await send('POST', '/api/office/word/open', { Origin: 'http://localhost:5173' }, ['{bad'])).status, 400);
   });
 
   await t.test('request bodies split inside a character stay intact', async () => {

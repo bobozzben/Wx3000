@@ -1,6 +1,6 @@
 # Wx3000 LocalAgent (本機 DBF 雙向同步與原生報表 DLL 橋接服務)
 
-`localagent` 為運行於客戶端或伺服器本機的輕量級 Node.js 背景代理服務（固定監聽 Port `5009`，只綁定 `127.0.0.1` 與 `::1`，支援 HTTP 與 WebSocket），負責解決瀏覽器/現代後端無法直接操作地端 **32-bit Visual FoxPro COM (`w3000_dbf.dll`)** 與 **64-bit Lazarus FastReport 報表 (`wbaseRP.dll`)** 的跨架構橋接問題。
+`localagent` 為運行於客戶端或伺服器本機的輕量級 Node.js 背景代理服務（固定監聽 Port `5009`，只綁定 `127.0.0.1` 與 `::1`，支援 HTTP 與 WebSocket），負責解決瀏覽器/現代後端無法直接操作地端 **32-bit Visual FoxPro COM (`w3000_dbf.dll`)** 與 **64-bit Lazarus FastReport 報表 (`wbaseRP.dll`)** 的跨架構橋接問題，並以固定範本在本機開啟或套印 **Word** 文件 (`/api/office/*`)。
 
 安裝精靈 (`publish\Install-Wx3000.ps1`) 不註冊 Windows 服務，而是寫入 `HKLM\...\Run` 的 `Wx3000LocalAgent`，在使用者登入時以無視窗的 `Start-LocalAgent-Hidden.vbs` 啟動 `Wx3000Agent.exe`，報表預覽視窗才會出現在使用者桌面。`install_service.bat` 仍可把它註冊為 `Wx3000Agent` 服務，但服務在 Session 0 執行，報表預覽視窗不會出現在使用者桌面。
 
@@ -28,9 +28,10 @@
 - **DBFBridge 動作白名單 (`DBF_BRIDGE_ACTIONS`)**：經 HTTP 轉送給 `DBFBridge.exe` 的動作只有 `PING`、`CHECKSUM`、`READ`、`GET_PG_SCRIPT`。`EXEC_VFP` 只能由 `write` 與 `export_custbak` / `import_custbak` 的固定範本在內部使用，呼叫端無法直接送 VFP 腳本。
 - **報表端點的瀏覽器來源**：放行 localhost、內網 IP (10/8、172.16/12、192.168/16) 與單段主機名 (如 `SERVER01`)。其他網域 (ngrok、企業內網 FQDN) 請設定環境變數 `WX3000_AGENT_ALLOWED_ORIGINS`，多筆以逗號分隔，例如 `https://erp.example.com`。
 - **DLL 白名單**：`/api/call`、`/report` (含相容路徑) 與 WebSocket 只能呼叫 `dlls.json` 登記的 DLL 與函數，未登記回 `errorType: "FORBIDDEN"`。新增報表函數時必須同步登記。
-- **Electron 限制**：目前 `file://` 頁面 (`webSecurity: false`) 的請求不帶 `Origin`，因此無 `Origin` 的跨站 POST 會放行；無 `Origin` 的跨站 GET 只放行唯讀端點 (`/`、`/test.html`、`/mac`、`/config`、`/dllList`、`/api/check-drive`、`/api/dbf/check_drive`)。若日後開啟 `webSecurity`，請將實際 Origin 加入放行規則。
+- **Word 範本白名單 (`WORD_TEMPLATES`)**：`/api/office/word/*` 只接受範本代號與單一磁碟機字母，檔案路徑固定為 `<磁碟機>:\W3000\comm\<範本檔>`；PowerShell 腳本是固定字串，資料寫進 `%TEMP%\Wx3000\` 的暫存 JSON 後以環境變數傳路徑，不組進腳本或命令列。巨集名稱也必須在白名單內。
+- **Electron 限制**：目前 `file://` 頁面 (`webSecurity: false`) 的請求不帶 `Origin`，因此無 `Origin` 的跨站 POST 會放行；無 `Origin` 的跨站 GET 只放行唯讀端點 (`/`、`/test.html`、`/mac`、`/config`、`/dllList`、`/api/check-drive`、`/api/dbf/check_drive`、`/api/office/status`)。若日後開啟 `webSecurity`，請將實際 Origin 加入放行規則。
 
-修改後請執行 `npm test` (`localagent/agent.test.js`，共 24 項；其中 `HTTP surface` 含 5 個子測試，`node --test` 統計為 29)。
+修改後請執行 `npm test` (`localagent/agent.test.js`，共 32 項；`HTTP surface` 含 7 個子測試、`enqueueDbfWithin` 含 3 個，`node --test` 統計為 42)。
 
 ## 🔌 主要 API 端點
 
@@ -78,6 +79,23 @@
 | `wbase2040_bill` | 6 | 2040 客戶請款單 |
 
 6 參數為 `hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path`。`dlls.json` 另有範例項目 `myOther.myFunc1`，對應的 DLL 不在專案內。
+
+### 3. Office (Word) 開檔與套印 (`/api/office/*`)
+前端直接呼叫 (開檔與轉出 Word 都發生在使用者本機)。以 `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -EncodedCommand` 執行固定腳本，腳本把結果寫成 UTF-8 JSON 暫存檔 (PowerShell 主控台輸出是 Big5，不拿來判斷結果)。Word 作業有獨立的串列隊列 (`officeQueue`)，一次只做一份。
+
+| 端點 | 內容 | 說明 |
+| :--- | :--- | :--- |
+| `GET /api/office/status` | - | `reg query HKCR\Word.Application /s` 有 `CLSID` 就回 `{ success, word: true, version }` (例如 `16`)，否則 `word: false`。WPS 等接管 `Word.Application` 的軟體也算 |
+| `POST /api/office/word/open` | `{ template, drive }` | 以 `Start-Process` (ShellExecute，預設程式) 開啟範本，回 `{ success, path }`；範本不存在回 `errorType: "NOT_FOUND"` |
+| `POST /api/office/word/merge` | `{ template, drive, paragraphs, copies, open? }` | 以範本為底取代巨集，另存 `%TEMP%\Wx3000\<輸出名>_yyyyMMdd_HHmmss.docx` 並開啟 (`open: false` 只產生不開啟)，回 `{ success, path, replaced, copies, paragraphs }` |
+
+- 範本 (`WORD_TEMPLATES`)：目前只有 `bsdesc` = `wbase001.DOC` (5-6 委任書，VFP `gutil.prg` `Pap1`)，清單巨集 `[THINGS]`，其餘 26 個巨集 `[NAME]`、`[HNAME]`、`[HIDNO]`、`[UNINO]`、`[ADDR]`、`[TEL]`、`[COMPHNAME]`、`[COMPHIDNO]`、`[COMPNAME]`、`[COMPUNINO]`、`[COMPADDR]`、`[COMPTEL]`、`[BKCNO1]`~`[BKCNO3]`、`[CNO2]`、`[RPDATE]`、`[ENGNAME]`、`[MEMO]`、`[MEMO01]`~`[MEMO03]`、`[CAPITAL]`、`[CAPITALBIG5]`、`[RECAMT]`、`[RECAMTBIG5]`。
+- `paragraphs`：清單巨集的內容，每筆一段 (以 `\r` 分段，段內換行轉成 Word 的手動換行 `\v`，其他控制字元移除)，最多 1,000 筆；新段落沿用巨集所在段落的格式。
+- `copies`：每份的巨集值 (鍵為不含中括號的巨集名稱、值為文字，每個值最多 20,000 字)，1~200 份；沒給的巨集換成空字串。第 2 份起在文件尾加分頁並 `InsertFile` 範本，文件尾因此多出的空段會刪掉。
+- 先把範本複製成暫存檔再開啟 (同 VFP `Pap1`)，範本本身不會被鎖住或修改。Word 以隱藏、`DisplayAlerts = 0`、`AutomationSecurity = 3` (不執行範本巨集) 開啟；完成後關閉文件，Word 沒有其他文件時 `Quit`。
+- 取代方式：每一份從開頭以萬用字元 `\[[A-Z0-9]{1,}\]` 單次掃描，白名單內的巨集用 `Range.Text` 換掉；換上的文字不會再被掃描 (內容含 `[NAME]` 也不會被誤換)，也不受 `Find.Replacement.Text` 255 字與 `^p` 特殊碼的限制。
+- 錯誤：`INVALID_REQUEST` (範本、磁碟機、巨集或內容不合法)、`NOT_FOUND`、`NO_WORD` (無法建立 `Word.Application`)、`WORD_ERROR` (錯誤訊息前綴 `[open]`、`[replace]`、`[save]`、`[show]` 標示階段)、`TIMEOUT` (超過 120 秒，PowerShell 會被中止，但隱藏的 Word 可能殘留)、`POWERSHELL_FAILED`。
+- 輸出的 `.docx` 留在 `%TEMP%\Wx3000\`，LocalAgent 不會自動刪除；使用者要保留請在 Word 另存到其他位置。
 
 ---
 
