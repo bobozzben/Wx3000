@@ -13,6 +13,10 @@ const {
   validateDbfWrite,
   buildWhereClause,
   toVfpLiteral,
+  buildDbfWriteScript,
+  shouldCheckDuplicateKey,
+  enqueueDbf,
+  enqueueDbfWithin,
   executeDbfWrite,
   dbfChecksum,
   onlyExpectedChanges,
@@ -217,6 +221,60 @@ test('executeDbfWrite validates before touching the bridge', async () => {
     fields: {}
   });
   assert.equal(result.errorType, 'INVALID_REQUEST');
+});
+
+test('INSERT checks for an existing key in the same VFP script', () => {
+  const opts = { vfpFullPath: 'V:\\\\w3000\\\\comm\\\\customer.dbf', cAlias: 'customer', whereClause: buildWhereClause('no', 'A01'), fields: { no: 'A01', name: 'x' } };
+  const checked = buildDbfWriteScript('INSERT', { ...opts, checkDuplicate: true }).split('\r\n');
+  const locate = checked.findIndex((l) => l.startsWith('LOCATE FOR'));
+  const insert = checked.findIndex((l) => l.startsWith('INSERT INTO'));
+  assert.ok(locate >= 0 && locate < insert, '先找再新增');
+  assert.equal(checked[locate], "LOCATE FOR (ALLTRIM(TRANSFORM(no)) == 'A01') AND NOT DELETED()");
+  assert.ok(checked.some((l) => l.includes('RETURN "DUPLICATE_KEY:"')));
+
+  const unchecked = buildDbfWriteScript('INSERT', { ...opts, checkDuplicate: false });
+  assert.ok(!unchecked.includes('LOCATE'));
+  assert.equal(buildDbfWriteScript('MERGE', { ...opts, checkDuplicate: true }), null);
+});
+
+test('duplicate check is skipped only for keys that may repeat', () => {
+  assert.equal(shouldCheckDuplicateKey('INSERT', 'no', undefined), true);
+  assert.equal(shouldCheckDuplicateKey('INSERT', 'yymm,times,no', false), true);
+  assert.equal(shouldCheckDuplicateKey('INSERT', 'rno', true), false, '收費明細一張單有多筆，後端傳 allowDuplicateKey');
+  assert.equal(shouldCheckDuplicateKey('INSERT', 'RECNO()', false), false);
+  assert.equal(shouldCheckDuplicateKey('UPDATE', 'no', false), false);
+});
+
+test('enqueueDbfWithin never runs a write after its caller gave up', async (t) => {
+  // 先放一個卡住的動作，模擬 VFP 正在產生大表的重灌腳本
+  let release;
+  const blocker = enqueueDbf(() => new Promise((r) => { release = r; }));
+
+  await t.test('times out while waiting and skips the task', async () => {
+    let ran = false;
+    const started = Date.now();
+    const res = await enqueueDbfWithin(async () => { ran = true; }, { timeoutMs: 50 });
+    assert.deepEqual(res, { skipped: 'QUEUE_TIMEOUT' });
+    assert.ok(Date.now() - started < 1000, '逾時就回覆，不必等前面的動作做完');
+    release();
+    await blocker;
+    await enqueueDbf(async () => {});
+    assert.equal(ran, false);
+  });
+
+  await t.test('skips the task when the caller disconnected', async () => {
+    let ran = false;
+    const res = await enqueueDbfWithin(async () => { ran = true; }, { isCancelled: () => true });
+    assert.deepEqual(res, { skipped: 'CLIENT_GONE' });
+    assert.equal(ran, false);
+  });
+
+  await t.test('runs normally and keeps the queue moving', async () => {
+    assert.deepEqual(await enqueueDbfWithin(async () => 42, { timeoutMs: 1000 }), { value: 42 });
+    const failed = await enqueueDbfWithin(async () => { throw new Error('boom'); });
+    assert.equal(failed.error.message, 'boom');
+    assert.equal(await enqueueDbf(async () => 'next'), 'next');
+  });
 });
 
 // 組一個最小的 DBF：欄位 no C(2)、tel C(4)、fax C(4)，每筆 11 個位元組 (含刪除旗標)，結尾有 0x1A

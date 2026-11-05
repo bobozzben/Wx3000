@@ -482,6 +482,10 @@ namespace Wx3000.Backend.Controllers
 
         private ObjectResult StockModeWriteFailure(DbfWriteResult writeRes, string context)
         {
+            if (writeRes.IsUnconfirmed)
+            {
+                return StatusCode(StatusCodes.Status504GatewayTimeout, new { error = writeRes.Error, message = writeRes.Message });
+            }
             var status = writeRes.ErrorType == "LOCK_TIMEOUT" ? StatusCodes.Status409Conflict : StatusCodes.Status500InternalServerError;
             return StatusCode(status, new { error = $"{context}: {writeRes.Error ?? writeRes.Message}", message = context });
         }
@@ -726,7 +730,8 @@ namespace Wx3000.Backend.Controllers
                 ["serial"] = nextSerial
             };
 
-            var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "INSERT", "accno", trimmedAccno, fields);
+            // 同一科目有多筆摘要，accno 本來就會重複
+            var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "INSERT", "accno", trimmedAccno, fields, allowDuplicateKey: true);
             if (!writeRes.Success)
             {
                 return DbfWriteFailure(writeRes, "新增摘要至 DBF 失敗");
@@ -943,6 +948,10 @@ namespace Wx3000.Backend.Controllers
             if (writeRes.ErrorType == "LOCK_TIMEOUT")
             {
                 return StatusCode(StatusCodes.Status409Conflict, new { error = writeRes.Error, message = "資料正被地端其他工作站鎖定中，存檔取消" });
+            }
+            if (writeRes.IsUnconfirmed)
+            {
+                return StatusCode(StatusCodes.Status504GatewayTimeout, new { error = writeRes.Error, message = writeRes.Message });
             }
             var detail = writeRes.Message ?? writeRes.Error;
             return StatusCode(StatusCodes.Status500InternalServerError, new

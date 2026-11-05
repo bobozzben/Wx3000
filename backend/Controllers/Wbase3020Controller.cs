@@ -281,7 +281,7 @@ namespace Wx3000.Backend.Controllers
                 return BadRequest(new
                 {
                     error = dbfResult.Error,
-                    message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                    message = dbfResult.FailureText("地端 DBF 寫入失敗: ")
                 });
             }
 
@@ -367,7 +367,7 @@ namespace Wx3000.Backend.Controllers
                     return BadRequest(new
                     {
                         error = dbfResult.Error,
-                        message = "地端 DBF 寫入失敗: " + (dbfResult.Message ?? dbfResult.Error)
+                        message = dbfResult.FailureText("地端 DBF 寫入失敗: ")
                     });
                 }
 
@@ -526,7 +526,7 @@ namespace Wx3000.Backend.Controllers
                         return BadRequest(new
                         {
                             error = dbfRes.Error,
-                            message = $"地端 DBF 寫入失敗 [{item.CompanyCode}]: " + (dbfRes.Message ?? dbfRes.Error)
+                            message = dbfRes.FailureText($"地端 DBF 寫入失敗 [{item.CompanyCode}]: ")
                         });
                     }
                     if (dbfRes.Recno > 0) item.RecordNumber = dbfRes.Recno;

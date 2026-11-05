@@ -293,7 +293,8 @@ namespace Wx3000.Backend.Controllers
                 ["money"] = 0m,
                 ["recman"] = string.Empty
             };
-            var res = await _dbfSyncService.WriteRecordAsync(DbfPath, ModTable, "INSERT", "rno", receipt.Rno, fields);
+            // 一張收費單有多筆明細，rno 本來就會重複
+            var res = await _dbfSyncService.WriteRecordAsync(DbfPath, ModTable, "INSERT", "rno", receipt.Rno, fields, allowDuplicateKey: true);
             if (!res.Success) return DbfError(res, "新增收費明細");
 
             var line = new FeeReceiptLineDto { RecordNumber = res.Recno, Rno = receipt.Rno, Recdate = receipt.Recdate };
@@ -509,7 +510,7 @@ namespace Wx3000.Backend.Controllers
                         ["cno"] = c.No,
                         ["money"] = c.Recamt
                     };
-                    var lineRes = await _dbfSyncService.WriteRecordAsync(DbfPath, ModTable, "INSERT", "rno", rno, modFields);
+                    var lineRes = await _dbfSyncService.WriteRecordAsync(DbfPath, ModTable, "INSERT", "rno", rno, modFields, allowDuplicateKey: true);
                     if (!lineRes.Success) return BatchFailure(lineRes, created, numbers);
                     var line = new FeeReceiptLineDto
                     {
@@ -801,6 +802,10 @@ namespace Wx3000.Backend.Controllers
             if (res.ErrorType == "RECORD_NOT_FOUND")
             {
                 return (StatusCodes.Status409Conflict, $"{action}失敗：地端資料已變動，請重新整理後再試");
+            }
+            if (res.IsUnconfirmed)
+            {
+                return (StatusCodes.Status504GatewayTimeout, $"{action}：{res.Message}");
             }
             return (StatusCodes.Status500InternalServerError, $"{action}失敗：{res.Message ?? res.Error}");
         }
