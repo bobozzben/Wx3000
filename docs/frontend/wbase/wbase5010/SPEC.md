@@ -25,7 +25,8 @@
 - 各子頁的 `Esc` 直接回到 wbase 主選單 (不是回上一個頁籤)。
 - 子頁格線都是 `<FoxProGridV2 />`，除 5-2 的「列印張數」與 5-6 的條文欄位外皆唯讀。
 - 5-1 ~ 5-5 只讀資料；5-6 讀寫 `bsdesc.dbf`。
-- 報表全部在瀏覽器端輸出：5-1、5-3、5-4、5-5 用 `<FoxProPrintModal />` (預覽表格、`printElement` 紙張列印、xlsx 匯出)，5-2、5-6 用頁面自訂的預覽視窗。**沒有使用 LocalAgent / `wbaseRP.dll`**，`localagent/dlls.json` 也沒有本模組的報表函數。
+- 5-1 ~ 5-5 的報表在瀏覽器端輸出：5-1、5-3、5-4、5-5 用 `<FoxProPrintModal />` (預覽表格、`printElement` 紙張列印、xlsx 匯出)，5-2 用頁面自訂的預覽視窗。本模組**沒有使用 `wbaseRP.dll`**，`localagent/dlls.json` 也沒有本模組的報表函數。
+- 5-6 的 `F6` 委任書編修與 `F7` Word 委任書透過本機 LocalAgent 的 `/api/office/*` 操作 Word (見 1.6)；本機沒有 Word 或連不到 LocalAgent 時，`F7` 改開頁面自訂的網頁預覽視窗。
 - xlsx 匯出走 service 的 `exportReportToXlsx(data, fields, fileName)`：只輸出 `selected` 的欄位，以 `customTitle` (無則 `label`) 為欄名。
 
 ### 1.1 5-1 客戶資料列印 (`Wbase5010_CustomerPrint.tsx`)
@@ -80,9 +81,9 @@
 
 ### 1.6 5-6 委任書輸入維護 (`Wbase5060_BsdescForm.tsx`)
 
-維護 `bsdesc.dbf` 的委任書條文，並以瀏覽器列印委任書。
+維護 `bsdesc.dbf` 的委任書條文；`F6` 在本機以 Word 開啟委任書範本，`F7` 以範本轉出 Word 委任書 (本機沒有 Word 時改開網頁預覽)。
 
-- **表頭**：委任日期 (預設 `115/01/01`)、負責人證號 (轉大寫)、結算年度 (預設 `115`)。只用於列印預覽，不存檔。
+- **表頭**：委任日期 (預設 `115/01/01`)、負責人證號 (轉大寫)、結算年度 (預設 `115`)。只用於列印，不存檔 (VFP 會存到 `wbase001.txt`，見第 4 節)。
 - **格線** (`gridId="wbase5060_bsdesc_grid"`)：
 
 | 欄 | 欄位 | 可編輯 | 規則 |
@@ -90,16 +91,48 @@
 | 指標 | `sel` | 點選 | `→` 或空白，點選切換並立即存檔 |
 | 順序 | `seq` | ✗ | |
 | 條文代號 | `no` | ✔ | 轉大寫，`maxLength` 10 |
-| 委任書條文 / 查核程序說明 | `desc` | ✔ | 行內編輯；儲存格內 `[F6 編輯]` 開全文編輯 |
+| 委任書條文 / 查核程序說明 | `desc` | ✔ | 行內編輯 (單行輸入框，條文內的換行在編輯存檔後會消失) |
 
 - 行內編輯確認後由 `onSaveRow` 呼叫 `PUT /api/wbase5010/bsdesc/{seq}` 自動存檔，結果顯示在狀態列。
 - **Ins 新增**：`POST /api/wbase5010/bsdesc` 新增空白條文 (`seq` = 目前最大 `seq` + 1、`sel` = `→`)，加在清單最後。
 - **Del 刪除**：`window.confirm`「確定要刪除第 n 條文嗎？」後 `DELETE /api/wbase5010/bsdesc/{seq}`。
 - **F4 複製**：把目前條文的 `no`、`desc`、`sel` 複製成新的一筆 (`POST`)。
-- **F6 全文編修**：textarea 視窗，「儲存條文」→ `PUT`。
 - **Space**：焦點不在輸入框時切換目前條文的 `sel` 並存檔。
 - 「目前條文」是頁面的 `selectedRowIndex`，只在新增、複製、刪除後改變，**沒有接 `FoxProGridV2` 的 `onSelectRow`**，所以不會隨格線游標移動。
-- **F7 委任書列印**：A4 預覽 —「委　任　書」標題、委任日期與結算年度、依清單順序列出全部條文 (`seq、desc`，不論 `sel`)、簽章區 (營利事業與事務所各欄空白，只帶入表頭的負責人身分證號)。預覽內「紙張直接列印」(`printElement`)、「匯出 Excel」(順序、條文代號、內容說明、記號)。
+- `F6`、`F7` 由頁面在 `window` 的 capture 階段攔截並 `stopPropagation` (`FoxProGridV2` 也在 `window` 監聽 `F7` 呼叫 `onOpenPrint`，不攔下會執行兩次)；格線狀態列的「F7 列印」按鈕與頁面按鈕走同一個 `handlePrint`。Word 作業進行中兩個按鈕停用，重複按鍵不會再執行。
+
+#### F6 委任書編修 (VFP `wbs_rep2.F6.Click`)
+
+- LocalAgent `POST /api/office/word/open` `{ template: "bsdesc", drive: getDataDrive() }`：以 ShellExecute (預設程式) 開啟 `<資料磁碟機>:\W3000\comm\wbase001.DOC`，使用者直接修改範本後在 Word 存檔。
+- 成功時狀態列顯示範本路徑；失敗 (範本不存在、連不到 LocalAgent、LocalAgent 版本過舊回 404) 時 `window.alert` 並顯示在狀態列。
+
+#### F7 委任書列印 (VFP `wbs_rep2.F7.Click` + `gutil.prg` `Pap1` / `decode_Pa1`)
+
+1. 同 VFP，結算年度、委任日期、負責人證號都必填，缺的依序 `window.alert`「請輸入結算年度 / 委任日期 / 負責人證號」並把焦點移到該欄。
+2. **要印的條文**：`selectBsdescForPrint(rows)` — 指標 (`sel`) 不是空白的條文，依 `seq` 排序 (同 VFP `SCAN FOR !EMPTY(sel)`)。轉出 Word 的 `[THINGS]` 與網頁預覽都用這個函式，內容一定相同。一筆都沒有勾選時，在判斷 Word 之前先 `window.confirm`「沒有勾選任何條文 (指標欄)，委任內容會是空白。仍要列印嗎？」：取消就不列印 (狀態列「沒有勾選條文，已取消列印」)，確定則照常轉出 Word 或開網頁預覽，委任內容空白 (VFP 不提示，直接印出空白內容)。
+3. `GET http://localhost:5009/api/office/status`：
+   - 連不到 LocalAgent、LocalAgent 太舊 (404) 或本機沒有 `Word.Application` → 開**網頁預覽** (下方)，狀態列說明原因。
+   - 有 Word → 繼續。
+4. `GET /api/wbase1010/office` 讀事務所資料 (失敗時事務所欄位改用假字串)，以 `buildBsdescWordRequest` 組出內容，送 LocalAgent `POST /api/office/word/merge` `{ template: "bsdesc", drive, paragraphs, copies: [巨集值] }`。
+5. LocalAgent 把 `<資料磁碟機>:\W3000\comm\wbase001.DOC` 複製成暫存檔當底、取代巨集後另存 `%TEMP%\Wx3000\委任書_yyyyMMdd_HHmmss.docx` 並開啟。成功時狀態列顯示檔案路徑；失敗時 `window.alert` 錯誤後改開網頁預覽。
+
+**範本內文位置**：`wbase001.DOC` (Word 97-2003) 第 2 段「一、委任內容及權限」之後的第 3 段整段是 `[THINGS]`；條文從這裡開始一筆一段，沿用該段格式 (標楷體 12)，後面接範本原有的空白段與「二、委任人…」。
+
+**巨集對照** (`BSDESC_MACRO_LABELS`；VFP 每個巨集只換第一個出現處，網頁版每份文件內全部取代)：
+
+| 巨集 | VFP 來源 | 網頁版 |
+| :--- | :--- | :--- |
+| `[THINGS]` | `bsdesc` 中 `sel` 不空白的條文，依 `seq`，每筆 `ALLTRIM(desc)` + 換行 | `selectBsdescForPrint` 選出的條文，每筆一段 (`desc` 去頭尾空白，不截成 254 bytes；條文內換行變成段內手動換行) |
+| `[COMPNAME]`、`[COMPUNINO]`、`[COMPADDR]`、`[COMPTEL]`、`[COMPHNAME]` | `m.compname` 等，取自 `base.dbf` `000A`、`000B`、`0001`、`0002`、`0004` | `GET /api/wbase1010/office` 的 `name`、`taxNo`、`addr`、`tel`、`boss` |
+| `[COMPHIDNO]` | 畫面負責人證號 | 同左 |
+| `[RPDATE]` | `w_chin_date(委任日期)` | `rocDateToChinese`：民國年三碼逐字轉國字 (兩碼且 0~33 加 100)，月、日依 `chin_chk` 轉國字，例如 `115/01/01` → `一一五 年 一 月 一 日 ` |
+| `[NAME]`、`[HNAME]`、`[HIDNO]`、`[UNINO]`、`[ADDR]`、`[TEL]`、`[ENGNAME]`、`[MEMO]`、`[MEMO01]`~`[MEMO03]`、`[BKCNO1]`~`[BKCNO3]`、`[CAPITAL]`、`[CAPITALBIG5]`、`[RECAMT]`、`[RECAMTBIG5]` | F7 先勾選的客戶 (`customer`) | 假字串 |
+| `[CNO2]` | `cpa.cno2` (依客戶 `cpano`) | 假字串 |
+
+- 假字串為 `【中文名稱】`，例如 `【委任人名稱】`、`【資本額大寫】`；有對應來源但值是空白時也用假字串，方便在 Word 裡看出要補的地方。
+
+**網頁預覽** (本機沒有 Word 或轉出失敗時)：A4 預覽 —「委　任　書」標題、委任日期與結算年度、`selectBsdescForPrint` 選出的條文 (與 Word 相同，只列指標有勾的，依 `seq`；每筆印 `seq、desc`，所以順序號可能不連續)、簽章區 (營利事業與事務所各欄空白，只帶入表頭的負責人身分證號)。預覽內「紙張直接列印」(`printElement`)、「匯出 Excel」(順序、條文代號、內容說明、記號；這是條文清單，仍匯出**全部**條文，以「記號」欄標示是否勾選)。
+
 - service 另有 `batchSaveBsdesc` (`PUT /bsdesc/batch`)，畫面目前沒有呼叫。
 
 ### 1.7 快速鍵
@@ -108,8 +141,8 @@
 | :--- | :--- | :--- | :--- | :--- |
 | `Alt+1`~`Alt+6` | 切換頁籤 | 同左 | 同左 | 同左 |
 | `F3` / `F4` | 全選 / 全不選 | 全選 / 全不選 | - | `F4` 複製條文 |
-| `F6` | - | - | - | 全文編修 |
-| `F7` | 查詢並開列印預覽 | 產生標籤並開預覽 | 開列印預覽 | 委任書預覽 |
+| `F6` | - | - | - | 以 Word 開啟委任書範本 |
+| `F7` | 查詢並開列印預覽 | 產生標籤並開預覽 | 開列印預覽 | 轉出 Word 委任書 (沒有 Word 時網頁預覽) |
 | `F8` | - | 區間選取 | - | - |
 | `Ins` / `Del` | - | - | - | 新增 / 刪除條文 |
 | `Space` | - | - | - | 切換指標 |
@@ -117,7 +150,7 @@
 | `Esc` | 回主選單 | 回主選單 | 回主選單 | 回主選單 |
 
 - `<FoxProPrintModal />` 開啟時 (5-1、5-3 ~ 5-5)：`F7` 紙張列印、`F8` 匯出 Excel、`Esc` 關閉。
-- 5-2 的區間選取與標籤預覽、5-6 的全文編修與委任書預覽是頁面自訂視窗，只能以按鈕操作 (未綁定 `Esc`、不會自動聚焦)。
+- 5-2 的區間選取與標籤預覽、5-6 的委任書網頁預覽是頁面自訂視窗，只能以按鈕操作 (未綁定 `Esc`、不會自動聚焦)。
 - 5-1、5-2 底部狀態列提示的 `[F2] 查詢客戶`、`[Space] 勾選/取消` 目前沒有綁定按鍵：客戶選單只能點放大鏡按鈕開啟，勾選只能點選取欄或用 `F3`/`F4`/`F8`。
 
 ---
@@ -132,9 +165,13 @@ frontend/src/wbase/wbase5010/
 ├── Wbase5030_KeyinStats.tsx       # 5-3 客戶登打統計表
 ├── Wbase5040_BusinessStatus.tsx   # 5-4 客戶營業狀況表
 ├── Wbase5050_FinanceStatus.tsx    # 5-5 客戶財務狀況參考表
-├── Wbase5060_BsdescForm.tsx       # 5-6 委任書條文維護與委任書預覽
+├── Wbase5060_BsdescForm.tsx       # 5-6 委任書條文維護、F6 開範本、F7 轉出 Word / 網頁預覽
 └── services/
     └── wbase5010.ts               # Axios client (預設 axios，全域攔截器帶 X-Data-Drive) + exportReportToXlsx
+                                   # + 5-6 Word 套印內容 (buildBsdescWordRequest、rocDateToChinese、BSDESC_MACRO_LABELS)
+
+frontend/src/services/localagent.ts    # getOfficeStatus、openWordTemplate、mergeWordTemplate (LocalAgent /api/office/*)
+localagent/agent.js                    # WORD_TEMPLATES.bsdesc = wbase001.DOC 與 Word 套印腳本
 
 backend/
 ├── Controllers/Wbase5010Controller.cs   # ADO + DTO (GetDbConnection)，讀取前 EnsureTableSyncedAsync
@@ -209,4 +246,9 @@ backend/
 | 5-1 關聯資料 | 關聯行業 (`class107`)、國稅局 (`taxof`)、稅捐處 (`taxof1`)、會計師 (`cpa`) | 只 JOIN `keyin` 取登打人員姓名；`pno`、`pnostd`、`offno`、`offno1`、`cpano` 只回傳代碼 |
 | 5-2 流程與順序 | `wbase201201` 設定張數 → 展開後依客戶代號建索引 → `wbase2012` 列印 | 單一頁面；標籤沿用客戶清單順序 (`serial`、`no`) |
 | 5-5 資料 | 開 `refpath` 的 `XPROFIT` (資產負債表資產表格檔) 建立暫存表 | 只列客戶基本欄位 |
-| 5-6 開啟的表 | `cpa`、`customer`、`bsdesc` (`wbs_rep2.scx`)，格線欄 `sel`、`seq`、`desc` | 只讀寫 `bsdesc`；格線多一個可編輯的 `no`；委任書預覽的營利事業、事務所欄位留白 |
+| 5-6 開啟的表 | `cpa`、`customer`、`bsdesc` (`wbs_rep2.scx`)，格線欄 `sel`、`seq`、`desc` | 只讀寫 `bsdesc`；格線多一個可編輯的 `no`；委任書網頁預覽的營利事業、事務所欄位留白 |
+| 5-6 表頭 | 開啟時從 `commpath\wbase001.txt` 讀出結算年度、委任日期 (`99/99/99`)、負責人證號，關閉與 F7 時寫回 | 不讀也不寫 `wbase001.txt`，每次開啟都是預設值 |
+| 5-6 條文全文 | Enter 在說明欄開多行 editbox | 只有單行行內編輯 (原本的 F6 全文編輯視窗已移除) |
+| 5-6 F7 委任人 | 先開 `wbase4000` 勾選客戶，每家一份 (分頁接續)；讀各客戶 `<年度>\tx_01.dbf` 代理申報人，自行申報 (`3`) 的不印；`[CNO2]` 取 `cpa` | 不選客戶，固定一份，委任人欄位與 `[CNO2]` 用假字串 (LocalAgent 的 `copies` 已可接受多份) |
+| 5-6 F7 輸出 | Word 開啟暫存 `.DOC`，不另存 | 另存 `%TEMP%\Wx3000\委任書_*.docx` 後開啟；本機沒有 Word 時改用網頁預覽 |
+| 5-6 巨集取代 | 依序 `Find/Replace` (wdReplaceOne)，`[THINGS]` 超過 255 字時 Word 會失敗；條文內容含巨集名稱時會被誤換 | 每份從開頭單次掃描，以 `Range.Text` 取代，沒有長度限制，換上的內容不會再被取代 |

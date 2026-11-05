@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   FileText,
   Printer,
@@ -6,7 +6,6 @@ import {
   Trash2,
   Copy,
   Edit3,
-  Save,
   X,
   FileSpreadsheet,
 } from 'lucide-react';
@@ -16,12 +15,18 @@ import {
   updateBsdesc,
   deleteBsdesc,
   exportReportToXlsx,
+  buildBsdescWordRequest,
+  selectBsdescForPrint,
+  BSDESC_WORD_TEMPLATE,
   type BsdescItem,
 } from './services/wbase5010';
 import { FoxProGridV2, type ColumnDefV2 } from '../../components/FoxProGrid/FoxProGridV2';
 import { printElement } from '../../utils/printUtil';
 import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
+import { getDataDrive } from '../../services/apiConfig';
+import { getOfficeStatus, mergeWordTemplate, openWordTemplate } from '../../services/localagent';
+import { fetchOffice } from '../../services/wbase1010';
 
 interface Wbase5060BsdescFormProps {
   onClose?: () => void;
@@ -41,21 +46,25 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
   const [rpdate, setRpdate] = useState('115/01/01');
   const [comphidno, setComphidno] = useState('');
   const [endyear, setEndyear] = useState('115');
+  const rpdateRef = useRef<HTMLInputElement>(null);
+  const comphidnoRef = useRef<HTMLInputElement>(null);
+  const endyearRef = useRef<HTMLInputElement>(null);
 
   // 資料列表
   const [rows, setRows] = useState<BsdescItem[]>([]);
+  // F7 要印的條文：網頁預覽與轉出 Word 用同一個篩選 (指標有勾、依 seq)
+  const printRows = useMemo(() => selectBsdescForPrint(rows), [rows]);
   const [selectedRowIndex, setSelectedRowIndex] = useState<number>(0);
   const [, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
 
-  // F6 條文全文編輯 Modal
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingDesc, setEditingDesc] = useState('');
-  const [editingRowIndex, setEditingRowIndex] = useState<number>(-1);
-
-  // F7 委任書列印預覽 Modal
+  // F7 委任書列印預覽 Modal (本機沒有 Word 時使用)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const printDocRef = useRef<HTMLDivElement>(null);
+
+  // F6 開啟範本 / F7 轉出 Word 進行中 (ref 防止連按重複執行)
+  const [wordBusy, setWordBusy] = useState(false);
+  const wordBusyRef = useRef(false);
 
   // 載入條文資料
   const loadData = useCallback(async () => {
@@ -154,32 +163,81 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
     }
   }, [rows, selectedRowIndex]);
 
-  // F6 開啟條文全文編輯
-  const handleOpenEditModal = useCallback((idx: number) => {
-    if (idx >= 0 && idx < rows.length) {
-      setEditingRowIndex(idx);
-      setEditingDesc(rows[idx].desc);
-      setIsEditModalOpen(true);
+  const runWordTask = useCallback(async (task: () => Promise<void>) => {
+    if (wordBusyRef.current) return;
+    wordBusyRef.current = true;
+    setWordBusy(true);
+    try {
+      await task();
+    } finally {
+      wordBusyRef.current = false;
+      setWordBusy(false);
     }
-  }, [rows]);
+  }, []);
 
-  // 儲存 F6 編輯內容
-  const handleSaveEditDesc = async () => {
-    if (editingRowIndex >= 0 && editingRowIndex < rows.length) {
-      const target = rows[editingRowIndex];
-      const updated = { ...target, desc: editingDesc };
-      try {
-        await updateBsdesc(target.seq, updated);
-        const next = [...rows];
-        next[editingRowIndex] = updated;
-        setRows(next);
-        setIsEditModalOpen(false);
-        setStatusMsg(`已更新第 ${target.seq} 條文內容`);
-      } catch (err: any) {
-        alert(`更新失敗: ${err.message}`);
-      }
+  // F6 委任書編修 (VFP wbs_rep2 F6.Click)：在本機開啟範本 <資料磁碟機>:\W3000\comm\wbase001.DOC 讓使用者直接修改
+  const handleOpenTemplate = useCallback(() => runWordTask(async () => {
+    setStatusMsg('開啟委任書範本中...');
+    const res = await openWordTemplate(BSDESC_WORD_TEMPLATE, getDataDrive());
+    if (res.success) {
+      setStatusMsg(`已開啟委任書範本 ${res.path ?? ''}，修改後在 Word 存檔即可`);
+    } else {
+      setStatusMsg(`開啟委任書範本失敗: ${res.error ?? ''}`);
+      window.alert(`無法開啟委任書範本：\n${res.error ?? ''}`);
     }
-  };
+  }), [runWordTask]);
+
+  // F7 列印 (VFP wbs_rep2 F7.Click + Pap1)：本機有 Word 時以 wbase001.DOC 為底轉出 docx，沒有 Word 時開網頁預覽
+  const handlePrint = useCallback(() => {
+    if (wordBusyRef.current || isPrintModalOpen) return;
+    const missing = !endyear.trim()
+      ? { msg: '請輸入結算年度', ref: endyearRef }
+      : !rpdate.trim()
+        ? { msg: '請輸入委任日期', ref: rpdateRef }
+        : !comphidno.trim()
+          ? { msg: '請輸入負責人證號', ref: comphidnoRef }
+          : null;
+    if (missing) {
+      window.alert(missing.msg);
+      missing.ref.current?.focus();
+      return;
+    }
+    // Word 與網頁預覽都只列指標有勾的條文；都沒勾時兩條路徑給同一個提示 (VFP 不提示，直接印出空白的委任內容)
+    if (printRows.length === 0
+      && !window.confirm('沒有勾選任何條文 (指標欄)，委任內容會是空白。\n仍要列印嗎？')) {
+      setStatusMsg('沒有勾選條文，已取消列印');
+      return;
+    }
+
+    void runWordTask(async () => {
+      setStatusMsg('檢查本機 Word...');
+      const status = await getOfficeStatus();
+      if (!status.word) {
+        setStatusMsg(
+          !status.reachable
+            ? '無法連線 LocalAgent，改用網頁預覽'
+            : status.outdated
+              ? 'LocalAgent 版本未支援 Word，改用網頁預覽'
+              : '本機未偵測到 Word，改用網頁預覽'
+        );
+        setIsPrintModalOpen(true);
+        return;
+      }
+
+      setStatusMsg('讀取事務所資料...');
+      const office = await fetchOffice().catch(() => null);
+      const request = buildBsdescWordRequest({ rows, rpdate, comphidno, office, drive: getDataDrive() });
+      setStatusMsg(`轉出 Word 委任書中 (${request.paragraphs.length} 條條文)...`);
+      const res = await mergeWordTemplate(request);
+      if (res.success) {
+        setStatusMsg(`已轉出 Word 委任書 ${res.path ?? ''}${office ? '' : ' (讀不到事務所資料，以假字串代替)'}`);
+      } else {
+        setStatusMsg(`轉出 Word 失敗: ${res.error ?? ''}`);
+        window.alert(`轉出 Word 委任書失敗：\n${res.error ?? ''}\n\n改用網頁預覽。`);
+        setIsPrintModalOpen(true);
+      }
+    });
+  }, [isPrintModalOpen, endyear, rpdate, comphidno, rows, printRows, runWordTask]);
 
   // 儲存列行內編輯
   const handleSaveRow = async (row: BsdescItem, _rIdx?: number) => {
@@ -192,10 +250,24 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
     }
   };
 
+  // F6 / F7 在 capture 階段攔截：FoxProGridV2 也在 window 監聽 F7 (onOpenPrint)，不攔下會轉出兩份
+  useEffect(() => {
+    const handleFunctionKey = (e: KeyboardEvent) => {
+      if (e.key !== 'F6' && e.key !== 'F7') return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (isPrintModalOpen) return;
+      if (e.key === 'F6') void handleOpenTemplate();
+      else handlePrint();
+    };
+    window.addEventListener('keydown', handleFunctionKey, true);
+    return () => window.removeEventListener('keydown', handleFunctionKey, true);
+  }, [isPrintModalOpen, handleOpenTemplate, handlePrint]);
+
   // 全域快捷鍵
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isEditModalOpen || isPrintModalOpen) return;
+      if (isPrintModalOpen) return;
 
       if (e.key === 'Insert') {
         e.preventDefault();
@@ -206,13 +278,7 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
       } else if (e.key === 'F4') {
         e.preventDefault();
         handleCopyRow();
-      } else if (e.key === 'F6') {
-        e.preventDefault();
-        handleOpenEditModal(selectedRowIndex);
-      } else if (e.key === 'F7') {
-        e.preventDefault();
-        setIsPrintModalOpen(true);
-      } else if (e.key === ' ' && (e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+      } else if (e.key === ' '&& (e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
         e.preventDefault();
         // 切換目前列 sel
         if (selectedRowIndex >= 0 && selectedRowIndex < rows.length) {
@@ -230,7 +296,7 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isEditModalOpen, isPrintModalOpen, selectedRowIndex, rows, handleInsertRow, handleDeleteRow, handleCopyRow, handleOpenEditModal, onClose]);
+  }, [isPrintModalOpen, selectedRowIndex, rows, handleInsertRow, handleDeleteRow, handleCopyRow, onClose]);
 
   // FoxProGridV2 欄位定義
   const columns: ColumnDefV2<BsdescItem>[] = [
@@ -271,24 +337,10 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
     },
     {
       key: 'desc',
-      label: '委任書條文 / 查核程序說明 (Enter修改 / F6全文編輯)',
+      label: '委任書條文 / 查核程序說明 (Enter修改)',
       width: '600px',
       editable: true,
-      renderCell: (val, _row, rIdx) => (
-        <div className="flex items-center justify-between w-full pr-2">
-          <span className="truncate">{val || '（無說明）'}</span>
-          <button
-            type="button"
-            onClick={e => {
-              e.stopPropagation();
-              handleOpenEditModal(rIdx);
-            }}
-            className="text-xs text-blue-500 hover:text-blue-700 underline ml-2"
-          >
-            [F6 編輯]
-          </button>
-        </div>
-      ),
+      renderCell: val => <span className="block truncate pr-2">{val || '（無說明）'}</span>,
     },
   ];
 
@@ -312,6 +364,7 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-blue-500">委任日期:</span>
             <input
+              ref={rpdateRef}
               type="text"
               value={rpdate}
               onChange={e => setRpdate(e.target.value)}
@@ -325,6 +378,7 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
           <div className="flex items-center gap-2 border-l pl-4 border-gray-300 dark:border-gray-700">
             <span className="text-sm font-bold text-blue-500">負責人證號:</span>
             <input
+              ref={comphidnoRef}
               type="text"
               value={comphidno}
               onChange={e => setComphidno(e.target.value.toUpperCase())}
@@ -338,6 +392,7 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
           <div className="flex items-center gap-2 border-l pl-4 border-gray-300 dark:border-gray-700">
             <span className="text-sm font-bold text-blue-500">結算年度:</span>
             <input
+              ref={endyearRef}
               type="text"
               value={endyear}
               onChange={e => setEndyear(e.target.value)}
@@ -378,18 +433,20 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
             </button>
             <button
               type="button"
-              onClick={() => handleOpenEditModal(selectedRowIndex)}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded shadow"
-              title="F6 條文編修"
+              onClick={() => void handleOpenTemplate()}
+              disabled={wordBusy}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded shadow disabled:opacity-50"
+              title="F6 以 Word 開啟委任書範本 wbase001.DOC 編修"
             >
               <Edit3 className="w-3.5 h-3.5" />
-              F6 編修
+              F6 委任書編修
             </button>
             <button
               type="button"
-              onClick={() => setIsPrintModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded shadow focus:ring-2 focus:ring-yellow-400"
-              title="F7 委任書列印預覽"
+              onClick={handlePrint}
+              disabled={wordBusy}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded shadow focus:ring-2 focus:ring-yellow-400 disabled:opacity-50"
+              title="F7 委任書列印 (本機有 Word 時轉出 docx，否則開網頁預覽)"
             >
               <Printer className="w-4 h-4" />
               F7 委任書列印
@@ -412,7 +469,7 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
           })}
           onRowsChange={newRows => setRows(newRows)}
           onSaveRow={handleSaveRow}
-          onOpenPrint={() => setIsPrintModalOpen(true)}
+          onOpenPrint={handlePrint}
           gridId="wbase5060_bsdesc_grid"
         />
       </div>
@@ -423,7 +480,7 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
       }`}>
         <div className="flex items-center gap-3">
           <span className="font-semibold text-blue-600 dark:text-blue-400">
-            [Ins] 新增 | [Del] 刪除 | [F4] 複製 | [F6] 全文編修 | [Space] 選/不選 | [Enter] 換欄 | [F7] 列印 | [Esc] 離開
+            [Ins] 新增 | [Del] 刪除 | [F4] 複製 | [F6] 委任書編修 | [Space] 選/不選 | [Enter] 換欄 | [F7] 列印 | [Esc] 離開
           </span>
           <span>{statusMsg}</span>
         </div>
@@ -432,55 +489,7 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
         </div>
       </div>
 
-      {/* F6 條文全文彈窗編輯 */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
-          <div className={`w-full max-w-2xl p-6 rounded-lg border shadow-2xl flex flex-col gap-4 ${
-            isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
-          }`}>
-            <div className="flex justify-between items-center border-b pb-2">
-              <h3 className="text-base font-bold text-blue-500">
-                條文內容全文編輯 (順序: {editingRowIndex >= 0 ? rows[editingRowIndex]?.seq : ''})
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <textarea
-              rows={10}
-              value={editingDesc}
-              onChange={e => setEditingDesc(e.target.value)}
-              className={`w-full p-3 border rounded text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-yellow-400 ${
-                isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
-              }`}
-              placeholder="請輸入條文全文內容..."
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="px-4 py-1.5 text-sm rounded bg-gray-500 hover:bg-gray-600 text-white"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveEditDesc}
-                className="flex items-center gap-1.5 px-5 py-1.5 text-sm font-bold rounded bg-blue-600 hover:bg-blue-700 text-white shadow"
-              >
-                <Save className="w-4 h-4" />
-                儲存條文
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* F7 委任書整份預覽與直印彈窗 */}
+      {/* F7 委任書整份預覽與直印彈窗 (本機沒有 Word、或轉出 Word 失敗時使用) */}
       {isPrintModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6">
           <div className={`flex flex-col w-full max-w-4xl h-[92vh] rounded-lg border shadow-2xl overflow-hidden ${
@@ -536,7 +545,7 @@ export const Wbase5060_BsdescForm: React.FC<Wbase5060BsdescFormProps> = ({ onClo
 
                 {/* 條文內容 */}
                 <div className="space-y-4 text-sm leading-loose">
-                  {rows.map((item, idx) => (
+                  {printRows.map((item, idx) => (
                     <div key={idx} className="flex items-start gap-2">
                       <span className="font-bold shrink-0">{item.seq}、</span>
                       <p className="text-justify">{item.desc || '（無說明）'}</p>

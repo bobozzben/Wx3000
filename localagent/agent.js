@@ -895,6 +895,287 @@ async function executeCustbak(kind, payload) {
 const executeCustbakExport = (payload) => executeCustbak('export', payload);
 const executeCustbakImport = (payload) => executeCustbak('import', payload);
 
+// ========== Office (Word) 開檔與套印 (5-6 委任書 wbs_rep2 F6 / F7) ==========
+// 開檔與轉出 Word 都在使用者本機執行。呼叫端只能指定範本代號與資料磁碟機代號，檔案路徑由下面的白名單組出；
+// PowerShell 腳本是固定字串，資料寫進暫存 JSON，以環境變數傳路徑，不組進腳本或命令列。
+const WORD_TEMPLATES = {
+  // VFP gutil.prg Pap1 / decode_Pa1：listMacro 換成一筆一段的清單，其餘巨集換成呼叫端給的文字
+  bsdesc: {
+    file: 'wbase001.DOC',
+    outputName: '委任書',
+    listMacro: 'THINGS',
+    macros: [
+      'NAME', 'HNAME', 'HIDNO', 'UNINO', 'ADDR', 'TEL',
+      'COMPHNAME', 'COMPHIDNO', 'COMPNAME', 'COMPUNINO', 'COMPADDR', 'COMPTEL',
+      'BKCNO1', 'BKCNO2', 'BKCNO3', 'CNO2', 'RPDATE',
+      'ENGNAME', 'MEMO', 'MEMO01', 'MEMO02', 'MEMO03',
+      'CAPITAL', 'CAPITALBIG5', 'RECAMT', 'RECAMTBIG5'
+    ]
+  }
+};
+const WORD_MAX_COPIES = 200;      // VFP 每家客戶一份；目前網頁版只送一份
+const WORD_MAX_PARAGRAPHS = 1000;
+const WORD_MAX_TEXT = 20000;      // 單一段落或巨集值的字元數
+const WORD_TIMEOUT_MS = 120 * 1000;
+const OFFICE_TEMP_DIR = path.join(os.tmpdir(), 'Wx3000');
+
+const hasOwnKey = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+
+function systemExe(...parts) {
+  return path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', ...parts);
+}
+
+// 只接受單一磁碟機字母 (前端 getDataDrive() 的值)，路徑一律是 <drive>:\W3000\comm\<範本檔>
+function resolveWordTemplate(templateKey, drive) {
+  if (typeof templateKey !== 'string' || !hasOwnKey(WORD_TEMPLATES, templateKey)) {
+    return { error: `未開放的 Word 範本: ${templateKey}` };
+  }
+  if (typeof drive !== 'string' || !/^[A-Za-z]$/.test(drive)) {
+    return { error: `不合法的資料磁碟機: ${drive}` };
+  }
+  const spec = WORD_TEMPLATES[templateKey];
+  return { spec, filePath: `${drive.toUpperCase()}:\\W3000\\comm\\${spec.file}` };
+}
+
+// Word 的 Range.Text 以 \r 分段、\v (CHR(11)) 為段內換行；其他控制字元 (如表格儲存格結尾 CHR(7)) 會破壞版面
+function toWordText(value) {
+  return String(value ?? '')
+    .replace(/\r\n|\r|\n/g, '\v')
+    .replace(/[\x00-\x08\x0c\x0e-\x1f\x7f]/g, '');
+}
+
+// 回傳錯誤訊息；合法時回傳 null
+function validateWordMerge(payload) {
+  const { paragraphs, copies } = payload || {};
+  const resolved = resolveWordTemplate(payload?.template, payload?.drive);
+  if (resolved.error) return resolved.error;
+  if (!Array.isArray(paragraphs) || paragraphs.length > WORD_MAX_PARAGRAPHS) {
+    return `paragraphs 必須是最多 ${WORD_MAX_PARAGRAPHS} 筆的文字陣列`;
+  }
+  if (paragraphs.some((p) => typeof p !== 'string' || p.length > WORD_MAX_TEXT)) {
+    return `段落必須是文字，且不可超過 ${WORD_MAX_TEXT} 字`;
+  }
+  if (!Array.isArray(copies) || copies.length < 1 || copies.length > WORD_MAX_COPIES) {
+    return `copies 必須是 1 ~ ${WORD_MAX_COPIES} 份`;
+  }
+  const allowed = new Set(resolved.spec.macros);
+  for (const copy of copies) {
+    if (copy === null || typeof copy !== 'object' || Array.isArray(copy)) return 'copies 每一份必須是巨集名稱對應文字的物件';
+    const badKey = Object.keys(copy).find((k) => !allowed.has(k));
+    if (badKey !== undefined) return `範本沒有這個巨集: ${badKey}`;
+    const badValue = Object.keys(copy).find((k) => typeof copy[k] !== 'string' || copy[k].length > WORD_MAX_TEXT);
+    if (badValue !== undefined) return `巨集 ${badValue} 的值必須是不超過 ${WORD_MAX_TEXT} 字的文字`;
+  }
+  return null;
+}
+
+// 給 PowerShell 的工作內容：macros[0] 是清單巨集，每份的 values 與 macros 一一對應；呼叫端沒給的巨集換成空字串 (同 decode_Pa1 的 Otherwise)
+function buildWordMergeJob(spec, { templatePath, workPath, outputPath, paragraphs, copies, open = true }) {
+  const listText = paragraphs.map(toWordText).join('\r');
+  return {
+    template: templatePath,
+    work: workPath,
+    output: outputPath,
+    open: Boolean(open),
+    macros: [spec.listMacro, ...spec.macros].map((m) => `[${m}]`),
+    copies: copies.map((copy) => [listText, ...spec.macros.map((m) => toWordText(hasOwnKey(copy, m) ? copy[m] : ''))])
+  };
+}
+
+function officeTempFile(prefix, ext) {
+  if (!fs.existsSync(OFFICE_TEMP_DIR)) fs.mkdirSync(OFFICE_TEMP_DIR, { recursive: true });
+  return path.join(OFFICE_TEMP_DIR, `${prefix}_${process.pid}_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+}
+
+// 委任書_20261105_143012.docx；同一秒內重複時加序號
+function wordOutputPath(name, now = new Date()) {
+  if (!fs.existsSync(OFFICE_TEMP_DIR)) fs.mkdirSync(OFFICE_TEMP_DIR, { recursive: true });
+  const p2 = (n) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}${p2(now.getMonth() + 1)}${p2(now.getDate())}_${p2(now.getHours())}${p2(now.getMinutes())}${p2(now.getSeconds())}`;
+  for (let i = 1; ; i++) {
+    const file = path.join(OFFICE_TEMP_DIR, `${name}_${stamp}${i > 1 ? `_${i}` : ''}.docx`);
+    if (!fs.existsSync(file)) return file;
+  }
+}
+
+// 以 ShellExecute 開檔 (預設程式，.DOC 通常是 Word)
+const OFFICE_OPEN_SCRIPT = `
+$ErrorActionPreference = 'Stop'
+$r = @{ success = $true }
+try { Start-Process -FilePath $env:WX3000_OFFICE_FILE } catch { $r = @{ success = $false; errorType = 'OPEN_FAILED'; error = $_.Exception.Message } }
+[IO.File]::WriteAllText($env:WX3000_OFFICE_RESULT, (ConvertTo-Json $r -Compress), (New-Object Text.UTF8Encoding $false))
+`;
+
+// 對應 VFP Pap1：模板複本當底，第 2 份起在文件尾加分頁並插入模板，逐份把巨集換成該份的值後另存 .docx。
+// 不用 Find.Replacement.Text：它限 255 字，且會把 ^p、^& 當成特殊碼；改用 Range.Text 逐一取代。
+// AutomationSecurity = 3 (msoAutomationSecurityForceDisable)：範本可由使用者編修，不執行其中的巨集。
+const WORD_MERGE_SCRIPT = `
+$ErrorActionPreference = 'Stop'
+$job = [IO.File]::ReadAllText($env:WX3000_OFFICE_JOB, [Text.Encoding]::UTF8) | ConvertFrom-Json
+$r = @{ success = $false; errorType = 'WORD_ERROR'; error = '' }
+$word = $null; $doc = $null; $stage = 'start'
+try {
+  try { $word = New-Object -ComObject Word.Application } catch { $r.errorType = 'NO_WORD'; throw }
+  $word.Visible = $false
+  $word.DisplayAlerts = 0
+  try { $word.AutomationSecurity = 3 } catch {}
+  $stage = 'open'
+  $doc = $word.Documents.Open([string]$job.work, $false, $false, $false)
+  $stage = 'replace'
+  $count = 0
+  for ($i = 0; $i -lt $job.copies.Count; $i++) {
+    $start = 0
+    if ($i -gt 0) {
+      $rg = $doc.Content; $rg.Collapse(0); $rg.InsertBreak(7)
+      $rg = $doc.Content; $rg.Collapse(0); $start = $rg.Start
+      $rg.InsertFile([string]$job.template)
+    }
+    $values = @($job.copies[$i])
+    $map = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+    for ($k = 0; $k -lt $job.macros.Count; $k++) { $map[[string]$job.macros[$k]] = [string]$values[$k] }
+    # 從這一份的開頭單次掃描 [大寫英數]：換上的文字在游標之後，不會再被當成巨集
+    $rg = $doc.Range($start, $doc.Content.End)
+    $f = $rg.Find
+    $f.ClearFormatting()
+    $f.Text = '\\[[A-Z0-9]{1,}\\]'
+    $f.MatchWildcards = $true; $f.Forward = $true; $f.Wrap = 0; $f.Format = $false
+    $guard = 0
+    while ($f.Execute()) {
+      $key = [string]$rg.Text
+      if ($map.ContainsKey($key)) { $rg.Text = $map[$key]; $count++ }
+      $rg.Collapse(0)
+      if (++$guard -ge 5000) { break }
+    }
+  }
+  if ($job.copies.Count -gt 1) {
+    $tail = $doc.Range($doc.Content.End - 2, $doc.Content.End)
+    if ($tail.Text -eq "\`r\`r") { $doc.Range($doc.Content.End - 2, $doc.Content.End - 1).Delete() | Out-Null }
+  }
+  $stage = 'save'
+  $out = [string]$job.output
+  try { $doc.SaveAs2($out, 12) } catch { $fmt = 12; $doc.SaveAs([ref]$out, [ref]$fmt) }
+  $doc.Close([ref]0); $doc = $null
+  if ($job.open) { $stage = 'show'; Start-Process -FilePath $out }
+  $r = @{ success = $true; path = $out; replaced = $count }
+} catch {
+  $r.error = "[$stage] " + $_.Exception.Message
+} finally {
+  if ($doc -ne $null) { try { $doc.Close([ref]0) } catch {} }
+  if ($word -ne $null) {
+    try { if ($word.Documents.Count -eq 0) { $word.Quit([ref]0) } } catch {}
+    try { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($word) } catch {}
+  }
+}
+[IO.File]::WriteAllText($env:WX3000_OFFICE_RESULT, (ConvertTo-Json $r -Compress), (New-Object Text.UTF8Encoding $false))
+`;
+
+// 執行固定的 PowerShell 腳本，結果由腳本寫進 resultFile (UTF-8 JSON)；PowerShell 主控台輸出是 Big5，不拿來判斷結果
+function runOfficeScript(script, env, timeoutMs) {
+  return new Promise((resolve) => {
+    const resultFile = officeTempFile('office_result', '.json');
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+    let timedOut = false;
+    let child;
+    const finish = (fallback) => {
+      let parsed = null;
+      try { parsed = JSON.parse(fs.readFileSync(resultFile, 'utf8').replace(/^\uFEFF/, '')); } catch (e) { /* 腳本沒寫出結果 */ }
+      fs.rm(resultFile, { force: true }, () => {});
+      resolve(parsed || fallback);
+    };
+    try {
+      child = spawn(systemExe('WindowsPowerShell', 'v1.0', 'powershell.exe'),
+        ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
+          windowsHide: true,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: { ...process.env, ...env, WX3000_OFFICE_RESULT: resultFile }
+        });
+    } catch (e) {
+      finish({ success: false, errorType: 'POWERSHELL_FAILED', error: `無法啟動 PowerShell: ${e.message}` });
+      return;
+    }
+    const getStderr = collectUtf8(child.stderr);
+    child.stdout.resume();
+    const timer = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMs);
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      finish({ success: false, errorType: 'POWERSHELL_FAILED', error: `無法啟動 PowerShell: ${err.message}` });
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      finish(timedOut
+        ? { success: false, errorType: 'TIMEOUT', error: `Word 作業超過 ${Math.round(timeoutMs / 1000)} 秒未完成，已中止` }
+        : { success: false, errorType: 'POWERSHELL_FAILED', error: `PowerShell 結束碼 ${code}: ${getStderr().trim().slice(0, 500)}` });
+    });
+  });
+}
+
+// Word 作業一次只做一份，避免同時開多個 Word 執行個體
+let officeQueue = Promise.resolve();
+function enqueueOffice(task) {
+  const next = officeQueue.then(task, task);
+  officeQueue = next.catch(() => {});
+  return next;
+}
+
+// 本機是否註冊了 Word.Application (WPS 等相容軟體若接管這個 ProgID 也算)
+function detectWord() {
+  return new Promise((resolve) => {
+    execFile(systemExe('reg.exe'), ['query', 'HKCR\\Word.Application', '/s'], { windowsHide: true, timeout: 5000 }, (err, stdout) => {
+      const text = String(stdout || '');
+      if (err || !/\\CLSID\b/i.test(text)) {
+        resolve({ success: true, word: false });
+        return;
+      }
+      const m = text.match(/Word\.Application\.(\d+)/i);
+      resolve({ success: true, word: true, version: m ? m[1] : '' });
+    });
+  });
+}
+
+async function openWordTemplate(payload) {
+  const resolved = resolveWordTemplate(payload?.template, payload?.drive);
+  if (resolved.error) return { success: false, errorType: 'INVALID_REQUEST', error: resolved.error };
+  if (!fs.existsSync(resolved.filePath)) {
+    return { success: false, errorType: 'NOT_FOUND', error: `找不到範本檔: ${resolved.filePath}` };
+  }
+  const res = await runOfficeScript(OFFICE_OPEN_SCRIPT, { WX3000_OFFICE_FILE: resolved.filePath }, 30 * 1000);
+  return { ...res, path: resolved.filePath };
+}
+
+async function mergeWordTemplate(payload, options = {}) {
+  const invalid = validateWordMerge(payload);
+  if (invalid) return { success: false, errorType: 'INVALID_REQUEST', error: invalid };
+  const { spec, filePath } = resolveWordTemplate(payload.template, payload.drive);
+  if (!fs.existsSync(filePath)) {
+    return { success: false, errorType: 'NOT_FOUND', error: `找不到範本檔: ${filePath}` };
+  }
+
+  return enqueueOffice(async () => {
+    // 同 VFP 先把模板複製成暫存檔再開啟：範本本身不會被鎖住，第 2 份起也才能 InsertFile 原範本
+    const workPath = officeTempFile('word_work', path.extname(filePath) || '.doc');
+    const jobPath = officeTempFile('word_job', '.json');
+    try {
+      fs.copyFileSync(filePath, workPath);
+      const job = buildWordMergeJob(spec, {
+        templatePath: filePath,
+        workPath,
+        outputPath: wordOutputPath(spec.outputName),
+        paragraphs: payload.paragraphs,
+        copies: payload.copies,
+        open: payload.open !== false
+      });
+      fs.writeFileSync(jobPath, JSON.stringify(job), 'utf8');
+      const res = await runOfficeScript(WORD_MERGE_SCRIPT, { WX3000_OFFICE_JOB: jobPath }, options.timeoutMs || WORD_TIMEOUT_MS);
+      return { ...res, copies: payload.copies.length, paragraphs: payload.paragraphs.length };
+    } catch (e) {
+      return { success: false, errorType: 'WORD_ERROR', error: e.message };
+    } finally {
+      fs.rm(jobPath, { force: true }, () => {});
+      fs.rm(workPath, { force: true }, () => {});
+    }
+  });
+}
+
 // ========== 存取控制 ==========
 // 正式環境的前端由 http://<主機>:5007 提供，主機位址無法事先得知，因此放行內網位址與單段主機名；
 // 其他網域 (如 ngrok、企業內網 FQDN) 請以逗號分隔設定於環境變數 WX3000_AGENT_ALLOWED_ORIGINS
@@ -919,7 +1200,7 @@ function isLoopbackHost(hostHeader) {
 }
 
 // 無副作用且瀏覽器跨站也讀不到回應的端點 (Electron file:// 頁面的 GET 不帶 Origin，需要放行)
-const READ_ONLY_PATHS = new Set(['/', '/test.html', '/mac', '/config', '/dllList', '/api/check-drive', '/api/dbf/check_drive']);
+const READ_ONLY_PATHS = new Set(['/', '/test.html', '/mac', '/config', '/dllList', '/api/check-drive', '/api/dbf/check_drive', '/api/office/status']);
 
 // 回傳拒絕原因；可放行時回傳 null
 function authorizeRequest(req, pathname) {
@@ -1069,6 +1350,36 @@ const handleRequest = async (req, res) => {
       });
       return;
     }
+  }
+
+  // ========== Office (Word) API (/api/office/*)：前端直接呼叫，只開放固定範本 ==========
+  if (url.pathname === '/api/office/status' && req.method === 'GET') {
+    const result = await detectWord();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(result));
+    return;
+  }
+  if ((url.pathname === '/api/office/word/open' || url.pathname === '/api/office/word/merge') && req.method === 'POST') {
+    const getBody = collectUtf8(req);
+    req.on('end', async () => {
+      let payload;
+      try {
+        payload = JSON.parse(getBody() || '{}');
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, errorType: 'INVALID_REQUEST', error: e.message }));
+        return;
+      }
+      try {
+        const result = url.pathname.endsWith('/open') ? await openWordTemplate(payload) : await mergeWordTemplate(payload);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(result));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, errorType: 'WORD_ERROR', error: e.message }));
+      }
+    });
+    return;
   }
 
   // 相容 POST /report, /waccrep3101_b, /wbase320_buyinv 及 /wbase350_buyinv_list
@@ -1286,6 +1597,16 @@ module.exports = {
   parseCustbakResult,
   executeCustbakExport,
   executeCustbakImport,
+  WORD_TEMPLATES,
+  resolveWordTemplate,
+  toWordText,
+  validateWordMerge,
+  buildWordMergeJob,
+  WORD_MERGE_SCRIPT,
+  OFFICE_OPEN_SCRIPT,
+  detectWord,
+  openWordTemplate,
+  mergeWordTemplate,
   isAllowedOrigin,
   authorizeRequest,
   buildDbfBridgeRequest,

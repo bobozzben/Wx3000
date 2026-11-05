@@ -42,7 +42,8 @@ cd localagent; node --test --test-name-pattern "<測試名稱>" agent.test.js   
 ### LocalAgent (`localagent/agent.js`)
 - 只聽本機 (`127.0.0.1` / `::1` 的 5009)；`/api/dbf/*` 拒絕帶 `Origin` / `Sec-Fetch-Site` 的瀏覽器請求，只給後端用。可轉送給 DBFBridge 的動作有白名單 (`DBF_BRIDGE_ACTIONS`：`PING`、`CHECKSUM`、`READ`、`GET_PG_SCRIPT`)，`EXEC_VFP` 只能由 `executeDbfWrite` 與 custbak 匯出入的固定範本內部使用。
 - 報表：`POST /report` 把 `jsonData` 寫成 `%TEMP%\Wx3000\` 暫存 JSON，交給 64-bit `WbaseBridge.exe` 呼叫 `wbaseRP.dll`。`/report`、`/api/call` 只能呼叫 `localagent/dlls.json` 登記過的函數 (目前 `wbaseRP` 11 個)，未登記回 `FORBIDDEN`。DLL 路徑依 `dlls.json` 的 `path` / `fallback_paths` (可用絕對路徑)，環境變數 `WBASE_DLL_PATH` 可整個覆蓋。
-- 修改後跑 `npm test` (27 項，含子測試共 35)。`agent_v*.js`、`test_v*.html`、`README_v1.md` 是歷史留存 (Port 18889)，不用改。
+- Word：`/api/office/*` 由前端直接呼叫 (查 Word、ShellExecute 開範本、以範本套印成 docx)，只接受 `WORD_TEMPLATES` 白名單的範本代號與磁碟機字母，路徑固定為 `<磁碟機>:\W3000\comm\<範本檔>`，以固定的 PowerShell 腳本操作 Word COM。
+- 修改後跑 `npm test` (32 項，含子測試共 42)。`agent_v*.js`、`test_v*.html`、`README_v1.md` 是歷史留存 (Port 18889)，不用改。
 
 ### 報表 DLL (`report/wbase/`, Lazarus + FastReport)
 - 新增一張報表要改四處：`wbase_unit1.lfm` / `.pas` 加 `TfrxReport` 範本 (資料集名 `MTable`)、`wbase_repunit1.pas` 加 stdcall 函數、`wbaseRP.lpr` 匯出、`localagent/dlls.json` 登記。`WbaseBridge_Generic.lpr` 依參數個數分派，命令列參數要 base64。`IsPrint`：`0` 預覽、`1` 直接列印、`999` 只 PrepareReport 不開視窗 (適合自動驗證)。
