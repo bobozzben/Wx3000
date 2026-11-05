@@ -8,52 +8,37 @@ import { Wbase4050Form } from './Wbase4050Form';
 import { Wbase4060Form } from './Wbase4060Form';
 import { WbasePageHeader } from '../../components/WbasePageHeader';
 import { SearchModal, type SearchItem } from '../../components/FoxProGrid/SearchModal';
-import {
-  FileSpreadsheet,
-  RefreshCw,
-  Search,
-  ArrowRight,
-  ArrowDown,
-  FileText,
-  Boxes,
-  Bookmark,
-  Sliders,
-} from 'lucide-react';
+import { RefreshCw, Search, ArrowRight, ArrowDown } from 'lucide-react';
 
 export interface Wbase4020PageProps {
   initialTab?: Wbase4020Tab;
   onBackToMenu?: () => void;
 }
 
-const TAB_CONFIGS: { id: Wbase4020Tab; label: string; icon: React.ReactNode; subtitle: string }[] = [
+const TAB_CONFIGS: { id: Wbase4020Tab; label: string; subtitle: string }[] = [
   {
     id: '4020',
     label: '4-2 營業稅設定',
-    icon: <FileText className="w-4 h-4" />,
     subtitle: '客戶營業稅專用會計科目、媒體申報方式、總繳與申報週期維護 (customer.dbf)',
   },
   {
     id: '4030',
     label: '4-3 傳票轉檔設定',
-    icon: <FileSpreadsheet className="w-4 h-4" />,
     subtitle: '客戶進銷項傳票連線轉檔型態、連線種類與連線天數設定 (customer.dbf)',
   },
   {
     id: '4040',
     label: '4-4 進銷存方式設定',
-    icon: <Boxes className="w-4 h-4" />,
     subtitle: '客戶期末存貨計算方式與會計類別設定 (acc_st.dbf / customer.dbf)',
   },
   {
     id: '4050',
     label: '4-5 共用科目摘要',
-    icon: <Bookmark className="w-4 h-4" />,
     subtitle: '各會計科目常用傳票摘要預設片語清單維護 (descrip.dbf)',
   },
   {
     id: '4060',
     label: '4-6 共用參數設定',
-    icon: <Sliders className="w-4 h-4" />,
     subtitle: '全系統共用參數：多家列印作業模式設定 (pub_para.dbf)',
   },
 ];
@@ -204,28 +189,7 @@ export const Wbase4020Page: React.FC<Wbase4020PageProps> = ({
         }
       />
 
-      {/* 五合一功能頁籤導覽列 (Tabs) */}
-      <div className="flex items-center px-4 bg-slate-200 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 gap-1 overflow-x-auto">
-        {TAB_CONFIGS.map((tab) => {
-          const isActive = tab.id === activeTab;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 font-mono text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                isActive
-                  ? 'border-amber-500 text-blue-900 dark:text-amber-300 bg-white dark:bg-slate-900 shadow-xs'
-                  : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80'
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 主工作區 (Tab 內容切換) */}
+      {/* 主工作區 (依選單傳入的 initialTab 顯示對應畫面) */}
       <div className="flex-1 min-h-0 relative overflow-hidden">
         {error && (
           <div className="p-3 bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 text-xs font-mono border-b border-rose-300">
