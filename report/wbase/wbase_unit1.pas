@@ -17,6 +17,7 @@ type
     frxDBDataset1: TfrxDBDataset;
     frxDesigner1: TfrxDesigner;
     frxReport_3501_buyinv: TfrxReport;
+    frxReport_1010_cstore: TfrxReport;
     frxReport_1030_keyin: TfrxReport;
     frxReport_1050_taxno: TfrxReport;
     frxReport_1060_recitem: TfrxReport;

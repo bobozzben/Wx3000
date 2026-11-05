@@ -18,6 +18,8 @@ Procedure WriteStrToFile_Debug(WriteStr: string; FileName: string = 'C:\BENDEBUG
 
 Function waccrep3101_b(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
 
+Function wbase1010_cstore_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+
 Function wbase1050_taxno_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
 
 Function wbase1060_recitem_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
@@ -471,6 +473,20 @@ Begin
     TextCol('手機', 'phone'),
     TextCol('住址', 'addr'),
     TextCol('備註', 'memo')
+  ], top_mag, left_mag, PrtIndex, IsPrint, fpath);
+End;
+
+// 事務所資料報表 (VFP REPORTS\base111.frx，wbase1010f41 事務所資料列印)
+Function wbase1010_cstore_list(Const hs_chk, top_mag, left_mag: double; Const PrtIndex, IsPrint: integer; Const fpath: ansistring): integer; stdcall;
+Begin
+  Result := RunListReport('frxReport_1010_cstore', '事務所資料報表', [
+    TextCol('統號', 'no'),
+    TextCol('事務所名稱', 'name'),
+    TextCol('電話', 'tel'),
+    TextCol('傳真', 'fax'),
+    TextCol('負責人', 'hname'),
+    TextCol('聯絡人', 'linkman'),
+    TextCol('地址', 'addr')
   ], top_mag, left_mag, PrtIndex, IsPrint, fpath);
 End;
 

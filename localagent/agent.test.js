@@ -105,7 +105,7 @@ test('isAllowedDllCall only accepts functions registered in dlls.json', () => {
   assert.equal(isAllowedDllCall('wbaseRP', 'waccrep3101_b'), true);
   assert.equal(isAllowedDllCall('wbaseRP', 'wbase320_buyinv'), true);
   assert.equal(isAllowedDllCall('wbaseRP', 'wbase350_buyinv_list'), true);
-  for (const func of ['wbase1050_taxno_list', 'wbase1060_recitem_list', 'wbase1070_recnote_list', 'wbase1080_feesummary_list', 'wbase3010_ticketplace_list']) {
+  for (const func of ['wbase1010_cstore_list', 'wbase1050_taxno_list', 'wbase1060_recitem_list', 'wbase1070_recnote_list', 'wbase1080_feesummary_list', 'wbase3010_ticketplace_list']) {
     assert.equal(isAllowedDllCall('wbaseRP', func), true, func);
   }
   assert.equal(isAllowedDllCall('\\\\evil\\share\\x.dll', 'DllMain'), false);

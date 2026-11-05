@@ -61,11 +61,12 @@
 - 相容路徑：`GET` / `POST /waccrep3101_b`、`/wbase320_buyinv`、`/wbase350_buyinv_list` (未帶 `func` 時以路徑名稱為函數名)，以及舊版 `GET /wbaseReport` (固定呼叫 `waccrep3101_b`)。
 - 其他：`GET /mac` (本機網卡 MAC)、`GET /config`、`GET /dllList`、`GET /` (`test.html` 測試頁)。WebSocket 指令：`mac`、`dllList`、`setMode`、`call`、`wbaseReport`。
 
-#### `dlls.json` 已登記的 `wbaseRP` 報表函數 (10 個)
+#### `dlls.json` 已登記的 `wbaseRP` 報表函數 (11 個)
 
 | 函數 | 參數 | 用途 |
 | :--- | :--- | :--- |
 | `waccrep3101_b` | 6 | 1030 建檔人員清冊 |
+| `wbase1010_cstore_list` | 6 | 1010 事務所資料報表 |
 | `wbase1050_taxno_list` | 6 | 1050 稅務人員清冊 |
 | `wbase1060_recitem_list` | 6 | 1060 收費項目清冊 |
 | `wbase1070_recnote_list` | 6 | 1070 收費備註名冊 |

@@ -4,6 +4,7 @@ import { WbaseMenuTree } from './WbaseMenuTree';
 import { WBASE_MENU_DATA } from './menuConfig';
 import type { MenuItem } from './menuConfig';
 import { useMenuKeyboard } from './useMenuKeyboard';
+import { Wbase1010Page } from '../wbase1010';
 import { Wbase1020Page } from '../wbase1020';
 import { Wbase1030Page } from '../wbase1030';
 import { Wbase1050Page } from '../wbase1050';
@@ -38,7 +39,9 @@ export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }
 
   // Trigger when a leaf menu item is selected/clicked
   const handleSelectAction = (item: MenuItem) => {
-    if (item.code === 'wbase1020') {
+    if (item.code === 'wbase1010') {
+      setActiveModule('wbase1010');
+    } else if (item.code === 'wbase1020') {
       setActiveModule('wbase1020');
     } else if (item.code === 'wbase1030') {
       setActiveModule('wbase1030');
@@ -203,7 +206,9 @@ export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }
       >
         {/* Submodule Page Content */}
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          {activeModule === 'wbase1020' ? (
+          {activeModule === 'wbase1010' ? (
+            <Wbase1010Page onBackToMenu={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase1020' ? (
             <Wbase1020Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase1050' ? (
             <Wbase1050Page onBackToMenu={() => setActiveModule(null)} />
