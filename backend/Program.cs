@@ -100,6 +100,11 @@ app.MapControllers();
 // System Health Endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", timestamp = DateTime.UtcNow }));
 
+// 不存在的 /api 路徑回 404 JSON，不交給下方的 SPA Fallback：否則會回 index.html (200)，
+// 前端把 HTML 當成 API 回應 (例如後端還是舊版、沒有新模組的控制器時出現「list.map is not a function」)
+app.MapFallback("/api/{**path}", (HttpContext ctx) =>
+    Results.NotFound(new { message = $"後端沒有這個 API：{ctx.Request.Path}，請確認後端已更新並重新啟動" }));
+
 // 靜態檔案託管與 SPA 支援 (讓 C# 後端可同時提供 Web 瀏覽器端與 Electron 客戶端)
 var wwwrootCandidates = new[]
 {

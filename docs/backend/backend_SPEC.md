@@ -14,7 +14,7 @@
    - 支援 `dotnet run` / `pnpm dev:api` 本地開發偵錯 (同樣監聽 `5007`)。
    - 支援發佈為獨立單一執行檔 (`pnpm build:api` ➔ `publish/backend/Release/Wx3000.Backend.exe`) 或含 `wwwroot` 靜態前端之完整伺服器包 (`pnpm publish:server` ➔ `publish/Wx3000_Server/api`，前端 `dist` 複製到 `api/wwwroot`)。
    - 支援安裝為 Windows Service (服務名稱 `Wx3000Api`)，透過 `builder.Host.UseWindowsService()` 實現開機背景自啟；以服務執行時 Content Root 為執行檔目錄。
-   - 靜態網頁依序尋找 `../../../frontend/dist`、`../../../backend/wwwroot`、`<執行檔目錄>/wwwroot`，找到第一個存在的目錄後提供靜態檔，非 API 路徑一律回 `index.html` (SPA Fallback)。
+   - 靜態網頁依序尋找 `../../../frontend/dist`、`../../../backend/wwwroot`、`<執行檔目錄>/wwwroot`，找到第一個存在的目錄後提供靜態檔，非 API 路徑一律回 `index.html` (SPA Fallback)。不存在的 `/api/*` 路徑回 404 JSON `{ message }`，不會落到 SPA Fallback (否則舊版後端缺新模組的控制器時，前端會把 `index.html` 當成 API 回應)。
    - 一律開啟 Swagger (`/swagger`)，並提供 `GET /health` 健康檢查；CORS 採 `AllowAll`。
 2. **動態資料磁碟機與 Schema 切換 (`SystemConfigService` + `DynamicModelCacheKeyFactory`)**：
    - 磁碟機代號以請求標頭 `X-Data-Drive` (前端 Axios 攔截器帶入，如 `C` 或 `F`) 為準；沒有標頭時使用 `system_config.json` (位於執行檔目錄) 的設定，兩者皆無時為 `C`。代號一律正規化為單一英文字母。
@@ -55,7 +55,7 @@ backend/
 │   ├── TicketPlaceMaster.cs             # 購票地點主檔 (table: place)
 │   ├── InvoicePurchaseMaster.cs         # 發票購買與字軌主檔 (table: buyinv)
 │   ├── AccountMaster.cs                 # 會計科目 (table: xmaster ~ xmaster6，4010 以 ADO 依 mode 切換表名)
-│   ├── Wbase1010Models.cs / Wbase2030Models.cs / Wbase2040Models.cs / Wbase2050Models.cs / Wbase4020Models.cs / Wbase5010Models.cs  # ADO 模組的 DTO
+│   ├── Wbase1010Models.cs / Wbase2030Models.cs / Wbase2040Models.cs / Wbase2050Models.cs / Wbase4020Models.cs / Wbase5010Models.cs / Wbase5070Models.cs  # ADO 模組的 DTO
 │   ├── Product.cs / Vendor.cs           # 產品 / 廠商主檔 (table: products / vendors)
 │   └── PurchaseHeader.cs / PurchaseLine.cs # 進貨單頭與明細 (table: purchase_headers / purchase_lines)
 ├── DTOs/
@@ -81,10 +81,11 @@ backend/
     ├── Wbase4010Controller.cs           # 標準 / 營造 / 建設 / 文教 / 社會 / 衛福會計科目維護 API (/api/wbase4010)
     ├── Wbase4020Controller.cs           # 4-2 ~ 4-6 營業稅、傳票轉檔、期末存貨、共用摘要與共用參數設定 API (/api/wbase4020)
     ├── Wbase5010Controller.cs           # 5-1 ~ 5-6 管理報表查詢與委任書條文維護 API (/api/wbase5010)
+    ├── Wbase5070Controller.cs           # 5-7 碳健檢企業名單匯出：客戶清單、轉檔列印密碼、各客戶 t403 銷售額加總 (/api/wbase5070)
     └── Products / Vendors / PurchaseController.cs
 ```
 
-> 控制器有兩種寫法：EF Core 實體 (`Models/*Master.cs` + `AppDbContext`，如 1020、1030、1050~1080、2010、3010、3020、3050、3060) 與 ADO + DTO (`GetDbConnection()`，如 1010、2030、2040、2050、4010、4020、5010)。
+> 控制器有兩種寫法：EF Core 實體 (`Models/*Master.cs` + `AppDbContext`，如 1020、1030、1050~1080、2010、3010、3020、3050、3060) 與 ADO + DTO (`GetDbConnection()`，如 1010、2030、2040、2050、4010、4020、5010、5070)。
 
 ---
 
@@ -113,6 +114,7 @@ PostgreSQL Table 名稱與 DBF 檔名相同；`同步 keyFields` 是呼叫 `Ensu
 | `wbase4010` | ADO + `AccountMaster` | `<Drive>:\w3000\comm\xmaster.dbf` ~ `xmaster6.dbf` (依 `mode` 1~6) | `<drive>:/w3000/comm` | `xmaster` ~ `xmaster6` | `accno`；`/ref` 與 `/batch-copy` 直接讀 `<Drive>:\w3000\ref\80\xmaster*.dbf` 範本 |
 | `wbase4020` | ADO + DTO (`Wbase4020Models.cs`) | `customer.dbf`、`accpara.dbf`、`acc_st.dbf`、`descrip.dbf`、`xmaster.dbf`、`pub_para.dbf` | `<drive>:/w3000/comm` | 同 DBF 名稱 | 同步：`customer`、`accpara`、`descrip`、`pub_para` 不設唯一鍵，`acc_st` 以 `no`，`xmaster` 以 `accno`；寫入：`customer` 先以 `RECNO()` 失敗再用 `no`，`accpara` / `pub_para` 以 `RECNO()` = 1，`acc_st` 以 `no` (查無才新增)，`descrip` 以 `RECNO()` |
 | `wbase5010` | ADO + DTO (`Wbase5010Models.cs`) | `customer.dbf`、`keyin.dbf`、`bsdesc.dbf` | `<drive>:/w3000/comm` | 同 DBF 名稱 | `customer` / `keyin` 以 `no`，`bsdesc` 以 `seq` (寫入亦以 `seq`) |
+| `wbase5070` | ADO + DTO (`Wbase5070Models.cs`) | `customer.dbf`；各客戶 `<Drive>:\w3000\data\<客戶代號>\<年末 2 碼>\t403.dbf` (401 資料檔，只讀) | `customer` 在 `<drive>:/w3000/comm`；`t403` 每家客戶每個年度一個 schema `<drive>:/w3000/data/<客戶代號小寫>/<年末 2 碼>` | `customer` / `t403` | `customer` 以 `no`；`t403` 不設唯一鍵 (保留全部列以加總 `t025`)；不寫入 |
 
 > ⚠️ 同一張 DBF 可能被不同畫面以不同 keyFields 同步 (例如 `customer` 在 2010、2030、2040、5010 以 `no`，在 2050、4020 不設唯一鍵)。Checksum 相符時不會重灌，因此快照是否去除重複主鍵，取決於 DBF 變動後第一個觸發重灌的畫面。
 
@@ -171,4 +173,5 @@ PostgreSQL Table 名稱與 DBF 檔名相同；`同步 keyFields` 是呼叫 `Ensu
 | **會計科目 (`4010`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase4010` | `GET` 清單 (`?mode=1..6&keyword=`)、`GET {accno}`、`GET ref` 範本總帳科目、`POST`、`PUT {accno}`、`DELETE {accno}`、`POST batch-copy` 從範本複製；`mode` 1~6 對應 `xmaster` ~ `xmaster6` |
 | **操作設定 (`4020`~`4060`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase4020` | 4-2：`GET taxop`、`PUT taxop/{no}`、`POST taxop/apply-default/{no}`、`GET`/`PUT accpara/tax-accounts`；4-3：`GET voucher`、`PUT voucher/{no}`、`POST voucher/apply-default/{no}`、`GET`/`PUT accpara/voucher-params`；4-4：`GET stock-mode`、`PUT stock-mode/{no}` (連動 `customer`)；4-5：`GET descrip`、`GET descrip/accounts`、`POST descrip`、`PUT descrip/{recno}`、`DELETE descrip/{recno}`、`POST descrip/swap-order`；4-6：`GET`/`PUT pub-para` |
 | **管理報表 (`5010`~`5060`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase5010` | `GET customers`、`POST print/customer-data` (5-1)、`POST print/labels` (5-2)、`POST print/keyin-stats` (5-3)、`POST print/business-status` (5-4)、`POST print/finance-status` (5-5)；5-6 委任書條文：`GET bsdesc`、`POST bsdesc`、`PUT bsdesc/{seq}`、`DELETE bsdesc/{seq}`、`PUT bsdesc/batch` |
+| **碳健檢企業名單 (`5070`)** | `GET` / `POST` | `/api/wbase5070` | `GET customers`、`POST verify-password` (轉檔列印密碼)、`POST sales` (`{ password, year, startMonth, endMonth, nos }`，每次最多 50 家，回傳匯出欄位與 `t025` 加總；密碼錯誤 403) |
 | **進銷存單據** | `GET` / `POST` | `/api/products`, `/api/vendors`, `/api/purchase` | `GET /api/products/search?q=`、`GET /api/vendors/search?q=` 快查；`POST /api/purchase` 建立進貨單、`GET /api/purchase` 進貨單清單 |
