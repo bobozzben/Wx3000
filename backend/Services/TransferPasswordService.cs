@@ -7,7 +7,7 @@ using System.Text;
 namespace Wx3000.Backend.Services
 {
     /// <summary>
-    /// 轉檔列印密碼 (VFP w3000func.prg w_get_password_2)：2-2 客戶資料匯出、2-3 客戶資料匯入進入前檢查。
+    /// 轉檔列印密碼 (VFP w3000func.prg w_get_password_2)：2-2 客戶資料匯出、2-3 客戶資料匯入進入前，以及 5-7 碳健檢企業名單 F8 轉出前檢查。
     /// motherp.txt 共 200 bytes：前 100 bytes 是回存母版密碼，第 101–110 bytes 是轉檔列印密碼 (6-2 變更)。
     /// 比對只在後端進行；主密碼不可出現在前端、API 回應、log 或文件中。
     /// </summary>

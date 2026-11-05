@@ -342,6 +342,13 @@ export const WBASE_MENU_DATA: MenuItem[] = [
         hasChildren: false,
         actionUrl: '/wbase/wbase5060',
       },
+      {
+        id: 'm_570',
+        code: 'wbase5070',
+        title: '碳健檢企業名單匯出',
+        hasChildren: false,
+        actionUrl: '/wbase/wbase5070',
+      },
     ],
   },
   {

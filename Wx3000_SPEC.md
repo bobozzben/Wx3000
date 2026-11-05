@@ -33,7 +33,7 @@ Wx3000/
 ├── docs/                          # 詳細模組規格書目錄
 │   ├── SPEC.md                    # 規格書總索引
 │   ├── backend/backend_SPEC.md    # 後端 API、動態磁碟機、DBF 雙向同步與 PostgreSQL 規格
-│   └── frontend/                  # 前端組件、wbase (1020~5010) 與 wtaxop 規格書
+│   └── frontend/                  # 前端組件、wbase (1020~5070) 與 wtaxop 規格書
 ├── backend/                       # C# 後端 API 與 Windows 服務專案 (Port: 5007)
 │   ├── Wx3000.Backend.csproj
 │   ├── Program.cs                 # Web API / Windows Service 啟動入口 & wwwroot 託管
@@ -46,15 +46,15 @@ Wx3000/
 │   │   ├── IDbfSyncService.cs / DbfSyncService.cs           # VFP DBF 雙向同步服務
 │   │   ├── ISystemConfigService.cs / SystemConfigService.cs # 動態資料磁碟機 (C:/F:) 與 Schema 管理
 │   │   ├── ISystemParamService.cs / SystemParamService.cs   # 動態 Schema/Table 系統參數讀寫
-│   │   └── TransferPasswordService.cs                       # 轉檔列印密碼 (motherp.txt) 後端比對 (2-2 / 2-3 進入前)
+│   │   └── TransferPasswordService.cs                       # 轉檔列印密碼 (motherp.txt) 後端比對 (2-2 / 2-3 進入前、5-7 F8 轉出前)
 │   ├── Models/                    # CpaMaster, EmpMaster, TaxOfficerMaster, FeeItemMaster,
 │   │                              # NoteMaster, FeeSummaryMaster, CompanyMaster,
 │   │                              # TicketPlaceMaster, InvoicePurchaseMaster, AccountMaster,
-│   │                              # Wbase2030/2040/2050/4020/5010Models (各模組 DTO),
+│   │                              # Wbase2030/2040/2050/4020/5010/5070Models (各模組 DTO),
 │   │                              # Product, Vendor, PurchaseHeader, PurchaseLine
 │   ├── DTOs/                      # CreatePurchaseOrderDto
 │   └── Controllers/               # SystemConfig, SystemParam, Wbase1020~1080, Wbase2010~2050,
-│                                  # Wbase3010~3060, Wbase4010, Wbase4020, Wbase5010,
+│                                  # Wbase3010~3060, Wbase4010, Wbase4020, Wbase5010, Wbase5070,
 │                                  # Products, Vendors, Purchase
 ├── frontend/                      # React 19 + Vite + Electron 前端專案
 │   ├── electron/                  # Electron 主程序 (main.cjs, preload.cjs)
@@ -85,7 +85,8 @@ Wx3000/
 │       │   ├── wbase3060/         # 統購發票字軌輸入 (01/02) 與國稅局/代售點 Excel 匯入
 │       │   ├── wbase4010/         # 4-1 標準會計科目維護 (6 種科目表 xmaster~xmaster6)
 │       │   ├── wbase4020/         # 4-2~4-6 營業稅設定、傳票轉檔、進銷存方式、共用科目摘要、共用參數
-│       │   └── wbase5010/         # 5-1~5-6 客戶資料列印、郵寄標籤、登打統計、營業/財務狀況表、委任書
+│       │   ├── wbase5010/         # 5-1~5-6 客戶資料列印、郵寄標籤、登打統計、營業/財務狀況表、委任書
+│       │   └── wbase5070/         # 5-7 碳健檢企業名單匯出 (勾選客戶、t403 銷售額加總、匯出 Excel)
 │       ├── wtaxop/                # 進銷存單據作業模組 (PurchaseOrder)
 │       ├── services/              # Axios API、apiConfig、addressService、localagent、validation.ts
 │       └── data/                  # 台灣縣市鄉鎮郵遞區號 (taiwanDistricts.ts) 與路名庫 (taiwan_roads.json)

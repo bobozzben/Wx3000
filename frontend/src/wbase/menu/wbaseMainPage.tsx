@@ -24,6 +24,7 @@ import { Wbase3060 } from '../wbase3060';
 import { Wbase4010Page } from '../wbase4010';
 import { Wbase4020Page } from '../wbase4020';
 import { Wbase5010Index, type Wbase50TabType } from '../wbase5010';
+import { Wbase5070Page } from '../wbase5070';
 import { useTheme } from './ThemeContext';
 
 interface WbaseMainPageProps {
@@ -131,6 +132,8 @@ export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }
     } else if (item.code === 'wbase5060') {
       setWbase5010Tab('5060');
       setActiveModule('wbase5010');
+    } else if (item.code === 'wbase5070') {
+      setActiveModule('wbase5070');
     } else if (item.code === 'A00') {
       // 結束離開 / 回主選單
       if (onBackToMainMenu) {
@@ -250,6 +253,8 @@ export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }
             <Wbase4020Page initialTab={wbase4020Tab} onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase5010' ? (
             <Wbase5010Index initialTab={wbase5010Tab} onClose={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase5070' ? (
+            <Wbase5070Page onBackToMenu={() => setActiveModule(null)} />
           ) : (
             <Wbase1030Page onBackToMenu={() => setActiveModule(null)} />
           )}
