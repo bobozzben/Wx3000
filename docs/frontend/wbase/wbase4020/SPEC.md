@@ -1,7 +1,7 @@
 # 規格書：wbase4020 營業稅與共用參數設定 (操作設定 4-2 ~ 4-6)
 
-> **模組代號**：`wbase4020` (五個頁籤 `wbase4020`、`wbase4030`、`wbase4040`、`wbase4050`、`wbase4060`；子視窗 `wbase4021`、`wbase4031`)  
-> **功能名稱**：營業稅設定、營業稅轉傳票設定、媒體/期末存貨計算方式、共用會計科目摘要、共用參數設定 (`Wbase4020Page` 頁籤合一)  
+> **模組代號**：`wbase4020` (五個畫面 `wbase4020`、`wbase4030`、`wbase4040`、`wbase4050`、`wbase4060`；子視窗 `wbase4021`、`wbase4031`)  
+> **功能名稱**：營業稅設定、營業稅轉傳票設定、媒體/期末存貨計算方式、共用會計科目摘要、共用參數設定 (`Wbase4020Page` 五合一)  
 > **所屬模組**：`frontend/src/wbase/wbase4020/` (service 在 `frontend/src/wbase/wbase4020/services/wbase4020.ts`) & `backend/Controllers/Wbase4020Controller.cs`  
 > **原始 Visual FoxPro 來源**：`SourS9BASE\PROGS\base40.prg` `wbasemenu04cmd02`~`cmd06` → `SourS9BASE\LIBS\wbase.vcx` class `wbase4020` (F7 `wbase4021`)、`wbase4030` (F7 `wbase4031`)、`wbase404010`、`wbase4050`、`wbase4060`
 
@@ -9,9 +9,9 @@
 
 ## 1. 模組定位與職責
 
-選單 420~460 都開啟 `Wbase4020Page`，由 `wbaseMainPage.tsx` 傳入 `initialTab`；畫面上方的頁籤可再切換 (切換時重新載入該頁資料)。
+選單 420~460 都開啟 `Wbase4020Page`，由 `wbaseMainPage.tsx` 傳入 `initialTab`，決定顯示哪一個畫面。畫面不顯示頁籤，要換畫面須回選單另選 420~460。
 
-| 選單 | `initialTab` | 頁籤 | 畫面元件 | 主要 DBF |
+| 選單 | `initialTab` | 畫面標題 | 畫面元件 | 主要 DBF |
 | :--- | :-: | :--- | :--- | :--- |
 | 420 營業稅設定 | `4020` | 4-2 營業稅設定 | `Wbase4020Form.tsx` + `Wbase4021Modal.tsx` | `customer`、`accpara` |
 | 430 營業稅轉傳票設定 | `4030` | 4-3 傳票轉檔設定 | `Wbase4030Form.tsx` + `Wbase4031Modal.tsx` | `customer`、`accpara` |
@@ -19,7 +19,7 @@
 | 450 共用會計科目摘要 | `4050` | 4-5 共用科目摘要 | `Wbase4050Form.tsx` | `descrip`、`xmaster` |
 | 460 共用參數設定 | `4060` | 4-6 共用參數設定 | `Wbase4060Form.tsx` | `pub_para` |
 
-頁首為 `WbasePageHeader` (分類「4. 操作設定」，代號 `wbase{頁籤}`)。4-2 ~ 4-4 的客戶格線都使用 `<FoxProGridV2 />`，客戶代號與名稱唯讀、逐列確認後即時存檔，沒有新增與刪除功能。
+頁首為 `WbasePageHeader` (分類「4. 操作設定」，代號 `wbase{initialTab}`)。4-2 ~ 4-4 的客戶格線都使用 `<FoxProGridV2 />`，客戶代號與名稱唯讀、逐列確認後即時存檔，沒有新增與刪除功能。
 
 ### 1.1 頁面共用按鍵 (`index.tsx`)
 
@@ -98,7 +98,7 @@
 
 ## 2. 資料庫與 DBF Schema 對照 (`<drive>:/w3000/comm`)
 
-| DBF | 同步 keyFields | 使用頁籤 | 讀寫欄位 |
+| DBF | 同步 keyFields | 使用畫面 | 讀寫欄位 |
 | :--- | :--- | :--- | :--- |
 | `customer` | `""` (無唯一鍵，與 `wbase2050` 相同) | 4-2、4-3、4-4 | 4-2：`bydno, bycno, bybkdno, bybkcno, sadno, sacno, sabkdno, sabkcno, casaccno, mediatype, t401, fileno, tpay, mainunino, monthv`；4-3：`monthv, mediatype, trantype, trankind, trandate, trantypeb, trankindb, trandateb, fileno, tpay`；4-4：`stock, acctype` |
 | `accpara` | `""` (單筆) | 4-2 F7、4-3 F7 | 營業稅標準科目 `bydno` … `casaccno`；轉傳票標準參數 `sm_monthv, sm_media, sm_type, sm_kind, sm_date, sm_typeb, sm_kindb, sm_dateb` |

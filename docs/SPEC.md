@@ -60,7 +60,7 @@
 - 📌 [wbase4010 標準會計科目維護模組規格 (`docs/frontend/wbase/wbase4010/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase4010/SPEC.md)
   - 選單 `wbase4011`~`wbase4016` 對應標準、營造業、建設業、文教團體、社會團體、衛福團體 6 種科目表 (`xmaster.dbf`~`xmaster6.dbf`)，`<FoxProGridV2 />` 行內盲打維護、`F3` 由參考檔複製總帳科目、`F4`/`F7` 列印與 Excel、`F8` 尋找、`F12` 游標方向切換，與 DBF 雙向同步。
 - 📌 [wbase4020 營業稅與共用參數設定模組規格 (`docs/frontend/wbase/wbase4020/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase4020/SPEC.md)
-  - 選單 `wbase4020`~`wbase4060` 共用同一頁面並以頁籤切換：4-2 營業稅設定 (`customer.dbf` + `accpara.dbf`)、4-3 傳票轉檔設定、4-4 進銷存方式設定 (`acc_st.dbf` / `customer.dbf`)、4-5 共用科目摘要 (`descrip.dbf`)、4-6 共用參數設定 (`pub_para.dbf`)。
+  - 選單 `wbase4020`~`wbase4060` 共用同一頁面，依選單顯示對應畫面 (不顯示頁籤)：4-2 營業稅設定 (`customer.dbf` + `accpara.dbf`)、4-3 傳票轉檔設定、4-4 進銷存方式設定 (`acc_st.dbf` / `customer.dbf`)、4-5 共用科目摘要 (`descrip.dbf`)、4-6 共用參數設定 (`pub_para.dbf`)。
 - 📌 [wbase5010 管理報表模組規格 (`docs/frontend/wbase/wbase5010/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase5010/SPEC.md)
   - 選單 `wbase5010`~`wbase5060` 共用 `Wbase5010Index` 並以頁籤切換 (`Alt+1`~`Alt+6`)：5-1 客戶資料列印、5-2 郵寄標籤列印、5-3 客戶登打統計表、5-4 客戶營業狀況表、5-5 客戶財務狀況參考表、5-6 委任書輸入維護 (`bsdesc.dbf`)。
 

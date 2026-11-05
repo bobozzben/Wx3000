@@ -18,7 +18,6 @@ import {
   CheckCircle,
   XCircle,
   RefreshCw,
-  Building,
 } from 'lucide-react';
 import { useTheme } from '../menu/ThemeContext';
 
@@ -35,7 +34,6 @@ export const Wbase4010Page: React.FC<Wbase4010PageProps> = ({
 
   const {
     currentMode,
-    switchMode,
     rows,
     setRows,
     refAccounts,
@@ -208,28 +206,6 @@ export const Wbase4010Page: React.FC<Wbase4010PageProps> = ({
           </div>
         }
       />
-
-      {/* 6 大行業會計科目範本切換頁籤 */}
-      <div className="flex items-center px-3 pt-2 gap-1 border-b border-slate-300 dark:border-slate-800 bg-slate-200/80 dark:bg-slate-900/80 select-none overflow-x-auto">
-        {Object.values(ACCOUNT_MODES).map((item) => {
-          const isActive = item.mode === currentMode;
-          return (
-            <button
-              key={item.mode}
-              onClick={() => switchMode(item.mode)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-t transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                isActive
-                  ? 'bg-blue-900 text-white shadow-xs border-t-2 border-yellow-400'
-                  : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:text-blue-900 dark:hover:text-white'
-              }`}
-            >
-              <Building className="w-3.5 h-3.5" />
-              <span>{item.label}</span>
-              <span className="text-[10px] opacity-75 font-mono">({item.tableName})</span>
-            </button>
-          );
-        })}
-      </div>
 
       {/* 快捷操作按鈕列與快速查詢 */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 select-none">

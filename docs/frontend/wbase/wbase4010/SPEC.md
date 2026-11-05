@@ -1,7 +1,7 @@
 # 規格書：wbase4010 標準會計科目維護
 
 > **模組代號**：`wbase4010` (選單 `wbase4011`~`wbase4016`，頁首代號顯示 `wbase401{mode}`)  
-> **功能名稱**：會計科目基本資料維護 (`<FoxProGridV2 />` 多列行內盲打 + 六種行業頁籤 + F3 由參考檔複製總帳科目 + F4/F7 列印)  
+> **功能名稱**：會計科目基本資料維護 (`<FoxProGridV2 />` 多列行內盲打 + 六種行業模式 + F3 由參考檔複製總帳科目 + F4/F7 列印)  
 > **所屬模組**：`frontend/src/wbase/wbase4010/`、`frontend/src/services/wbase4010.ts` & `backend/Controllers/Wbase4010Controller.cs`  
 > **原始 Visual FoxPro 來源**：`SourS9BASE\PROGS\base40.prg` `wbasemenu0401cmd01`~`cmd06` → `SourS9BASE\LIBS\wbase.vcx` class `wbase401010` (列印 `wbase401011`、複製 `wbase401012`)
 
@@ -13,7 +13,7 @@
 
 ### 1.1 行業模式
 
-選單 411~416 都開啟 `Wbase4010Page`，由 `wbaseMainPage.tsx` 傳入 `initialMode`；畫面上方的頁籤可再切換行業 (`switchMode`，切換後重新載入)。
+選單 411~416 都開啟 `Wbase4010Page`，由 `wbaseMainPage.tsx` 傳入 `initialMode`。畫面不顯示行業頁籤，要換行業須回選單另選 411~416。
 
 | 選單 | `initialMode` | 行業 | DBF | 允許的科目明細 (`pubdept`) | 機關團體 |
 | :--- | :-: | :--- | :--- | :--- | :-: |
