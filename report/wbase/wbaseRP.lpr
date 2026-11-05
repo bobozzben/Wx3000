@@ -20,6 +20,7 @@ Uses
 
 Exports
   waccrep3101_b,  // 建檔人員清冊
+  wbase1010_cstore_list,  // 事務所資料報表
   wbase1050_taxno_list,  // 基本稅務人員清冊
   wbase1060_recitem_list,  // 基本收費項目清冊
   wbase1070_recnote_list,  // 收費備註名冊

@@ -17,6 +17,8 @@
 
 ### 2. 前端事務所主檔與客戶資料模組規格 (wbase Master Data & Customer Modules)
 
+- 📌 [wbase1010 事務所資料維護模組規格 (`docs/frontend/wbase/wbase1010/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase1010/SPEC.md)
+  - 預設事務所資料單筆表單 (`base.dbf` 鍵值 + `pub_para.dbf` 數位憑證公用目錄，`F2` 地址選單、`F8` 確定)、`F4` 事務所資料 `<FoxProGridV2 />` (`cstore.dbf`，統編檢查碼、刪除重編序號、`F5` 轉入預設、`F8` 尋找、`F12` 方向)，以及 `F4` 列印 (`wbase1010_cstore_print`，LocalAgent → `wbaseRP.dll` 的 `wbase1010_cstore_list`、Excel 匯出)。
 - 📌 [wbase1020 會計師/記帳士資料維護模組規格 (`docs/frontend/wbase/wbase1020/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase1020/SPEC.md)
   - 上方 `<FoxProGridCard />` 瀏覽清單 + 下方即時聯動 `<Wbase1020Form />`、`useFoxProCardNavigation` 順序跳欄、證書別連動發文字軌快選 (`F2`)、地址智慧快選 (`F2`/`F4`)、統編/申報ID/Email/Big5 檢核、`FoxProPrintModal` 列印匯出與 DBF (`cpa.dbf`) 雙向同步。
 - 📌 [wbase1030 建檔人員(員工)基本資料維護模組規格 (`docs/frontend/wbase/wbase1030/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase1030/SPEC.md)

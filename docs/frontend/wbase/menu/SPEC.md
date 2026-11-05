@@ -65,7 +65,7 @@ frontend/src/
 圖例：✅ 已實作；🚧 選單已列出但仍顯示「移植建置中」。
 
 1. **`100` 事務所資料**
-   - `110` `wbase1010` 事務所資料 🚧
+   - `110` `wbase1010` 事務所資料 (`base.dbf` / `pub_para.dbf`；F4 事務所資料 `cstore.dbf`) ✅ (`Wbase1010Page`)
    - `120` `wbase1020` 會計師/記帳士資料 ✅ (`Wbase1020Page`)
    - `130` `wbase1030` 員工資料 (建檔人員 `keyin.dbf`) ✅ (`Wbase1030Page`，render 分支的最後預設分支)
    - `140` `wbase1040` 密碼群組 🚧
