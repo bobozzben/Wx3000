@@ -20,6 +20,19 @@
           "comment": "建檔人員清冊: hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path (JSON 暫存檔)",
           "bringToFront": true
         },
+        "wbase1010_cstore_list": {
+          "ret": "int",
+          "params": [
+            "double",
+            "double",
+            "double",
+            "int",
+            "int",
+            "str"
+          ],
+          "comment": "事務所資料報表 (VFP base111.frx): hs_chk, top_mag, left_mag, PrtIndex, IsPrint, path (JSON 暫存檔)",
+          "bringToFront": true
+        },
         "wbase1050_taxno_list": {
           "ret": "int",
           "params": [

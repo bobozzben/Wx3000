@@ -55,7 +55,7 @@ backend/
 │   ├── TicketPlaceMaster.cs             # 購票地點主檔 (table: place)
 │   ├── InvoicePurchaseMaster.cs         # 發票購買與字軌主檔 (table: buyinv)
 │   ├── AccountMaster.cs                 # 會計科目 (table: xmaster ~ xmaster6，4010 以 ADO 依 mode 切換表名)
-│   ├── Wbase2030Models.cs / Wbase2040Models.cs / Wbase2050Models.cs / Wbase4020Models.cs / Wbase5010Models.cs  # ADO 模組的 DTO
+│   ├── Wbase1010Models.cs / Wbase2030Models.cs / Wbase2040Models.cs / Wbase2050Models.cs / Wbase4020Models.cs / Wbase5010Models.cs  # ADO 模組的 DTO
 │   ├── Product.cs / Vendor.cs           # 產品 / 廠商主檔 (table: products / vendors)
 │   └── PurchaseHeader.cs / PurchaseLine.cs # 進貨單頭與明細 (table: purchase_headers / purchase_lines)
 ├── DTOs/
@@ -63,6 +63,7 @@ backend/
 └── Controllers/
     ├── SystemConfigController.cs        # 資料磁碟機設定與檢測 API (/api/systemconfig)
     ├── SystemParamController.cs         # 系統參數讀寫 API (/api/systemparam)
+    ├── Wbase1010Controller.cs           # 事務所資料維護 API (/api/wbase1010)
     ├── Wbase1020Controller.cs           # 會計師維護 API (/api/wbase1020)
     ├── Wbase1030Controller.cs           # 建檔人員維護 API (/api/wbase1030)
     ├── Wbase1050Controller.cs           # 稅務人員維護 API (/api/wbase1050)
@@ -83,7 +84,7 @@ backend/
     └── Products / Vendors / PurchaseController.cs
 ```
 
-> 控制器有兩種寫法：EF Core 實體 (`Models/*Master.cs` + `AppDbContext`，如 1020、1030、1050~1080、2010、3010、3020、3050、3060) 與 ADO + DTO (`GetDbConnection()`，如 2030、2040、2050、4010、4020、5010)。
+> 控制器有兩種寫法：EF Core 實體 (`Models/*Master.cs` + `AppDbContext`，如 1020、1030、1050~1080、2010、3010、3020、3050、3060) 與 ADO + DTO (`GetDbConnection()`，如 1010、2030、2040、2050、4010、4020、5010)。
 
 ---
 
@@ -95,6 +96,7 @@ PostgreSQL Table 名稱與 DBF 檔名相同；`同步 keyFields` 是呼叫 `Ensu
 
 | 模組代號 | C# Entity Model | 地端 DBF 路徑 | PostgreSQL Schema | PostgreSQL Table | 同步 keyFields ／ 寫入定位 (keyField) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
+| `wbase1010` | ADO + DTO (`Wbase1010Models.cs`) | `<Drive>:\w3000\comm\base.dbf`、`pub_para.dbf`、`cstore.dbf` | `<drive>:/w3000/comm` | 同 DBF 名稱 | 三表同步不設唯一鍵；寫入 `base` / `cstore` 以 `RECNO(),no` 定位 (查無的 `base` 鍵值與新的 `cstore` 以 `no` 新增)，`pub_para` 以第一筆 `RECNO()` |
 | `wbase1020` | `CpaMaster` | `<Drive>:\w3000\comm\cpa.dbf` | `<drive>:/w3000/comm` | `cpa` | `no` |
 | `wbase1030` | `EmpMaster` | `<Drive>:\w3000\comm\keyin.dbf` | `<drive>:/w3000/comm` | `keyin` | `no` |
 | `wbase1050` | `TaxOfficerMaster` | `<Drive>:\w3000\comm\taxno.dbf` | `<drive>:/w3000/comm` | `taxno` | `no` |
@@ -151,6 +153,7 @@ PostgreSQL Table 名稱與 DBF 檔名相同；`同步 keyFields` 是呼叫 `Ensu
 | :--- | :--- | :--- | :--- |
 | **系統磁碟設定** | `GET` / `POST` | `/api/systemconfig` | `GET` 取得目前磁碟機、DBF 路徑與 Schema；`GET check-drive?drive=` 檢查 `<Drive>:\w3000` 是否存在；`POST` 設定資料來源磁碟機代號 (`{ dataDrive }`) |
 | **系統參數** | `GET` / `POST` | `/api/systemparam` | `GET ?schema=&table=&name=&defaultValue=` 讀取 (找不到會以預設值新增)；`POST` 儲存 (`{ schema, table, name, value }`) |
+| **事務所資料 (`1010`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase1010` | `GET`/`PUT office` 預設事務所資料 (`base.dbf` + `pub_para.pubimgpath`)；`GET cstore`、`POST cstore`、`PUT cstore` (body 帶 `origNo`、`recordNumber`，可改統號)、`DELETE cstore/{no}?recno=` (刪除後重編 `serial`)、`POST cstore/print` |
 | **會計師主檔 (`1020`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase1020` | `GET` 清單 (`?keyword=`)、`GET {code}`、`POST`、`PUT {code}`、`DELETE {code}`、`POST print` 區間列印資料、`GET inspect` 檢視快照欄位；對應 `cpa.dbf` |
 | **建檔人員 (`1030`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase1030` | `GET` 清單 (`?keyword=`)、`GET {code}`、`POST`、`PUT {code}`、`DELETE {code}`、`POST print`、`GET inspect` 檢視快照欄位；對應 `keyin.dbf` |
 | **稅務人員 (`1050`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase1050` | `GET` 清單 (`?keyword=`)、`GET {code}`、`POST`、`PUT {code}`、`DELETE {code}`、`POST print`；對應 `taxno.dbf` |
