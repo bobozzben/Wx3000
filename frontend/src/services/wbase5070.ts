@@ -60,8 +60,12 @@ const expectShape = <T>(data: unknown, valid: (d: any) => boolean): T => {
   return data as T;
 };
 
+/**
+ * 加 _ 參數避開瀏覽器快取：舊版後端回的 index.html 帶 Last-Modified/ETag、沒有 Cache-Control，
+ * 瀏覽器會依啟發式規則快取，後端更新後仍一直拿到同一份 HTML
+ */
 export const fetchCarbonCustomers = async (): Promise<CarbonCustomer[]> =>
-  expectShape((await axios.get(`${API_BASE}/customers`)).data, Array.isArray);
+  expectShape((await axios.get(`${API_BASE}/customers`, { params: { _: Date.now() } })).data, Array.isArray);
 
 export const verifyCarbonPassword = async (password: string): Promise<boolean> =>
   expectShape<{ ok: boolean }>((await axios.post(`${API_BASE}/verify-password`, { password })).data, (d) => typeof d?.ok === 'boolean').ok;
