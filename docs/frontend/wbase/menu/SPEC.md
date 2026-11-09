@@ -84,8 +84,8 @@ frontend/src/
    - `320` `wbase3020` 預購統一發票輸入 ✅ (`Wbase3020Page`)
    - `330` `wbase3030` 預購統一發票列印 ✅ (`Wbase3020_buyinv_print`)
    - `340` 媒體/網路申購轉檔 (群組 `GRP_340`)
-     - `341` `wbase3041` 原媒體轉檔 🚧
-     - `342` `wbase3042` 網路申購轉檔 🚧
+     - `341` `wbase3025` 原媒體轉檔 ✅ (`Wbase3025_Media`；舊代碼 `wbase3041` 仍可對應)
+     - `342` `wbase3025n` 網路申購轉檔 ✅ (`Wbase3025_Net`；舊代碼 `wbase3042` 仍可對應)
    - `350` `wbase3050` 購買統一發票清單列印 ✅ (`Wbase3050_buylist_print`；單價設定 `Wbase3050_buyinv_setamt` 在清單列印畫面按 `F6` 開啟，選單沒有獨立項目)
    - `360` `wbase3060_01` 統購發票字軌輸入 (含 Excel 匯入) ✅ (`Wbase3060`)
    - `370` `wbase3070` 刪除舊年度統購資料 🚧

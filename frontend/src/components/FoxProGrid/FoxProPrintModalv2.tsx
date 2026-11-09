@@ -81,12 +81,13 @@ export interface FoxProPrintModalv2Props {
   printLabel?: string;
   /** F7：欄位都通過檢核後呼叫 */
   onPrint: () => void;
-  /** F8 匯出 (有傳才顯示「F8. 匯出」鈕與「匯出 xlsx 設定」卡片) */
+  /** F8 匯出 (有傳才顯示「F8. 匯出」鈕) */
   onExport?: () => void;
   /** F8 鈕文字，預設「F8. 匯出」 */
   exportLabel?: string;
   /** 「匯出 xlsx 設定」勾選狀態 */
   exportConfigure?: boolean;
+  /** 有傳才顯示「匯出 xlsx 設定」卡片 (F8 是轉檔、下載等不是 xlsx 的動作時不傳) */
   onExportConfigureChange?: (value: boolean) => void;
   /** 「匯出 xlsx 設定」的說明文字 */
   exportConfigureHint?: string;
@@ -459,8 +460,8 @@ export const FoxProPrintModalv2: React.FC<FoxProPrintModalv2Props> = ({
           );
         })}
 
-        {/* 匯出 xlsx 設定 */}
-        {onExport && (
+        {/* 匯出 xlsx 設定 (F8 不是匯出 xlsx 時，呼叫端不傳 onExportConfigureChange 就不顯示) */}
+        {onExport && onExportConfigureChange && (
           <label
             className={`p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer flex items-center space-x-3 transition-all focus-within:ring-2 focus-within:ring-amber-400 ${
               exportConfigure
@@ -516,7 +517,7 @@ export const FoxProPrintModalv2: React.FC<FoxProPrintModalv2Props> = ({
           onKeyDown={(e) => {
             if (e.key === 'ArrowUp') {
               e.preventDefault();
-              if (onExport) configRef.current?.focus();
+              if (onExport && configRef.current) configRef.current.focus();
               else movePrev(fields.length);
             }
           }}

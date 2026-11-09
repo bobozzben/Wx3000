@@ -48,6 +48,8 @@
   - 統一發票申購地點、連絡人與購買地址（支援 `F2` 台灣地址智慧快選）`<FoxProGridV2 />` 維護、`FoxProPrintModal` 列印與 DBF (`place.dbf`) 雙向同步。
 - 📌 [wbase3020 發票購買申購維護與預購表列印規格 (`docs/frontend/wbase/wbase3020/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase3020/SPEC.md)
   - 包含期別條件開窗 (`wbase3020_01`)、8 大發票本數整頁批次盲打 (`wbase3020_02`)、國稅局申購媒體檔輸出、發票預購表列印與 Excel 動態欄位匯出 (`wbase3020_buyinv_print`)，以及 DBF (`buyinv.dbf`) 雙向同步。
+- 📌 [wbase3025 原媒體轉檔 / 網路申購轉檔規格 (`docs/frontend/wbase/wbase3025/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase3025/SPEC.md)
+  - 3-4-1 / 3-4-2：以 `FoxProPrintModalv2` 輸入期別、轉檔依據 (地址縣市 / 購買地點)、記帳業者ＩＤ等條件，後端依台北市 / 高雄市 / 台灣省格式 (VFP `basefunc.prg`) 產生 Big5 轉檔內容，`F7` 預覽轉出清單、`F8` 下載檔案。
 - 📌 [wbase3050 統購發票清單列印與單價設定規格 (`docs/frontend/wbase/wbase3050/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase3050/SPEC.md)
   - 包含統購發票清單列印 (`wbase3050_buylist_print`，支援 A4 發票清單與中一刀發票領取簽收單 `wbase350_buyinv_list`)、8 種發票工本費單價設定 (`wbase3050_buyinv_setamt`) 與 Excel 動態欄位匯出。
 - 📌 [wbase3060 統購發票字軌輸入與 Excel 匯入規格 (`docs/frontend/wbase/wbase3060/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase3060/SPEC.md)

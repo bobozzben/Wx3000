@@ -76,6 +76,7 @@ backend/
     ├── Wbase2050Controller.cs           # 總分支機構設定 API (/api/wbase2050)
     ├── Wbase3010Controller.cs           # 購票地點維護 API (/api/wbase3010)
     ├── Wbase3020Controller.cs           # 預購統一發票輸入、公司資料轉入與預購表列印查詢 API (/api/wbase3020)
+    ├── Wbase3025Controller.cs           # 3-4 原媒體轉檔 / 網路申購轉檔：三種縣市格式的 Big5 轉檔內容 (/api/wbase3025)
     ├── Wbase3050Controller.cs           # 統購發票清單列印與單價設定 API (/api/wbase3050)
     ├── Wbase3060Controller.cs           # 統購發票字軌維護與 Excel 匯入 API (/api/wbase3060)
     ├── Wbase4010Controller.cs           # 標準 / 營造 / 建設 / 文教 / 社會 / 衛福會計科目維護 API (/api/wbase4010)
@@ -110,6 +111,7 @@ PostgreSQL Table 名稱與 DBF 檔名相同；`同步 keyFields` 是呼叫 `Ensu
 | `wbase2050` | ADO + DTO (`Wbase2050Models.cs`) | `<Drive>:\w3000\comm\customer.dbf` | `<drive>:/w3000/comm` | `customer` | 同步不設唯一鍵；寫入以 `RECNO(),no` 定位，找不到再用 `no` |
 | `wbase3010` | `TicketPlaceMaster` | `<Drive>:\w3000\comm\place.dbf` | `<drive>:/w3000/comm` | `place` | `no` |
 | `wbase3020` / `3060` | `InvoicePurchaseMaster` | `<Drive>:\w3000\comm\buyinv.dbf` | `<drive>:/w3000/comm` | `buyinv` | 同步以 `_record_number` (3020 的 `/print` 以 `yymm,times,no`)；寫入以 `RECNO(),yymm,times,no` 定位；3060 Excel 轉入另同步 `customer` (以 `no`) 查客戶代號，新列以 `yymm,times,no[,buydate]` 做 DBF 重複檢查後 `INSERT` |
+| `wbase3025` | ADO + DTO (`Wbase3025Models.cs`) | `buyinv.dbf`、`customer.dbf`、`place.dbf`、`base.dbf`、`pub_para.dbf` | `<drive>:/w3000/comm` | 同 DBF 名稱 | 同步：`buyinv` 以 `_record_number`、`customer` / `place` 以 `no`、`base` / `pub_para` 不設唯一鍵；只讀不寫，轉檔內容以 Base64 回前端下載 |
 | `wbase3050` | `InvoicePurchaseMaster` | `<Drive>:\w3000\comm\buyinv.dbf` | `<drive>:/w3000/comm` | `buyinv` | 同步以 `yymm,times,no`；單價設定存於 PostgreSQL `參數設定` 表 (`SystemParamService`)，不寫 DBF |
 | `wbase4010` | ADO + `AccountMaster` | `<Drive>:\w3000\comm\xmaster.dbf` ~ `xmaster6.dbf` (依 `mode` 1~6) | `<drive>:/w3000/comm` | `xmaster` ~ `xmaster6` | `accno`；`/ref` 與 `/batch-copy` 直接讀 `<Drive>:\w3000\ref\80\xmaster*.dbf` 範本 |
 | `wbase4020` | ADO + DTO (`Wbase4020Models.cs`) | `customer.dbf`、`accpara.dbf`、`acc_st.dbf`、`descrip.dbf`、`xmaster.dbf`、`pub_para.dbf` | `<drive>:/w3000/comm` | 同 DBF 名稱 | 同步：`customer`、`accpara`、`descrip`、`pub_para` 不設唯一鍵，`acc_st` 以 `no`，`xmaster` 以 `accno`；寫入：`customer` 先以 `RECNO()` 失敗再用 `no`，`accpara` / `pub_para` 以 `RECNO()` = 1，`acc_st` 以 `no` (查無才新增)，`descrip` 以 `RECNO()` |
@@ -168,6 +170,7 @@ PostgreSQL Table 名稱與 DBF 檔名相同；`同步 keyFields` 是呼叫 `Ensu
 | **總分支機構 (`2050`)** | `GET` / `PUT` / `DELETE` | `/api/wbase2050` | `GET headquarters`、`PUT headquarters/{no}`、`GET headquarters/{no}/branches`、`PUT headquarters/{no}/branches` (整批存檔、逐列回報)、`DELETE headquarters/{no}/branches/{branchNo}`、`GET customers` (`?keyword=`) |
 | **購票地點 (`3010`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase3010` | `GET` 清單 (`?keyword=`)、`GET {placeCode}`、`POST`、`PUT {placeCode}`、`DELETE {placeCode}`、`POST batch-save`、`POST print`、`GET print-preview?codeStart=&codeEnd=`；對應 `place.dbf` |
 | **發票預購 (`3020`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase3020` | `GET` 清單 (`?period=&times=&keyword=`)、`GET {period}/{times}/{companyCode}`、`POST`、`PUT` (以 body 定位)、`PUT {period}/{times}/{companyCode}`、`DELETE {period}/{times}/{companyCode}`、`POST batch-save`、`POST transfer-company-data` (把客戶資料轉入指定期別，只新增尚未存在者)、`POST buyinv-print-query`、`POST print` |
+| **媒體 / 網路申購轉檔 (`3025`)** | `GET` / `POST` | `/api/wbase3025` | `GET defaults` 最近一期、`pub_para.buycity` 與事務所資料 (`base`)；`POST transfer` (`{ mode: media|net, year, startMonth, endMonth, filterBy, city, placeNo, agentId, sortBy, format, withOffice }`) 依台北市 / 高雄市 / 台灣省格式產生轉檔內容，回 `{ fileName, contentBase64 (Big5), padded, rows, errors, totals, message }`，預覽與下載共用；檢核字句同 VFP `wbase3025.f8.Click` |
 | **發票清單 (`3050`)** | `POST` / `GET` | `/api/wbase3050` | `POST query` 統購清單查詢、`GET`/`POST prices` 發票工本費單價讀寫 |
 | **發票字軌 (`3060`)** | `GET` / `PUT` / `POST` | `/api/wbase3060` | `GET` 字軌與起迄號清單 (`?period=&times=&sortOrder=&keyword=`)、`PUT batch` 單筆或批次更新、`POST import-track` 轉入前端解析的網路購買 / 代售點購買 Excel (每筆為公司 × 發票種類：統編、稅籍、購買日期、`kind`、本數、字軌、起迄號；以統編 + 稅籍對應當期紀錄或客戶，每家每期只一列，Excel 空白不覆蓋，找不到客戶的列回報於 `unmatched`)、`GET doc-image/{tgo01|tgo02}` 讀 `<Drive>:\W3000\doc\*.jpg` 格式預覽圖、`POST clear` 清除指定期別與次數的字軌 |
 | **會計科目 (`4010`)** | `GET` / `POST` / `PUT` / `DELETE` | `/api/wbase4010` | `GET` 清單 (`?mode=1..6&keyword=`)、`GET {accno}`、`GET ref` 範本總帳科目、`POST`、`PUT {accno}`、`DELETE {accno}`、`POST batch-copy` 從範本複製；`mode` 1~6 對應 `xmaster` ~ `xmaster6` |

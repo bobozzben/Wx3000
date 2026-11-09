@@ -21,6 +21,20 @@ export const validMonth = (v: string): string | null => {
   return m >= 1 && m <= 12 ? null : '請輸入1至12 月份!';
 };
 
+/** 民國年度不可空白且不可小於 34 (VFP CompareYear100(yy, "<", 34)：年度輸入不正確) */
+export const validRocYear = (v: string): string | null => {
+  const t = v.trim();
+  if (t === '') return '年度不可空白!';
+  return /^\d{1,3}$/.test(t) && Number(t) >= 34 ? null : '年度輸入不正確!';
+};
+
+/** 起始月份須為奇數 (統購發票以雙月為一期，VFP「請輸入奇數月份!!」) */
+export const oddStartMonth = (v: string): string | null => {
+  const m = monthOf(v);
+  if (!(m >= 1 && m <= 12)) return '請輸入1至12 月份!';
+  return m % 2 === 1 ? null : '請輸入奇數月份!';
+};
+
 /** 結束月份：1~12 且不小於起始月份 (`startKey` 為起始月份欄位的 key) */
 export const validEndMonth =
   (startKey: string) =>

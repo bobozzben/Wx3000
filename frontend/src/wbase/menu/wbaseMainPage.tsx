@@ -19,6 +19,7 @@ import { Wbase2050Page } from '../wbase2050';
 import { Wbase3010Page } from '../wbase3010';
 import { Wbase3020Page } from '../wbase3020';
 import { Wbase3020_buyinv_print } from '../wbase3020/wbase3020_buyinv_print';
+import { Wbase3025_Media, Wbase3025_Net } from '../wbase3025';
 import { Wbase3050_buylist_print, Wbase3050_buyinv_setamt } from '../wbase3050';
 import { Wbase3060 } from '../wbase3060';
 import { Wbase4010Page } from '../wbase4010';
@@ -72,6 +73,10 @@ export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }
       setActiveModule('wbase3020');
     } else if (item.code === 'wbase3030' || item.code === 'wbase3020_buyinv_print') {
       setActiveModule('wbase3020_buyinv_print');
+    } else if (item.code === 'wbase3025' || item.code === 'wbase3041') {
+      setActiveModule('wbase3025');
+    } else if (item.code === 'wbase3025n' || item.code === 'wbase3042') {
+      setActiveModule('wbase3025n');
     } else if (item.code === 'wbase3050' || item.code === 'wbase3050_buylist_print') {
       setActiveModule('wbase3050_buylist_print');
     } else if (item.code === 'wbase3050_buyinv_setamt') {
@@ -241,6 +246,10 @@ export const WbaseMainPage: React.FC<WbaseMainPageProps> = ({ onBackToMainMenu }
             <Wbase3020Page onBackToMenu={() => setActiveModule(null)} />
           ) : activeModule === 'wbase3020_buyinv_print' ? (
             <Wbase3020_buyinv_print onClose={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase3025' ? (
+            <Wbase3025_Media onClose={() => setActiveModule(null)} />
+          ) : activeModule === 'wbase3025n' ? (
+            <Wbase3025_Net onClose={() => setActiveModule(null)} />
           ) : activeModule === 'wbase3050' || activeModule === 'wbase3050_buylist_print' ? (
             <Wbase3050_buylist_print onClose={() => setActiveModule(null)} />
           ) : activeModule === 'wbase3050_buyinv_setamt' ? (
