@@ -31,6 +31,20 @@ namespace Wx3000.Backend.Controllers
         private string DbfPath => _configService.CurrentDbfPath;
         private string PgSchema => _configService.CurrentPgSchema;
 
+        /// <summary>
+        /// 第一段選擇的客戶代號：以單一陣列參數 <c>TRIM(c.no) = ANY(@selectedNos)</c> 篩選 (選幾千家也只有一個參數)。
+        /// 沒有傳入時不篩選。
+        /// </summary>
+        private static void AddSelectedNosCondition(System.Data.Common.DbCommand cmd, List<string> conditions, List<string>? selectedNos)
+        {
+            if (selectedNos == null || selectedNos.Count == 0) return;
+            var p = cmd.CreateParameter();
+            p.ParameterName = "@selectedNos";
+            p.Value = selectedNos.Select(n => (n ?? string.Empty).Trim()).ToArray();
+            cmd.Parameters.Add(p);
+            conditions.Add(@"TRIM(c.""no"") = ANY(@selectedNos)");
+        }
+
         private static string GetOrgaName(string? orga)
         {
             var code = orga?.Trim() ?? "";
@@ -145,20 +159,7 @@ namespace Wx3000.Backend.Controllers
                     cmd.Parameters.Add(p);
                 }
 
-                if (query.SelectedNos != null && query.SelectedNos.Count > 0)
-                {
-                    var paramNames = new List<string>();
-                    for (int i = 0; i < query.SelectedNos.Count; i++)
-                    {
-                        var pName = $"@sel{i}";
-                        paramNames.Add(pName);
-                        var p = cmd.CreateParameter();
-                        p.ParameterName = pName;
-                        p.Value = query.SelectedNos[i].Trim();
-                        cmd.Parameters.Add(p);
-                    }
-                    conditions.Add($@"TRIM(c.""no"") IN ({string.Join(",", paramNames)})");
-                }
+                AddSelectedNosCondition(cmd, conditions, query.SelectedNos);
 
                 var whereSql = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
 
@@ -410,6 +411,8 @@ namespace Wx3000.Backend.Controllers
                     cmd.Parameters.Add(p);
                 }
 
+                AddSelectedNosCondition(cmd, conditions, query.SelectedNos);
+
                 var whereSql = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
 
                 cmd.CommandText = $@"
@@ -480,6 +483,8 @@ namespace Wx3000.Backend.Controllers
                     p.Value = query.EndNo.Trim();
                     cmd.Parameters.Add(p);
                 }
+
+                AddSelectedNosCondition(cmd, conditions, query.SelectedNos);
 
                 var whereSql = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
 
@@ -552,6 +557,8 @@ namespace Wx3000.Backend.Controllers
                     p.Value = query.EndNo.Trim();
                     cmd.Parameters.Add(p);
                 }
+
+                AddSelectedNosCondition(cmd, conditions, query.SelectedNos);
 
                 var whereSql = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
 

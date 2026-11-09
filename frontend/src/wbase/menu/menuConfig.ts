@@ -162,17 +162,17 @@ export const WBASE_MENU_DATA: MenuItem[] = [
         children: [
           {
             id: 'm_341',
-            code: 'wbase3041',
+            code: 'wbase3025',
             title: '原媒體轉檔',
             hasChildren: false,
-            actionUrl: '/wbase/wbase3041',
+            actionUrl: '/wbase/wbase3025',
           },
           {
             id: 'm_342',
-            code: 'wbase3042',
+            code: 'wbase3025n',
             title: '網路申購轉檔',
             hasChildren: false,
-            actionUrl: '/wbase/wbase3042',
+            actionUrl: '/wbase/wbase3025n',
           },
         ],
       },
