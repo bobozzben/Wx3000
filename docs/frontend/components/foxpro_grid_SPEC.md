@@ -1,6 +1,6 @@
 # 規格書：FoxPro 鍵盤盲打前端共用組件庫規格
 
-> **組件名稱**：`FoxProGridV2`, `FoxProGridCard` (`useFoxProCardNavigation`), `FoxProGridBill`, `FoxProPrintModal`, `AddressSelectModal`, `SearchModal`, `FormUtilSelectXlsxFieldsList`, `WbasePageHeader`  
+> **組件名稱**：`FoxProGridV2`, `FoxProGridCard` (`useFoxProCardNavigation`), `FoxProGridBill`, `FoxProPrintModal`, `FoxProPrintModalv2` (`useFoxProPrintXlsxExport`), `AddressSelectModal`, `SearchModal`, `FormUtilSelectXlsxFieldsList`, `WbasePageHeader`  
 > **技術核心**：React 19 + TypeScript + Tailwind CSS (v4) + 自訂 Keyboard Traversal Hooks；AG Grid Community 只用於 `FoxProGridBill`，`FoxProGridV2` 與 `FoxProGridCard` 為自繪表格  
 > **檔案目錄**：`frontend/src/components/`
 
@@ -16,6 +16,9 @@ frontend/src/components/
 ├── FoxProGrid/
 │   ├── FoxProGridV2.tsx                  # [核心 1] 多列行內盲打維護表格 (支援雙層表頭、欄寬拖曳記憶、Big5 截斷、即時驗證、F2 輔助按鈕)
 │   ├── FoxProPrintModal.tsx              # [核心 2] 統一列印母版組件 (區間預覽、純淨紙張列印、Excel 動態欄位匯出；另匯出 FoxProDllPrintButton)
+│   ├── FoxProPrintModalv2.tsx            # 列印條件視窗母版 (VFP _form_print 條件表單：條件卡片、F7 列印、F8 匯出、Esc 離開)
+│   ├── useFoxProPrintXlsxExport.ts       # FoxProPrintModalv2 的 F8 匯出 Hook (查詢 → 欄位設定 → xlsx) 與 exportFieldsToXlsx
+│   ├── foxProPrintValidators.ts          # 列印條件常用檢核 (民國年、月份、起訖代號)
 │   ├── AddressSelectModal.tsx            # [核心 3] 台灣地址智慧快選視窗 (縣市/鄉鎮郵遞區號/路名資料庫 + 門牌速選鈕 + 半形轉全形)；未列入 index.ts，需直接 import
 │   ├── SearchModal.tsx                   # [共用] F2/F3 大型開窗模糊快查對話框
 │   ├── useFoxProKeyboard.ts              # AG Grid 鍵盤導覽 Hook (僅供 FoxProGridBill 使用)
@@ -103,6 +106,22 @@ frontend/src/components/
   - 使用模組：`wbase1020`、`1030`、`1050`、`1060`、`1070`、`3010`、`4010`、`5010`/`5030`/`5040`/`5050` 等。
 - **`<FormUtilSelectXlsxFieldsList />`**：單一欄位清單（選擇 / 欄位名稱 / 自訂匯出標題），可勾選匯出欄位、點選標題儲存格自訂匯出標題、調整欄位順序。設定以 `vFieldList` / `vCaptionList` / `vDisplayFormat` / `vColorList` 字串序列化 (`serializeXlsxConfigParams` / `parseXlsxConfigParams`)，持久化由呼叫端負責 (`FoxProPrintModal`，或 `SelectXlsxField/index.ts` 的 `useSelectXlsxExport` Hook，預設 key `common_xlsx_export_config`)。
   - 按鍵：`↑`/`↓` 移動、`Space` 切換勾選、`F3` 全選、`F4` 全不選、`F7` 搜尋、`F8` 預設值、`F9` 確定變更、`F11` 上移、`F12` 下移、`Esc` 放棄離開。
+
+### 5.1 `<FoxProPrintModalv2 />` 規格（列印條件視窗母版）
+
+對應 VFP `_form_print` 系列的「列印條件」表單，版面源自 `wbase3020_buyinv_print`。只負責條件輸入、檢核與按鍵；查詢、預覽 (可搭配 `<FoxProPrintModal showFilter={false} />`) 與匯出 (可搭配 `useFoxProPrintXlsxExport`) 由呼叫端處理。檔案：`FoxProGrid/FoxProPrintModalv2.tsx`、`FoxProGrid/useFoxProPrintXlsxExport.ts`、`FoxProGrid/foxProPrintValidators.ts` (三者都由 `FoxProGrid/index.ts` 匯出)。
+
+- **版面**：圓角視窗 (`max-w-2xl`，深淺色主題)：漸層標題列 (圖示 `icon`、`title`、黃色標籤 `badge` 預設「Enter/F7 列印」、小字 `formCode`、淺色 / 深色切換鈕、關閉鈕) → 摘要卡片 (`summary`) → 條件卡片 (`sections`) → 「匯出 xlsx 設定」卡片 (有 `onExport` 才顯示) → 訊息列 → 按鍵列「F7. 列印預覽」「F8. 匯出」「Esc. 離開」(文字可由 `printLabel`、`exportLabel`、`cancelLabel` 改)。
+- **顯示位置**：預設在所在區塊內置中 (`flex-1` 可捲動，適合放在 `WbasePageHeader` 下方取代整個畫面)；`overlay` 為 `true` 時改成蓋住整個畫面的半透明遮罩 (fixed，同 `wbase3020_buyinv_print`)。
+- **`sections: PrintConditionSection[]`**：每張卡片有 `title`、`icon` (lucide)、`fields`，文字欄卡片可加右側標籤 `badge`。焦點所在的卡片以黃色外框標示，右上角自動顯示提示 (`[←/→] 切換`、`[F2] 選單 / [Enter] 下一欄`、`[Enter] 下一欄`)。欄位兩種：
+  - `PrintOptionFieldDef` (`kind: 'options'`)：選項方塊 (`1. 選項` …，選中的有勾號)，`←`/`→`/`Space` 換選項、數字鍵 `1`~`n` 直接選，也可點選。值為選項的 `value` (數字)。
+  - `PrintTextFieldDef` (`kind: 'text'`)：同一張卡片的文字欄排成一列，可加 `prefix` / `suffix` (例如「年」「月」「~ 終止」)；`maxLength`、`digits` (只收數字)、`uppercase`、`widthClass`、`placeholder`；`validate(value, values)` 回傳錯誤訊息或 `null`，`Enter` 離開時檢核，錯誤時留在原欄並選取內容；`onF2` 有值時 `F2` 呼叫它開選單，選完由呼叫端更新 `values` 並設 `focusRequest={{ key }}` 把焦點帶回該欄。
+- **`values` / `onChange`**：受控元件，值是 `Record<string, string | number>`，key 對應欄位的 `key`。
+- **按鍵** (全部在 `window` 的 capture 階段處理；`active` 為 `false` 時不處理、按鈕停用)：`Enter`/`↓` 下一欄 (最後一欄之後到「匯出 xlsx 設定」，再到 F7 鈕；F7 鈕上 `Enter` 等於 `F7`)、`↑` 上一欄、`F7` 檢核全部欄位後呼叫 `onPrint`、`F8` 檢核後呼叫 `onExport`、`Esc` 呼叫 `onCancel`，其他功能鍵 (`F2` 除外) 一律 `preventDefault`。子視窗 (預覽、選單、欄位設定) 開啟或查詢中時，呼叫端要把 `active` 設為 `false`。
+- **訊息列**：欄位檢核錯誤優先顯示，否則顯示 `status` (`info` / `success` / `warning` / `error`)。
+- **`useFoxProPrintXlsxExport({ storageKey, fields, fileName, load, write? })`**：F8 匯出流程 — `load()` 取資料 → 查無資料時 `status` 為「查無符合資料，沒有匯出。」→ `configure` 為 `false` 時依 `localStorage[storageKey]` 的欄位設定直接匯出 (沒有設定時用 `fields` 的 `selected`)，為 `true` 時先開 `<FormUtilSelectXlsxFieldsList />`，`F9` 確定後儲存設定再匯出 → 成功時 `status` 為「已匯出 n 筆資料：檔名.xlsx」。設定在每次匯出時才讀 `localStorage`，`storageKey` 與 `FoxProPrintModal` 的 `xlsxStorageKey` 用同一個即可共用 (`FoxProPrintModal` 只在開啟時掛上才會每次重讀)。回傳 `{ configure, setConfigure, busy, status, setStatus, run, selectorOpen, selectorElement }`：把前四者與 `run` 接到 `FoxProPrintModalv2`，`busy || selectorOpen` 時 `active={false}`，畫面上放 `selectorElement`。寫檔預設 `exportFieldsToXlsx(data, fields, fileName, sheetName = '報表')` (只輸出 `selected` 欄、欄名用 `customTitle`，`seq` 欄輸出序號)，可用 `write` 換掉。
+- **`foxProPrintValidators.ts`**：`currentRocYear()` 今天的民國年 3 碼；`requireYear`「年度不可空白!」；`validMonth`「請輸入1至12 月份!」；`validEndMonth(startKey)` 再檢查「結束月份比起始月份小!」；`validEndCode(startKey, message)` 終止代號小於起始代號時回傳 `message`。
+- 使用模組：`wbase5010` 5-1 ~ 5-5 (第二段列印條件，見 `docs/frontend/wbase/wbase5010/SPEC.md`)。
 
 ---
 

@@ -11,15 +11,10 @@ import { fetchEmps } from '../../services/wbase1030';
 import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { Wbase50CustomerSelect } from './Wbase50CustomerSelect';
-import { Wbase50ConditionForm, type ConditionSection, type ConditionValues } from './Wbase50ConditionForm';
-import {
-  currentRocYear,
-  isCustomerChosen,
-  requireYear,
-  useWbase50Customers,
-  useWbase50XlsxExport,
-  validEndCode,
-} from './wbase50Shared';
+import { FoxProPrintModalv2, type PrintConditionSection, type PrintConditionValues } from '../../components/FoxProGrid/FoxProPrintModalv2';
+import { useFoxProPrintXlsxExport } from '../../components/FoxProGrid/useFoxProPrintXlsxExport';
+import { currentRocYear, requireYear, validEndCode } from '../../components/FoxProGrid/foxProPrintValidators';
+import { chosenSummary, isCustomerChosen, useWbase50Customers } from './wbase50Shared';
 
 interface Wbase5030KeyinStatsProps {
   onClose?: () => void;
@@ -59,7 +54,7 @@ export const Wbase5030_KeyinStats: React.FC<Wbase5030KeyinStatsProps> = ({ onClo
   const { isDark } = useTheme();
   const { rows, setRows, loading, error } = useWbase50Customers();
   const [phase, setPhase] = useState<'select' | 'condition'>('select');
-  const [values, setValues] = useState<ConditionValues>(() => ({ startKeyin: '', endKeyin: '', year: currentRocYear() }));
+  const [values, setValues] = useState<PrintConditionValues>(() => ({ startKeyin: '', endKeyin: '', year: currentRocYear() }));
   const [keyinSearch, setKeyinSearch] = useState<'startKeyin' | 'endKeyin' | null>(null);
   const [focusRequest, setFocusRequest] = useState<{ key: string } | null>(null);
 
@@ -79,7 +74,7 @@ export const Wbase5030_KeyinStats: React.FC<Wbase5030KeyinStatsProps> = ({ onClo
     else setPhase('condition');
   };
 
-  const sections: ConditionSection[] = [
+  const sections: PrintConditionSection[] = [
     {
       title: '登打人員範圍',
       icon: UserCheck,
@@ -125,7 +120,7 @@ export const Wbase5030_KeyinStats: React.FC<Wbase5030KeyinStatsProps> = ({ onClo
       selectedNos: chosenNos,
     });
 
-  const xlsx = useWbase50XlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_KEYIN_XLSX_FIELDS, fileName: () => fileName, load: query });
+  const xlsx = useFoxProPrintXlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_KEYIN_XLSX_FIELDS, fileName: () => fileName, load: query });
 
   const runQuery = async () => {
     setIsPrintLoading(true);
@@ -166,13 +161,13 @@ export const Wbase5030_KeyinStats: React.FC<Wbase5030KeyinStatsProps> = ({ onClo
           onExit={leaveSelect}
         />
       ) : (
-        <Wbase50ConditionForm
+        <FoxProPrintModalv2
           title="客戶登打統計表列印"
           formCode="VFP wbase5030 ‧ wbasemenu05cmd03"
           sections={sections}
           values={values}
           onChange={setValues}
-          chosenCount={chosenNos.length}
+          summary={chosenSummary(chosenNos.length)}
           active={!isPrintModalOpen && keyinSearch === null && !xlsx.busy && !xlsx.selectorOpen}
           onPrint={openPrint}
           onExport={() => void xlsx.run()}

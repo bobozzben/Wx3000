@@ -11,7 +11,7 @@
 - 📌 [wbase 系統主畫面與選單模組規格 (`docs/frontend/wbase/menu/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/menu/SPEC.md)
   - 包含奇勝資訊系統總入口 (`frontend/src/mainmenu/`)、三階動態樹狀/手風琴選單 (`100` - `A00` 分類)、純鍵盤盲打導覽 (`↑↓←→`, `Enter`, `Esc`, 數字/字母鍵)、深色與淺藍色主題 (`Dark` / `Light-Blue`) 切換，以及所有已掛載子模組路由。
 - 📌 [FoxPro 鍵盤盲打共用組件庫規格 (`docs/frontend/components/foxpro_grid_SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/components/foxpro_grid_SPEC.md)
-  - 包含 `<FoxProGridV2 />`（多列行內盲打+欄寬記憶+欄位驗證）、`<FoxProGridCard />` + `useFoxProCardNavigation`（主檔清單卡片+母版表單導覽 Hook）、`<FoxProGridBill />`（單據明細盲打）、`<FoxProPrintModal />`（統一列印與 Excel 匯出母版）、`<AddressSelectModal />`（台灣地址智慧快選視窗）、`<WbasePageHeader />` 與 `<FormUtilSelectXlsxFieldsList />`。
+  - 包含 `<FoxProGridV2 />`（多列行內盲打+欄寬記憶+欄位驗證）、`<FoxProGridCard />` + `useFoxProCardNavigation`（主檔清單卡片+母版表單導覽 Hook）、`<FoxProGridBill />`（單據明細盲打）、`<FoxProPrintModal />`（統一列印與 Excel 匯出母版）、`<FoxProPrintModalv2 />`（列印條件視窗母版，F7 列印 / F8 匯出）、`<AddressSelectModal />`（台灣地址智慧快選視窗）、`<WbasePageHeader />` 與 `<FormUtilSelectXlsxFieldsList />`。
 
 ---
 

@@ -6,8 +6,9 @@ import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { MessageDialog, type MessageState } from '../wbase2030/Wbase2030Dialogs';
 import { Wbase50CustomerSelect } from './Wbase50CustomerSelect';
-import { Wbase50ConditionForm, type ConditionSection, type ConditionValues } from './Wbase50ConditionForm';
-import { isCustomerChosen, toCopies, useWbase50Customers, useWbase50XlsxExport } from './wbase50Shared';
+import { FoxProPrintModalv2, type PrintConditionSection, type PrintConditionValues } from '../../components/FoxProGrid/FoxProPrintModalv2';
+import { useFoxProPrintXlsxExport } from '../../components/FoxProGrid/useFoxProPrintXlsxExport';
+import { chosenSummary, isCustomerChosen, toCopies, useWbase50Customers } from './wbase50Shared';
 
 interface Wbase5020LabelPrintProps {
   onClose?: () => void;
@@ -27,14 +28,14 @@ const DEFAULT_LABEL_XLSX_FIELDS: XlsxFieldItem[] = [
 /** 名冊匯出欄位設定 (第二段 F8) */
 const XLSX_STORAGE_KEY = 'wbase5020_xlsx_export_config';
 
-const option = (key: string, title: string, icon: ConditionSection['icon'], labels: string[]): ConditionSection => ({
+const option = (key: string, title: string, icon: PrintConditionSection['icon'], labels: string[]): PrintConditionSection => ({
   title,
   icon,
   fields: [{ kind: 'options', key, label: title, options: labels.map((label, i) => ({ value: i + 1, label })) }],
 });
 
 /** VFP wbase2012 的四組選項 (依 TabIndex 順序：lab、lty、k_add、pname) */
-const SECTIONS: ConditionSection[] = [
+const SECTIONS: PrintConditionSection[] = [
   option('labelType', '標籤種類', Tag, ['磁片標籤', '郵遞標籤']),
   option('layoutType', '列印樣式', LayoutGrid, ['橫式 (2 欄)', '直式 (3 欄)']),
   option('addrType', '列印地址', MapPin, ['公司地址', '聯絡地址']),
@@ -51,7 +52,7 @@ export const Wbase5020_LabelPrint: React.FC<Wbase5020LabelPrintProps> = ({ onClo
   const { rows, setRows, loading, error } = useWbase50Customers();
   const [phase, setPhase] = useState<'select' | 'condition'>('select');
   // VFP wbase2012.Init：lab=1、lty=1、k_add=1、pname=2
-  const [values, setValues] = useState<ConditionValues>({ labelType: 1, layoutType: 1, addrType: 1, recipientType: 2 });
+  const [values, setValues] = useState<PrintConditionValues>({ labelType: 1, layoutType: 1, addrType: 1, recipientType: 2 });
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState<MessageState | null>(null);
 
@@ -66,7 +67,7 @@ export const Wbase5020_LabelPrint: React.FC<Wbase5020LabelPrintProps> = ({ onClo
   const recipientType = Number(values.recipientType);
 
   /** F8 匯出名冊：份數大於 0 的客戶 (不必查詢) */
-  const xlsx = useWbase50XlsxExport({
+  const xlsx = useFoxProPrintXlsxExport({
     storageKey: XLSX_STORAGE_KEY,
     fields: DEFAULT_LABEL_XLSX_FIELDS,
     fileName: () => '郵寄標籤列印名冊',
@@ -156,14 +157,13 @@ export const Wbase5020_LabelPrint: React.FC<Wbase5020LabelPrintProps> = ({ onClo
           onExit={leaveSelect}
         />
       ) : (
-        <Wbase50ConditionForm
+        <FoxProPrintModalv2
           title="郵寄標籤列印"
           formCode="VFP wbase2012 ‧ wbasemenu05cmd02"
           sections={SECTIONS}
           values={values}
           onChange={setValues}
-          chosenCount={chosen.length}
-          chosenNote={`共 ${totalCopies} 張標籤`}
+          summary={chosenSummary(chosen.length, `共 ${totalCopies} 張標籤`)}
           active={!isLabelPreviewOpen && !generating && message === null && !xlsx.busy && !xlsx.selectorOpen}
           printLabel="F7. 標籤列印"
           onPrint={() => {

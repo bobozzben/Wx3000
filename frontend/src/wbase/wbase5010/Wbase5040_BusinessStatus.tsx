@@ -9,16 +9,10 @@ import { FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxPr
 import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { Wbase50CustomerSelect } from './Wbase50CustomerSelect';
-import { Wbase50ConditionForm, type ConditionSection, type ConditionValues } from './Wbase50ConditionForm';
-import {
-  currentRocYear,
-  isCustomerChosen,
-  requireYear,
-  useWbase50Customers,
-  useWbase50XlsxExport,
-  validEndMonth,
-  validMonth,
-} from './wbase50Shared';
+import { FoxProPrintModalv2, type PrintConditionSection, type PrintConditionValues } from '../../components/FoxProGrid/FoxProPrintModalv2';
+import { useFoxProPrintXlsxExport } from '../../components/FoxProGrid/useFoxProPrintXlsxExport';
+import { currentRocYear, requireYear, validEndMonth, validMonth } from '../../components/FoxProGrid/foxProPrintValidators';
+import { chosenSummary, isCustomerChosen, useWbase50Customers } from './wbase50Shared';
 
 interface Wbase5040BusinessStatusProps {
   onClose?: () => void;
@@ -69,7 +63,7 @@ export const Wbase5040_BusinessStatus: React.FC<Wbase5040BusinessStatusProps> = 
   const { isDark } = useTheme();
   const { rows, setRows, loading, error } = useWbase50Customers();
   const [phase, setPhase] = useState<'select' | 'condition'>('select');
-  const [values, setValues] = useState<ConditionValues>(() => ({ year: currentRocYear(), startMonth: '01', endMonth: '12' }));
+  const [values, setValues] = useState<PrintConditionValues>(() => ({ year: currentRocYear(), startMonth: '01', endMonth: '12' }));
 
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [dataList, setDataList] = useState<BusinessStatusItem[]>([]);
@@ -83,7 +77,7 @@ export const Wbase5040_BusinessStatus: React.FC<Wbase5040BusinessStatusProps> = 
   const fileName = `客戶營業狀況統計表_${year}年_${startMonth}-${endMonth}月`;
 
   /** VFP wbase5040 (客戶起訖編號改由第一段選擇客戶決定)：資料年度、營業起始月份、結束月份 */
-  const sections: ConditionSection[] = [
+  const sections: PrintConditionSection[] = [
     {
       title: '資料年度與營業月份',
       icon: Calendar,
@@ -113,7 +107,7 @@ export const Wbase5040_BusinessStatus: React.FC<Wbase5040BusinessStatusProps> = 
 
   const query = () => queryBusinessStatus({ year, startMonth, endMonth, selectedNos: chosenNos });
 
-  const xlsx = useWbase50XlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_BUSINESS_XLSX_FIELDS, fileName: () => fileName, load: query });
+  const xlsx = useFoxProPrintXlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_BUSINESS_XLSX_FIELDS, fileName: () => fileName, load: query });
 
   const runQuery = async () => {
     setIsPrintLoading(true);
@@ -148,13 +142,13 @@ export const Wbase5040_BusinessStatus: React.FC<Wbase5040BusinessStatusProps> = 
           onExit={leaveSelect}
         />
       ) : (
-        <Wbase50ConditionForm
+        <FoxProPrintModalv2
           title="客戶營業狀況統計表列印"
           formCode="VFP wbase5040 ‧ wbasemenu05cmd04"
           sections={sections}
           values={values}
           onChange={setValues}
-          chosenCount={chosenNos.length}
+          summary={chosenSummary(chosenNos.length)}
           active={!isPrintModalOpen && !xlsx.busy && !xlsx.selectorOpen}
           onPrint={openPrint}
           onExport={() => void xlsx.run()}

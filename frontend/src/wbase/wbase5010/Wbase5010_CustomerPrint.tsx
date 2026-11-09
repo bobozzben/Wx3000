@@ -9,8 +9,9 @@ import { FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxPr
 import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { Wbase50CustomerSelect } from './Wbase50CustomerSelect';
-import { isCustomerChosen, useWbase50Customers, useWbase50XlsxExport } from './wbase50Shared';
-import { Wbase50ConditionForm, type ConditionSection, type ConditionValues } from './Wbase50ConditionForm';
+import { useFoxProPrintXlsxExport } from '../../components/FoxProGrid/useFoxProPrintXlsxExport';
+import { chosenSummary, isCustomerChosen, useWbase50Customers } from './wbase50Shared';
+import { FoxProPrintModalv2, type PrintConditionSection, type PrintConditionValues } from '../../components/FoxProGrid/FoxProPrintModalv2';
 
 interface Wbase5010CustomerPrintProps {
   onClose?: () => void;
@@ -41,7 +42,7 @@ const DEFAULT_XLSX_FIELDS: XlsxFieldItem[] = [
 ];
 
 /** VFP wbase2011 的四組選項 (依 TabIndex 順序：ordertype、mtype、opaddr、Optiongroup1) */
-const SECTIONS: ConditionSection[] = [
+const SECTIONS: PrintConditionSection[] = [
   {
     title: '排列順序',
     icon: ListOrdered,
@@ -115,7 +116,7 @@ export const Wbase5010_CustomerPrint: React.FC<Wbase5010CustomerPrintProps> = ({
   const { isDark } = useTheme();
   const { rows, setRows, loading, error } = useWbase50Customers();
   const [phase, setPhase] = useState<'select' | 'condition'>('select');
-  const [values, setValues] = useState<ConditionValues>({ orderType: 1, reportType: 1, addrType: 1, groupType: 1 });
+  const [values, setValues] = useState<PrintConditionValues>({ orderType: 1, reportType: 1, addrType: 1, groupType: 1 });
 
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printData, setPrintData] = useState<CustomerPrintItem[]>([]);
@@ -144,7 +145,7 @@ export const Wbase5010_CustomerPrint: React.FC<Wbase5010CustomerPrintProps> = ({
       selectedNos: chosenNos,
     });
 
-  const xlsx = useWbase50XlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_XLSX_FIELDS, fileName: () => fileName, load: query });
+  const xlsx = useFoxProPrintXlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_XLSX_FIELDS, fileName: () => fileName, load: query });
 
   const runQuery = async () => {
     setIsPrintLoading(true);
@@ -196,13 +197,13 @@ export const Wbase5010_CustomerPrint: React.FC<Wbase5010CustomerPrintProps> = ({
           onExit={leaveSelect}
         />
       ) : (
-        <Wbase50ConditionForm
+        <FoxProPrintModalv2
           title="客戶資料列印"
           formCode="VFP wbase2011 ‧ wbasemenu05cmd01"
           sections={SECTIONS}
           values={values}
           onChange={setValues}
-          chosenCount={chosenNos.length}
+          summary={chosenSummary(chosenNos.length)}
           active={!isPrintModalOpen && !xlsx.busy && !xlsx.selectorOpen}
           onPrint={openPrint}
           onExport={() => void xlsx.run()}

@@ -9,8 +9,10 @@ import { FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxPr
 import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { Wbase50CustomerSelect } from './Wbase50CustomerSelect';
-import { Wbase50ConditionForm, type ConditionSection, type ConditionValues } from './Wbase50ConditionForm';
-import { currentRocYear, isCustomerChosen, requireYear, useWbase50Customers, useWbase50XlsxExport } from './wbase50Shared';
+import { FoxProPrintModalv2, type PrintConditionSection, type PrintConditionValues } from '../../components/FoxProGrid/FoxProPrintModalv2';
+import { useFoxProPrintXlsxExport } from '../../components/FoxProGrid/useFoxProPrintXlsxExport';
+import { currentRocYear, requireYear } from '../../components/FoxProGrid/foxProPrintValidators';
+import { chosenSummary, isCustomerChosen, useWbase50Customers } from './wbase50Shared';
 
 interface Wbase5050FinanceStatusProps {
   onClose?: () => void;
@@ -56,7 +58,7 @@ export const Wbase5050_FinanceStatus: React.FC<Wbase5050FinanceStatusProps> = ({
   const { isDark } = useTheme();
   const { rows, setRows, loading, error } = useWbase50Customers();
   const [phase, setPhase] = useState<'select' | 'condition'>('select');
-  const [values, setValues] = useState<ConditionValues>(() => ({ year: currentRocYear() }));
+  const [values, setValues] = useState<PrintConditionValues>(() => ({ year: currentRocYear() }));
 
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [dataList, setDataList] = useState<FinanceStatusItem[]>([]);
@@ -68,7 +70,7 @@ export const Wbase5050_FinanceStatus: React.FC<Wbase5050FinanceStatusProps> = ({
   const fileName = `客戶財務狀況參考表_${year}年度`;
 
   /** VFP wbase5050 (客戶起訖編號改由第一段選擇客戶決定)：列印結算年度 */
-  const sections: ConditionSection[] = [
+  const sections: PrintConditionSection[] = [
     {
       title: '列印結算年度',
       icon: Calendar,
@@ -84,7 +86,7 @@ export const Wbase5050_FinanceStatus: React.FC<Wbase5050FinanceStatusProps> = ({
 
   const query = () => queryFinanceStatus({ year, selectedNos: chosenNos });
 
-  const xlsx = useWbase50XlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_FINANCE_XLSX_FIELDS, fileName: () => fileName, load: query });
+  const xlsx = useFoxProPrintXlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_FINANCE_XLSX_FIELDS, fileName: () => fileName, load: query });
 
   const runQuery = async () => {
     setIsPrintLoading(true);
@@ -119,13 +121,13 @@ export const Wbase5050_FinanceStatus: React.FC<Wbase5050FinanceStatusProps> = ({
           onExit={leaveSelect}
         />
       ) : (
-        <Wbase50ConditionForm
+        <FoxProPrintModalv2
           title="客戶財務狀況參考表列印"
           formCode="VFP wbase5050 ‧ wbasemenu05cmd05"
           sections={sections}
           values={values}
           onChange={setValues}
-          chosenCount={chosenNos.length}
+          summary={chosenSummary(chosenNos.length)}
           active={!isPrintModalOpen && !xlsx.busy && !xlsx.selectorOpen}
           onPrint={openPrint}
           onExport={() => void xlsx.run()}
