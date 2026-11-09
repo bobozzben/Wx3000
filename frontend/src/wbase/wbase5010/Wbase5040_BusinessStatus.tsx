@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Calendar } from 'lucide-react';
 import {
   queryBusinessStatus,
   exportReportToXlsx,
@@ -8,12 +9,23 @@ import { FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxPr
 import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { Wbase50CustomerSelect } from './Wbase50CustomerSelect';
-import { Wbase50ConditionForm, type ConditionFieldDef, type ConditionValues } from './Wbase50ConditionForm';
-import { currentRocYear, isCustomerChosen, requireYear, useWbase50Customers, validEndMonth, validMonth } from './wbase50Shared';
+import { Wbase50ConditionForm, type ConditionSection, type ConditionValues } from './Wbase50ConditionForm';
+import {
+  currentRocYear,
+  isCustomerChosen,
+  requireYear,
+  useWbase50Customers,
+  useWbase50XlsxExport,
+  validEndMonth,
+  validMonth,
+} from './wbase50Shared';
 
 interface Wbase5040BusinessStatusProps {
   onClose?: () => void;
 }
+
+/** 匯出欄位設定 (第二段 F8 與列印預覽共用) */
+const XLSX_STORAGE_KEY = 'wbase5040_xlsx_export_config';
 
 const DEFAULT_BUSINESS_XLSX_FIELDS: XlsxFieldItem[] = [
   { key: 'no', label: '客戶代號', customTitle: '代號', selected: true },
@@ -47,18 +59,11 @@ const printColumns: FoxProPrintColumn<BusinessStatusItem>[] = [
   { key: 'addr', label: '地址', width: '260px' },
 ];
 
-/** VFP wbase5040 (客戶起訖編號改由第一段選擇客戶決定)：資料年度、營業起始月份、結束月份 */
-const FIELDS: ConditionFieldDef[] = [
-  { kind: 'text', key: 'year', label: '資料年度：', maxLength: 3, digits: true, widthClass: 'w-20', validate: requireYear },
-  { kind: 'text', key: 'startMonth', label: '營業起始月份：', maxLength: 2, digits: true, widthClass: 'w-16', validate: validMonth },
-  { kind: 'text', key: 'endMonth', label: '結束月份：', maxLength: 2, digits: true, widthClass: 'w-16', validate: validEndMonth('startMonth') },
-];
-
 const pad2 = (v: string) => v.trim().padStart(2, '0');
 
 /**
  * 5-4 客戶營業狀況表 (VFP base50.prg wbasemenu05cmd04 → wbase5040)。
- * 第一段選擇客戶，第二段輸入資料年度與營業月份區間，F7 查詢並開列印預覽。
+ * 第一段選擇客戶，第二段輸入資料年度與營業月份區間，F7 查詢並開列印預覽、F8 直接匯出 Excel。
  */
 export const Wbase5040_BusinessStatus: React.FC<Wbase5040BusinessStatusProps> = ({ onClose }) => {
   const { isDark } = useTheme();
@@ -75,18 +80,46 @@ export const Wbase5040_BusinessStatus: React.FC<Wbase5040BusinessStatusProps> = 
   const year = String(values.year).trim();
   const startMonth = pad2(String(values.startMonth));
   const endMonth = pad2(String(values.endMonth));
+  const fileName = `客戶營業狀況統計表_${year}年_${startMonth}-${endMonth}月`;
+
+  /** VFP wbase5040 (客戶起訖編號改由第一段選擇客戶決定)：資料年度、營業起始月份、結束月份 */
+  const sections: ConditionSection[] = [
+    {
+      title: '資料年度與營業月份',
+      icon: Calendar,
+      badge: `${year || '---'}${startMonth}-${endMonth}`,
+      fields: [
+        { kind: 'text', key: 'year', label: '資料年度', suffix: '年', maxLength: 3, digits: true, validate: requireYear },
+        { kind: 'text', key: 'startMonth', label: '營業起始月份', maxLength: 2, digits: true, widthClass: 'w-16', validate: validMonth },
+        {
+          kind: 'text',
+          key: 'endMonth',
+          label: '結束月份',
+          prefix: '-',
+          suffix: '月',
+          maxLength: 2,
+          digits: true,
+          widthClass: 'w-16',
+          validate: validEndMonth('startMonth'),
+        },
+      ],
+    },
+  ];
 
   const leaveSelect = () => {
     if (chosenNos.length === 0) onClose?.();
     else setPhase('condition');
   };
 
+  const query = () => queryBusinessStatus({ year, startMonth, endMonth, selectedNos: chosenNos });
+
+  const xlsx = useWbase50XlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_BUSINESS_XLSX_FIELDS, fileName: () => fileName, load: query });
+
   const runQuery = async () => {
     setIsPrintLoading(true);
     setPrintError('');
     try {
-      const list = await queryBusinessStatus({ year, startMonth, endMonth, selectedNos: chosenNos });
-      setDataList(list);
+      setDataList(await query());
     } catch (err) {
       setDataList([]);
       setPrintError(err instanceof Error ? err.message : '查詢失敗');
@@ -96,11 +129,10 @@ export const Wbase5040_BusinessStatus: React.FC<Wbase5040BusinessStatusProps> = 
   };
 
   const openPrint = () => {
+    xlsx.setStatus(null);
     setIsPrintModalOpen(true);
     void runQuery();
   };
-
-  const fileName = `客戶營業狀況統計表_${year}年_${startMonth}-${endMonth}月`;
 
   return (
     <div className={`flex flex-col h-full font-mono select-none ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
@@ -118,41 +150,51 @@ export const Wbase5040_BusinessStatus: React.FC<Wbase5040BusinessStatusProps> = 
       ) : (
         <Wbase50ConditionForm
           title="客戶營業狀況統計表列印"
-          fields={FIELDS}
+          formCode="VFP wbase5040 ‧ wbasemenu05cmd04"
+          sections={sections}
           values={values}
           onChange={setValues}
           chosenCount={chosenNos.length}
-          active={!isPrintModalOpen}
+          active={!isPrintModalOpen && !xlsx.busy && !xlsx.selectorOpen}
           onPrint={openPrint}
+          onExport={() => void xlsx.run()}
+          exportConfigure={xlsx.configure}
+          onExportConfigureChange={xlsx.setConfigure}
+          status={xlsx.status}
           onCancel={() => onClose?.()}
         />
       )}
 
-      <FoxProPrintModal
-        isOpen={isPrintModalOpen}
-        onClose={() => setIsPrintModalOpen(false)}
-        title="5-4 客戶營業狀況統計表列印預覽"
-        subtitle={`已選擇 ${chosenNos.length} 家客戶`}
-        reportTitle={`客戶營業狀況統計表 (年度: ${year} 月份: ${startMonth} ~ ${endMonth})`}
-        reportSubtitle={`製表日期: ${new Date().toLocaleDateString('zh-TW')}  客戶: ${chosenNos.length} 家`}
-        showFilter={false}
-        startCodeValue=""
-        onStartCodeChange={() => {}}
-        endCodeValue=""
-        onEndCodeChange={() => {}}
-        onSearch={runQuery}
-        data={dataList}
-        columns={printColumns}
-        loading={isPrintLoading}
-        hasSearched={true}
-        emptyText={printError ? `⚠️ 查詢失敗：${printError}` : '⚠️ 查無符合資料'}
-        enableXlsxExport={true}
-        xlsxFields={DEFAULT_BUSINESS_XLSX_FIELDS}
-        xlsxFileName={fileName}
-        onExportXlsx={async (data, selectedFields) => {
-          return await exportReportToXlsx(data, selectedFields, fileName);
-        }}
-      />
+      {xlsx.selectorElement}
+
+      {isPrintModalOpen && (
+        <FoxProPrintModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          title="5-4 客戶營業狀況統計表列印預覽"
+          subtitle={`已選擇 ${chosenNos.length} 家客戶`}
+          reportTitle={`客戶營業狀況統計表 (年度: ${year} 月份: ${startMonth} ~ ${endMonth})`}
+          reportSubtitle={`製表日期: ${new Date().toLocaleDateString('zh-TW')}  客戶: ${chosenNos.length} 家`}
+          showFilter={false}
+          startCodeValue=""
+          onStartCodeChange={() => {}}
+          endCodeValue=""
+          onEndCodeChange={() => {}}
+          onSearch={runQuery}
+          data={dataList}
+          columns={printColumns}
+          loading={isPrintLoading}
+          hasSearched={true}
+          emptyText={printError ? `⚠️ 查詢失敗：${printError}` : '⚠️ 查無符合資料'}
+          enableXlsxExport={true}
+          xlsxFields={DEFAULT_BUSINESS_XLSX_FIELDS}
+          xlsxStorageKey={XLSX_STORAGE_KEY}
+          xlsxFileName={fileName}
+          onExportXlsx={async (data, selectedFields) => {
+            return await exportReportToXlsx(data, selectedFields, fileName);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -58,14 +58,25 @@
 
 ### 1.2 第二段：列印條件 (`Wbase50ConditionForm.tsx`)
 
-- 置中的條件視窗 (標題同 VFP 表單 Caption)，欄位分兩種：
-  - **選項欄** (VFP optiongroup)：`←`/`→`/`Space` 換選項，數字鍵 `1`~`n` 直接選第 n 個，也可點選。
-  - **文字欄** (VFP textbox)：只收數字或轉大寫依欄位而定；`Enter` 離開時檢核，錯誤時留在原欄並選取內容 (直接打字即覆蓋)；有選單的欄位按 `F2` 開選單。
-- `Enter`/`↓` 下一欄 (最後一欄到「F7 列印」鈕，再按 `Enter` 等於 `F7`)、`↑` 上一欄。下方顯示「已選擇 n 家客戶」與按鍵列 (`KeyHintBar`)。
-- **`F7`**：依序檢核所有文字欄，錯誤時停在該欄；通過後查詢並開預覽 (5-2 為產生標籤)。預覽關閉後回到條件視窗，可改條件再印 (VFP `_form_print` 同樣可重複列印)。
-- **`Esc`**：放棄，回主選單。預覽或選單開啟時條件視窗不處理 `F7`/`Esc`。
+- **版面比照 `wbase3020_buyinv_print`**：置中的圓角視窗 (`max-w-2xl`，深淺色主題都有)：
+  - 漸層標題列：印表機圖示、標題 (VFP 表單 Caption)、「Enter/F7 列印」標籤、VFP 表單與選單函數名稱 (`formCode`)、淺色 / 深色切換鈕、關閉鈕。
+  - 「列印對象」卡片：顯示「已選擇 n 家客戶」(5-2 另顯示「共 n 張標籤」)。
+  - 條件卡片 (`sections`：標題、圖示、欄位，右上角提示 `[←/→] 切換` 或 `[Enter] 下一欄`)；焦點所在的卡片以黃色外框標示。
+  - 「匯出 xlsx 設定」勾選卡片、訊息列 (欄位錯誤或查詢 / 匯出結果)、下方按鍵列「F7. 列印預覽」「F8. 匯出」「Esc. 離開」。
+- 欄位分兩種：
+  - **選項欄** (VFP optiongroup)：每個選項是一個方塊 (`1. 依客戶編號` …，選中的有勾號)；`←`/`→`/`Space` 換選項，數字鍵 `1`~`n` 直接選第 n 個，也可點選。
+  - **文字欄** (VFP textbox)：同一張卡片的文字欄排成一列，可加前後文字 (例如 5-4 的「`115` 年 `01` - `12` 月」，右側標籤顯示 `11501-12`)；只收數字或轉大寫依欄位而定；`Enter` 離開時檢核，錯誤時留在原欄並選取內容 (直接打字即覆蓋)，錯誤訊息顯示在訊息列；有選單的欄位按 `F2` 開選單。
+- `Enter`/`↓` 下一欄 (最後一欄之後到「匯出 xlsx 設定」，`Space` 勾選，再 `Enter` 到「F7. 列印預覽」鈕，再按 `Enter` 等於 `F7`)、`↑` 上一欄。
+- **`F7`**：依序檢核所有文字欄，錯誤時停在該欄；通過後查詢並開預覽 (5-2 為產生標籤)。預覽關閉後回到條件視窗，可改條件再印 (VFP `_form_print` 同樣可重複列印)。預覽 (`FoxProPrintModal`) 只在開啟時才掛上，每次開啟都重新讀取匯出欄位設定。
+- **`F8`** (比照 `wbase3020_buyinv_print` 的 F8 匯出；對應 VFP `_form_print` 的「Excel列印」)：同樣先檢核，再查詢資料 (`useWbase50XlsxExport`，`wbase50Shared.ts`)：
+  - 查無資料時訊息列顯示「查無符合資料，沒有匯出。」。
+  - 沒勾「匯出 xlsx 設定」：依已儲存的欄位設定直接匯出 (沒有設定時用各畫面的預設欄位)。
+  - 有勾：先開 `<FormUtilSelectXlsxFieldsList />`，`F9` 確定後儲存設定再匯出。
+  - 欄位設定存在 `localStorage`，與該畫面列印預覽的「匯出 Excel」共用同一個 key (`wbase5010_xlsx_export_config`、`wbase5020_xlsx_export_config`、`wbase5030_xlsx_export_config`、`wbase5040_xlsx_export_config`、`wbase5050_xlsx_export_config`)，設定在匯出當下才讀取。
+  - 成功時訊息列顯示「已匯出 n 筆資料：檔名.xlsx」。5-2 匯出的是份數大於 0 的客戶名冊 (`郵寄標籤列印名冊.xlsx`，不必查詢)。
+- **`Esc`**：放棄，回主選單。預覽、選單、欄位設定視窗開啟或匯出查詢中時，條件視窗不處理 `F7`/`F8`/`Esc`，按鈕也停用。
 - 共用檢核 (`wbase50Shared.ts`)：`requireYear`「年度不可空白!」、`validMonth`「請輸入1至12 月份!」(VFP `smonth.Valid` / `emonth.Valid` 寫成 `!(value>=1 OR value<=12)` 實際不會擋；照訊息原意限制 1~12，與 `wbase5070` 相同)、`validEndMonth`「結束月份比起始月份小!」、`validEndCode` (終止代號小於起始代號)。年度預設今天的民國年 3 碼 (`currentRocYear()`)。
-- VFP `_form_print` 的輸出方式 (`op1` 預覽 / 立即 / 指定 / Excel / PDF)、`F6` 設定印表機不移植；網頁版一律開預覽，由預覽視窗紙張列印或匯出 Excel。
+- VFP `_form_print` 的輸出方式 (`op1` 預覽 / 立即 / 指定 / Excel / PDF)、`F6` 設定印表機不移植；網頁版 `F7` 開預覽 (由預覽視窗紙張列印或匯出 Excel)，`F8` 直接匯出 Excel。
 
 ### 1.3 5-1 客戶資料列印 (`Wbase5010_CustomerPrint.tsx`)
 
@@ -198,13 +209,13 @@ VFP：`wbasemenu05cmd05` → `wbase5050` (客戶起訖改由第一段選擇客�
 | 按鍵 | 第一段 5-1、5-3 ~ 5-5 | 第一段 5-2 | 第二段 5-1 ~ 5-5 | 5-6 |
 | :--- | :--- | :--- | :--- | :--- |
 | `Enter` | 選擇 / 取消並移到下一列 | 編輯份數，完成後往下一列 | 下一欄 (最後一欄到 F7 鈕) | 編輯條文代號、說明 |
-| `Space` | 客戶區間 | 份數 0 / 1 切換並移到下一列 | 選項欄換選項 | 切換指標 |
+| `Space` | 客戶區間 | 份數 0 / 1 切換並移到下一列 | 選項欄換選項；「匯出 xlsx 設定」勾選 | 切換指標 |
 | `←` / `→` | - | - | 選項欄換選項 | - |
 | `F2` | 指定客戶 | - | 文字欄開選單 (5-3 登打人員) | - |
 | `F3` / `F4` | 全選 / 全不選 | 全部 1 份 / 全部 0 份 | - | `F4` 複製條文 |
 | `F6` | - | - | - | 以 Word 開啟委任書範本 |
 | `F7` | 查詢客戶 (只移動游標) | 查詢客戶 | 查詢並開預覽 (5-2 產生標籤) | 轉出 Word 委任書 (沒有 Word 時網頁預覽) |
-| `F8` | 客戶區間 | 客戶區間 (區間內 1 份) | - | - |
+| `F8` | 客戶區間 | 客戶區間 (區間內 1 份) | 直接匯出 Excel (5-2 匯出標籤名冊) | - |
 | `Ins` / `Del` | - | - | - | 新增 / 刪除條文 |
 | `Esc` | 有選擇進第二段，沒有回主選單 | 有份數進第二段，沒有回主選單 | 回主選單 | 回主選單 |
 
@@ -219,8 +230,8 @@ VFP：`wbasemenu05cmd05` → `wbase5050` (客戶起訖改由第一段選擇客�
 frontend/src/wbase/wbase5010/
 ├── index.tsx                      # Wbase5010Index：WbasePageHeader + 依 initialTab 顯示子頁 (不顯示頁籤)
 ├── Wbase50CustomerSelect.tsx      # 5-1 ~ 5-5 第一段選擇客戶 (select：VFP wbase4000；copies：VFP wbase201201)
-├── Wbase50ConditionForm.tsx       # 5-1 ~ 5-5 第二段列印條件 (選項欄、文字欄、F7 列印、Esc 放棄)
-├── wbase50Shared.ts               # useWbase50Customers、isCustomerChosen、toCopies、條件檢核 (年度、月份、起訖)
+├── Wbase50ConditionForm.tsx       # 5-1 ~ 5-5 第二段列印條件 (版面比照 wbase3020_buyinv_print；F7 預覽、F8 匯出、Esc 放棄)
+├── wbase50Shared.ts               # useWbase50Customers、useWbase50XlsxExport (F8 匯出)、isCustomerChosen、toCopies、條件檢核
 ├── Wbase5010_CustomerPrint.tsx    # 5-1 客戶資料列印 (條件 VFP wbase2011 + FoxProPrintModal)
 ├── Wbase5020_LabelPrint.tsx       # 5-2 郵寄標籤列印 (條件 VFP wbase2012 + 標籤排版預覽)
 ├── Wbase5030_KeyinStats.tsx       # 5-3 客戶登打統計表 (條件 VFP wbase5030，登打人員 F2 選單)
@@ -233,7 +244,7 @@ frontend/src/wbase/wbase5010/
 
 frontend/src/services/localagent.ts    # getOfficeStatus、openWordTemplate、mergeWordTemplate (LocalAgent /api/office/*)
                                        # 另沿用 wbase5070/Wbase5070RangeModal (客戶區間)、wbase2030/Wbase2030Dialogs (MessageDialog)、
-                                       # wbase2040/KeyHintBar、services/wbase1030 fetchEmps (5-3 登打人員選單)
+                                       # components/SelectXlsxField (F8 匯出欄位設定)、services/wbase1030 fetchEmps (5-3 登打人員選單)
 localagent/agent.js                    # WORD_TEMPLATES.bsdesc = wbase001.DOC 與 Word 套印腳本
 
 backend/

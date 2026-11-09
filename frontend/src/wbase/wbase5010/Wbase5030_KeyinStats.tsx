@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Calendar, UserCheck } from 'lucide-react';
 import {
   queryKeyinStats,
   exportReportToXlsx,
@@ -10,12 +11,22 @@ import { fetchEmps } from '../../services/wbase1030';
 import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { Wbase50CustomerSelect } from './Wbase50CustomerSelect';
-import { Wbase50ConditionForm, type ConditionFieldDef, type ConditionValues } from './Wbase50ConditionForm';
-import { currentRocYear, isCustomerChosen, requireYear, useWbase50Customers, validEndCode } from './wbase50Shared';
+import { Wbase50ConditionForm, type ConditionSection, type ConditionValues } from './Wbase50ConditionForm';
+import {
+  currentRocYear,
+  isCustomerChosen,
+  requireYear,
+  useWbase50Customers,
+  useWbase50XlsxExport,
+  validEndCode,
+} from './wbase50Shared';
 
 interface Wbase5030KeyinStatsProps {
   onClose?: () => void;
 }
+
+/** 匯出欄位設定 (第二段 F8 與列印預覽共用) */
+const XLSX_STORAGE_KEY = 'wbase5030_xlsx_export_config';
 
 const DEFAULT_KEYIN_XLSX_FIELDS: XlsxFieldItem[] = [
   { key: 'keyin', label: '登打人員代號', customTitle: '人員代號', selected: true },
@@ -41,7 +52,8 @@ const printColumns: FoxProPrintColumn<KeyinStatsItem>[] = [
 
 /**
  * 5-3 客戶登打統計表 (VFP base50.prg wbasemenu05cmd03 → wbase5030)。
- * 第一段選擇客戶 (取代 VFP 的客戶起訖編號)，第二段輸入登打人員起訖與資料年度，F7 查詢並開列印預覽。
+ * 第一段選擇客戶 (取代 VFP 的客戶起訖編號)，第二段輸入登打人員起訖與資料年度，
+ * F7 查詢並開列印預覽、F8 直接匯出 Excel。
  */
 export const Wbase5030_KeyinStats: React.FC<Wbase5030KeyinStatsProps> = ({ onClose }) => {
   const { isDark } = useTheme();
@@ -60,48 +72,66 @@ export const Wbase5030_KeyinStats: React.FC<Wbase5030KeyinStatsProps> = ({ onClo
   const year = String(values.year).trim();
   const startKeyin = String(values.startKeyin).trim();
   const endKeyin = String(values.endKeyin).trim();
+  const fileName = `客戶登打統計表_${year}年度`;
 
   const leaveSelect = () => {
     if (chosenNos.length === 0) onClose?.();
     else setPhase('condition');
   };
 
-  const fields: ConditionFieldDef[] = [
+  const sections: ConditionSection[] = [
     {
-      kind: 'text',
-      key: 'startKeyin',
-      label: '登打人員起始編號：',
-      maxLength: 10,
-      uppercase: true,
-      widthClass: 'w-32',
-      placeholder: '空白=第一位',
-      onF2: () => setKeyinSearch('startKeyin'),
+      title: '登打人員範圍',
+      icon: UserCheck,
+      fields: [
+        {
+          kind: 'text',
+          key: 'startKeyin',
+          label: '登打人員起始編號',
+          prefix: '起始',
+          maxLength: 10,
+          uppercase: true,
+          widthClass: 'w-36',
+          placeholder: '空白=第一位',
+          onF2: () => setKeyinSearch('startKeyin'),
+        },
+        {
+          kind: 'text',
+          key: 'endKeyin',
+          label: '登打人員終止編號',
+          prefix: '~ 終止',
+          maxLength: 10,
+          uppercase: true,
+          widthClass: 'w-36',
+          placeholder: '空白=最後一位',
+          onF2: () => setKeyinSearch('endKeyin'),
+          validate: validEndCode('startKeyin', '終止編號比起始編號小!'),
+        },
+      ],
     },
     {
-      kind: 'text',
-      key: 'endKeyin',
-      label: '終止編號：',
-      maxLength: 10,
-      uppercase: true,
-      widthClass: 'w-32',
-      placeholder: '空白=最後一位',
-      onF2: () => setKeyinSearch('endKeyin'),
-      validate: validEndCode('startKeyin', '終止編號比起始編號小!'),
+      title: '資料年度',
+      icon: Calendar,
+      badge: `${year || '---'} 年度`,
+      fields: [{ kind: 'text', key: 'year', label: '資料年度', suffix: '年', maxLength: 3, digits: true, validate: requireYear }],
     },
-    { kind: 'text', key: 'year', label: '資料年度：', maxLength: 3, digits: true, widthClass: 'w-20', validate: requireYear },
   ];
+
+  const query = () =>
+    queryKeyinStats({
+      year,
+      startKeyin: startKeyin || undefined,
+      endKeyin: endKeyin || undefined,
+      selectedNos: chosenNos,
+    });
+
+  const xlsx = useWbase50XlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_KEYIN_XLSX_FIELDS, fileName: () => fileName, load: query });
 
   const runQuery = async () => {
     setIsPrintLoading(true);
     setPrintError('');
     try {
-      const list = await queryKeyinStats({
-        year,
-        startKeyin: startKeyin || undefined,
-        endKeyin: endKeyin || undefined,
-        selectedNos: chosenNos,
-      });
-      setDataList(list);
+      setDataList(await query());
     } catch (err) {
       setDataList([]);
       setPrintError(err instanceof Error ? err.message : '查詢失敗');
@@ -111,6 +141,7 @@ export const Wbase5030_KeyinStats: React.FC<Wbase5030KeyinStatsProps> = ({ onClo
   };
 
   const openPrint = () => {
+    xlsx.setStatus(null);
     setIsPrintModalOpen(true);
     void runQuery();
   };
@@ -137,12 +168,17 @@ export const Wbase5030_KeyinStats: React.FC<Wbase5030KeyinStatsProps> = ({ onClo
       ) : (
         <Wbase50ConditionForm
           title="客戶登打統計表列印"
-          fields={fields}
+          formCode="VFP wbase5030 ‧ wbasemenu05cmd03"
+          sections={sections}
           values={values}
           onChange={setValues}
           chosenCount={chosenNos.length}
-          active={!isPrintModalOpen && keyinSearch === null}
+          active={!isPrintModalOpen && keyinSearch === null && !xlsx.busy && !xlsx.selectorOpen}
           onPrint={openPrint}
+          onExport={() => void xlsx.run()}
+          exportConfigure={xlsx.configure}
+          onExportConfigureChange={xlsx.setConfigure}
+          status={xlsx.status}
           onCancel={() => onClose?.()}
           focusRequest={focusRequest}
         />
@@ -151,8 +187,8 @@ export const Wbase5030_KeyinStats: React.FC<Wbase5030KeyinStatsProps> = ({ onClo
       <SearchModal
         isOpen={keyinSearch !== null}
         title="資料處理人員選單"
-        onSearch={async (query: string): Promise<SearchItem[]> => {
-          const list = await fetchEmps(query.trim() || undefined);
+        onSearch={async (q: string): Promise<SearchItem[]> => {
+          const list = await fetchEmps(q.trim() || undefined);
           return list.map((e) => ({ code: e.no, name: e.name }));
         }}
         onSelect={(item) => {
@@ -162,31 +198,36 @@ export const Wbase5030_KeyinStats: React.FC<Wbase5030KeyinStatsProps> = ({ onClo
         onClose={closeKeyinSearch}
       />
 
-      <FoxProPrintModal
-        isOpen={isPrintModalOpen}
-        onClose={() => setIsPrintModalOpen(false)}
-        title="5-3 客戶登打統計表列印預覽"
-        subtitle={`已選擇 ${chosenNos.length} 家客戶`}
-        reportTitle={`客戶登打統計表 (年度: ${year})`}
-        reportSubtitle={`製表日期: ${new Date().toLocaleDateString('zh-TW')}  人員: ${startKeyin || '全部'} ~ ${endKeyin || '全部'}`}
-        showFilter={false}
-        startCodeValue=""
-        onStartCodeChange={() => {}}
-        endCodeValue=""
-        onEndCodeChange={() => {}}
-        onSearch={runQuery}
-        data={dataList}
-        columns={printColumns}
-        loading={isPrintLoading}
-        hasSearched={true}
-        emptyText={printError ? `⚠️ 查詢失敗：${printError}` : '⚠️ 查無符合資料'}
-        enableXlsxExport={true}
-        xlsxFields={DEFAULT_KEYIN_XLSX_FIELDS}
-        xlsxFileName={`客戶登打統計表_${year}年度`}
-        onExportXlsx={async (data, selectedFields) => {
-          return await exportReportToXlsx(data, selectedFields, `客戶登打統計表_${year}年度`);
-        }}
-      />
+      {xlsx.selectorElement}
+
+      {isPrintModalOpen && (
+        <FoxProPrintModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          title="5-3 客戶登打統計表列印預覽"
+          subtitle={`已選擇 ${chosenNos.length} 家客戶`}
+          reportTitle={`客戶登打統計表 (年度: ${year})`}
+          reportSubtitle={`製表日期: ${new Date().toLocaleDateString('zh-TW')}  人員: ${startKeyin || '全部'} ~ ${endKeyin || '全部'}`}
+          showFilter={false}
+          startCodeValue=""
+          onStartCodeChange={() => {}}
+          endCodeValue=""
+          onEndCodeChange={() => {}}
+          onSearch={runQuery}
+          data={dataList}
+          columns={printColumns}
+          loading={isPrintLoading}
+          hasSearched={true}
+          emptyText={printError ? `⚠️ 查詢失敗：${printError}` : '⚠️ 查無符合資料'}
+          enableXlsxExport={true}
+          xlsxFields={DEFAULT_KEYIN_XLSX_FIELDS}
+          xlsxStorageKey={XLSX_STORAGE_KEY}
+          xlsxFileName={fileName}
+          onExportXlsx={async (data, selectedFields) => {
+            return await exportReportToXlsx(data, selectedFields, fileName);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FileText, Layers, ListOrdered, MapPin } from 'lucide-react';
 import {
   queryCustomerPrintData,
   exportReportToXlsx,
@@ -8,12 +9,15 @@ import { FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxPr
 import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { Wbase50CustomerSelect } from './Wbase50CustomerSelect';
-import { isCustomerChosen, useWbase50Customers } from './wbase50Shared';
-import { Wbase50ConditionForm, type ConditionFieldDef, type ConditionValues } from './Wbase50ConditionForm';
+import { isCustomerChosen, useWbase50Customers, useWbase50XlsxExport } from './wbase50Shared';
+import { Wbase50ConditionForm, type ConditionSection, type ConditionValues } from './Wbase50ConditionForm';
 
 interface Wbase5010CustomerPrintProps {
   onClose?: () => void;
 }
+
+/** 匯出欄位設定 (第二段 F8 與列印預覽共用) */
+const XLSX_STORAGE_KEY = 'wbase5010_xlsx_export_config';
 
 const DEFAULT_XLSX_FIELDS: XlsxFieldItem[] = [
   { key: 'no', label: '客戶代號', customTitle: '客戶代號', selected: true },
@@ -37,50 +41,75 @@ const DEFAULT_XLSX_FIELDS: XlsxFieldItem[] = [
 ];
 
 /** VFP wbase2011 的四組選項 (依 TabIndex 順序：ordertype、mtype、opaddr、Optiongroup1) */
-const FIELDS: ConditionFieldDef[] = [
+const SECTIONS: ConditionSection[] = [
   {
-    kind: 'options',
-    key: 'orderType',
-    label: '排列順序：',
-    options: [
-      { value: 1, label: '依客戶編號' },
-      { value: 2, label: '依統一編號' },
-      { value: 3, label: '依稅籍編號' },
+    title: '排列順序',
+    icon: ListOrdered,
+    fields: [
+      {
+        kind: 'options',
+        key: 'orderType',
+        label: '排列順序',
+        options: [
+          { value: 1, label: '依客戶編號' },
+          { value: 2, label: '依統一編號' },
+          { value: 3, label: '依稅籍編號' },
+        ],
+      },
     ],
   },
   {
-    kind: 'options',
-    key: 'reportType',
-    label: '報表種類：',
-    options: [
-      { value: 1, label: '基本資料' },
-      { value: 2, label: '詳細資料' },
+    title: '報表種類',
+    icon: FileText,
+    fields: [
+      {
+        kind: 'options',
+        key: 'reportType',
+        label: '報表種類',
+        options: [
+          { value: 1, label: '基本資料' },
+          { value: 2, label: '詳細資料' },
+        ],
+      },
     ],
   },
   {
     // VFP 第三個選項「公司.聯絡地址」隱藏且停用，只留兩個
-    kind: 'options',
-    key: 'addrType',
-    label: '列印地址：',
-    options: [
-      { value: 1, label: '公司地址' },
-      { value: 2, label: '聯絡地址' },
+    title: '列印地址',
+    icon: MapPin,
+    fields: [
+      {
+        kind: 'options',
+        key: 'addrType',
+        label: '列印地址',
+        options: [
+          { value: 1, label: '公司地址' },
+          { value: 2, label: '聯絡地址' },
+        ],
+      },
     ],
   },
   {
-    kind: 'options',
-    key: 'groupType',
-    label: '分組排序：',
-    options: [
-      { value: 1, label: '依客戶編號排序' },
-      { value: 2, label: '依登打人員排序' },
+    title: '分組排序',
+    icon: Layers,
+    fields: [
+      {
+        kind: 'options',
+        key: 'groupType',
+        label: '分組排序',
+        options: [
+          { value: 1, label: '依客戶編號排序' },
+          { value: 2, label: '依登打人員排序' },
+        ],
+      },
     ],
   },
 ];
 
 /**
  * 5-1 客戶資料列印 (VFP base50.prg wbasemenu05cmd01)。
- * 第一段選擇客戶 (wbase4000)，Esc 離開後有選擇才進入第二段列印條件 (wbase2011)，F7 查詢並開列印預覽。
+ * 第一段選擇客戶 (wbase4000)，Esc 離開後有選擇才進入第二段列印條件 (wbase2011)，
+ * F7 查詢並開列印預覽、F8 直接匯出 Excel。
  */
 export const Wbase5010_CustomerPrint: React.FC<Wbase5010CustomerPrintProps> = ({ onClose }) => {
   const { isDark } = useTheme();
@@ -97,6 +126,8 @@ export const Wbase5010_CustomerPrint: React.FC<Wbase5010CustomerPrintProps> = ({
   const reportType = Number(values.reportType);
   const addrType = Number(values.addrType);
   const orderType = Number(values.orderType);
+  const kindLabel = reportType === 1 ? '基本' : '詳細';
+  const fileName = `客戶資料清單_${kindLabel}`;
 
   /** VFP：tmpcust 刪除未選擇後沒有資料就直接回選單，不開 wbase2011 */
   const leaveSelect = () => {
@@ -104,18 +135,22 @@ export const Wbase5010_CustomerPrint: React.FC<Wbase5010CustomerPrintProps> = ({
     else setPhase('condition');
   };
 
+  const query = () =>
+    queryCustomerPrintData({
+      reportType,
+      addrType,
+      groupType: Number(values.groupType),
+      orderType,
+      selectedNos: chosenNos,
+    });
+
+  const xlsx = useWbase50XlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_XLSX_FIELDS, fileName: () => fileName, load: query });
+
   const runQuery = async () => {
     setIsPrintLoading(true);
     setPrintError('');
     try {
-      const data = await queryCustomerPrintData({
-        reportType,
-        addrType,
-        groupType: Number(values.groupType),
-        orderType,
-        selectedNos: chosenNos,
-      });
-      setPrintData(data);
+      setPrintData(await query());
     } catch (err) {
       setPrintData([]);
       setPrintError(err instanceof Error ? err.message : '查詢列印資料失敗');
@@ -125,6 +160,7 @@ export const Wbase5010_CustomerPrint: React.FC<Wbase5010CustomerPrintProps> = ({
   };
 
   const openPrint = () => {
+    xlsx.setStatus(null);
     setIsPrintModalOpen(true);
     void runQuery();
   };
@@ -146,8 +182,6 @@ export const Wbase5010_CustomerPrint: React.FC<Wbase5010CustomerPrintProps> = ({
     { key: 'keyinna', label: '登打人員', width: '90px' },
   ];
 
-  const kindLabel = reportType === 1 ? '基本' : '詳細';
-
   return (
     <div className={`flex flex-col h-full font-mono select-none ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'}`}>
       {phase === 'select' ? (
@@ -164,41 +198,51 @@ export const Wbase5010_CustomerPrint: React.FC<Wbase5010CustomerPrintProps> = ({
       ) : (
         <Wbase50ConditionForm
           title="客戶資料列印"
-          fields={FIELDS}
+          formCode="VFP wbase2011 ‧ wbasemenu05cmd01"
+          sections={SECTIONS}
           values={values}
           onChange={setValues}
           chosenCount={chosenNos.length}
-          active={!isPrintModalOpen}
+          active={!isPrintModalOpen && !xlsx.busy && !xlsx.selectorOpen}
           onPrint={openPrint}
+          onExport={() => void xlsx.run()}
+          exportConfigure={xlsx.configure}
+          onExportConfigureChange={xlsx.setConfigure}
+          status={xlsx.status}
           onCancel={() => onClose?.()}
         />
       )}
 
-      <FoxProPrintModal
-        isOpen={isPrintModalOpen}
-        onClose={() => setIsPrintModalOpen(false)}
-        title="5-1 客戶資料列印預覽"
-        subtitle={`已選擇 ${chosenNos.length} 家客戶`}
-        reportTitle={`客戶管理資料表 (${reportType === 1 ? '基本資料' : '詳細資料'})`}
-        reportSubtitle={`製表日期: ${new Date().toLocaleDateString('zh-TW')}  排序: 依${orderType === 1 ? '客戶編號' : orderType === 2 ? '統一編號' : '稅籍編號'}`}
-        showFilter={false}
-        startCodeValue=""
-        onStartCodeChange={() => {}}
-        endCodeValue=""
-        onEndCodeChange={() => {}}
-        onSearch={runQuery}
-        data={printData}
-        columns={printColumns}
-        loading={isPrintLoading}
-        hasSearched={true}
-        emptyText={printError ? `⚠️ 查詢列印資料失敗：${printError}` : '⚠️ 查無符合資料'}
-        enableXlsxExport={true}
-        xlsxFields={DEFAULT_XLSX_FIELDS}
-        xlsxFileName={`客戶資料清單_${kindLabel}`}
-        onExportXlsx={async (data, selectedFields) => {
-          return await exportReportToXlsx(data, selectedFields, `客戶資料清單_${kindLabel}`);
-        }}
-      />
+      {xlsx.selectorElement}
+
+      {isPrintModalOpen && (
+        <FoxProPrintModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          title="5-1 客戶資料列印預覽"
+          subtitle={`已選擇 ${chosenNos.length} 家客戶`}
+          reportTitle={`客戶管理資料表 (${reportType === 1 ? '基本資料' : '詳細資料'})`}
+          reportSubtitle={`製表日期: ${new Date().toLocaleDateString('zh-TW')}  排序: 依${orderType === 1 ? '客戶編號' : orderType === 2 ? '統一編號' : '稅籍編號'}`}
+          showFilter={false}
+          startCodeValue=""
+          onStartCodeChange={() => {}}
+          endCodeValue=""
+          onEndCodeChange={() => {}}
+          onSearch={runQuery}
+          data={printData}
+          columns={printColumns}
+          loading={isPrintLoading}
+          hasSearched={true}
+          emptyText={printError ? `⚠️ 查詢列印資料失敗：${printError}` : '⚠️ 查無符合資料'}
+          enableXlsxExport={true}
+          xlsxFields={DEFAULT_XLSX_FIELDS}
+          xlsxStorageKey={XLSX_STORAGE_KEY}
+          xlsxFileName={fileName}
+          onExportXlsx={async (data, selectedFields) => {
+            return await exportReportToXlsx(data, selectedFields, fileName);
+          }}
+        />
+      )}
     </div>
   );
 };

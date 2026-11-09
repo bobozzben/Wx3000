@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Calendar } from 'lucide-react';
 import {
   queryFinanceStatus,
   exportReportToXlsx,
@@ -8,12 +9,15 @@ import { FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxPr
 import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { Wbase50CustomerSelect } from './Wbase50CustomerSelect';
-import { Wbase50ConditionForm, type ConditionFieldDef, type ConditionValues } from './Wbase50ConditionForm';
-import { currentRocYear, isCustomerChosen, requireYear, useWbase50Customers } from './wbase50Shared';
+import { Wbase50ConditionForm, type ConditionSection, type ConditionValues } from './Wbase50ConditionForm';
+import { currentRocYear, isCustomerChosen, requireYear, useWbase50Customers, useWbase50XlsxExport } from './wbase50Shared';
 
 interface Wbase5050FinanceStatusProps {
   onClose?: () => void;
 }
+
+/** 匯出欄位設定 (第二段 F8 與列印預覽共用) */
+const XLSX_STORAGE_KEY = 'wbase5050_xlsx_export_config';
 
 const DEFAULT_FINANCE_XLSX_FIELDS: XlsxFieldItem[] = [
   { key: 'no', label: '客戶代號', customTitle: '代號', selected: true },
@@ -44,14 +48,9 @@ const printColumns: FoxProPrintColumn<FinanceStatusItem>[] = [
   { key: 'addr', label: '地址', width: '260px' },
 ];
 
-/** VFP wbase5050 (客戶起訖編號改由第一段選擇客戶決定)：列印結算年度 */
-const FIELDS: ConditionFieldDef[] = [
-  { kind: 'text', key: 'year', label: '列印結算年度：', maxLength: 3, digits: true, widthClass: 'w-20', validate: requireYear },
-];
-
 /**
  * 5-5 客戶財務狀況參考表 (VFP base50.prg wbasemenu05cmd05 → wbase5050)。
- * 第一段選擇客戶，第二段輸入列印結算年度，F7 查詢並開列印預覽。
+ * 第一段選擇客戶，第二段輸入列印結算年度，F7 查詢並開列印預覽、F8 直接匯出 Excel。
  */
 export const Wbase5050_FinanceStatus: React.FC<Wbase5050FinanceStatusProps> = ({ onClose }) => {
   const { isDark } = useTheme();
@@ -66,18 +65,32 @@ export const Wbase5050_FinanceStatus: React.FC<Wbase5050FinanceStatusProps> = ({
 
   const chosenNos = rows.filter((r) => isCustomerChosen(r, 'select')).map((r) => r.no);
   const year = String(values.year).trim();
+  const fileName = `客戶財務狀況參考表_${year}年度`;
+
+  /** VFP wbase5050 (客戶起訖編號改由第一段選擇客戶決定)：列印結算年度 */
+  const sections: ConditionSection[] = [
+    {
+      title: '列印結算年度',
+      icon: Calendar,
+      badge: `${year || '---'} 年度`,
+      fields: [{ kind: 'text', key: 'year', label: '列印結算年度', suffix: '年', maxLength: 3, digits: true, validate: requireYear }],
+    },
+  ];
 
   const leaveSelect = () => {
     if (chosenNos.length === 0) onClose?.();
     else setPhase('condition');
   };
 
+  const query = () => queryFinanceStatus({ year, selectedNos: chosenNos });
+
+  const xlsx = useWbase50XlsxExport({ storageKey: XLSX_STORAGE_KEY, fields: DEFAULT_FINANCE_XLSX_FIELDS, fileName: () => fileName, load: query });
+
   const runQuery = async () => {
     setIsPrintLoading(true);
     setPrintError('');
     try {
-      const list = await queryFinanceStatus({ year, selectedNos: chosenNos });
-      setDataList(list);
+      setDataList(await query());
     } catch (err) {
       setDataList([]);
       setPrintError(err instanceof Error ? err.message : '查詢失敗');
@@ -87,6 +100,7 @@ export const Wbase5050_FinanceStatus: React.FC<Wbase5050FinanceStatusProps> = ({
   };
 
   const openPrint = () => {
+    xlsx.setStatus(null);
     setIsPrintModalOpen(true);
     void runQuery();
   };
@@ -107,41 +121,51 @@ export const Wbase5050_FinanceStatus: React.FC<Wbase5050FinanceStatusProps> = ({
       ) : (
         <Wbase50ConditionForm
           title="客戶財務狀況參考表列印"
-          fields={FIELDS}
+          formCode="VFP wbase5050 ‧ wbasemenu05cmd05"
+          sections={sections}
           values={values}
           onChange={setValues}
           chosenCount={chosenNos.length}
-          active={!isPrintModalOpen}
+          active={!isPrintModalOpen && !xlsx.busy && !xlsx.selectorOpen}
           onPrint={openPrint}
+          onExport={() => void xlsx.run()}
+          exportConfigure={xlsx.configure}
+          onExportConfigureChange={xlsx.setConfigure}
+          status={xlsx.status}
           onCancel={() => onClose?.()}
         />
       )}
 
-      <FoxProPrintModal
-        isOpen={isPrintModalOpen}
-        onClose={() => setIsPrintModalOpen(false)}
-        title="5-5 客戶財務狀況參考表列印預覽"
-        subtitle={`已選擇 ${chosenNos.length} 家客戶`}
-        reportTitle={`客戶財務狀況參考表 (年度: ${year})`}
-        reportSubtitle={`製表日期: ${new Date().toLocaleDateString('zh-TW')}  客戶: ${chosenNos.length} 家`}
-        showFilter={false}
-        startCodeValue=""
-        onStartCodeChange={() => {}}
-        endCodeValue=""
-        onEndCodeChange={() => {}}
-        onSearch={runQuery}
-        data={dataList}
-        columns={printColumns}
-        loading={isPrintLoading}
-        hasSearched={true}
-        emptyText={printError ? `⚠️ 查詢失敗：${printError}` : '⚠️ 查無符合資料'}
-        enableXlsxExport={true}
-        xlsxFields={DEFAULT_FINANCE_XLSX_FIELDS}
-        xlsxFileName={`客戶財務狀況參考表_${year}年度`}
-        onExportXlsx={async (data, selectedFields) => {
-          return await exportReportToXlsx(data, selectedFields, `客戶財務狀況參考表_${year}年度`);
-        }}
-      />
+      {xlsx.selectorElement}
+
+      {isPrintModalOpen && (
+        <FoxProPrintModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          title="5-5 客戶財務狀況參考表列印預覽"
+          subtitle={`已選擇 ${chosenNos.length} 家客戶`}
+          reportTitle={`客戶財務狀況參考表 (年度: ${year})`}
+          reportSubtitle={`製表日期: ${new Date().toLocaleDateString('zh-TW')}  客戶: ${chosenNos.length} 家`}
+          showFilter={false}
+          startCodeValue=""
+          onStartCodeChange={() => {}}
+          endCodeValue=""
+          onEndCodeChange={() => {}}
+          onSearch={runQuery}
+          data={dataList}
+          columns={printColumns}
+          loading={isPrintLoading}
+          hasSearched={true}
+          emptyText={printError ? `⚠️ 查詢失敗：${printError}` : '⚠️ 查無符合資料'}
+          enableXlsxExport={true}
+          xlsxFields={DEFAULT_FINANCE_XLSX_FIELDS}
+          xlsxStorageKey={XLSX_STORAGE_KEY}
+          xlsxFileName={fileName}
+          onExportXlsx={async (data, selectedFields) => {
+            return await exportReportToXlsx(data, selectedFields, fileName);
+          }}
+        />
+      )}
     </div>
   );
 };

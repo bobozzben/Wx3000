@@ -12,7 +12,8 @@ const FUNCTION_KEY = /^F([1-9]|1[0-2])$/;
 interface Wbase50CustomerSelectProps {
   mode: CustomerSelectMode;
   rows: LabelCustomerItem[];
-  onRowsChange: (rows: LabelCustomerItem[]) => void;
+  /** 傳 useState 的 setter：連續快速按鍵時以函式更新，不會蓋掉前一次的切換 */
+  onRowsChange: React.Dispatch<React.SetStateAction<LabelCustomerItem[]>>;
   loading: boolean;
   error?: string | null;
   gridId: string;
@@ -39,7 +40,8 @@ export const Wbase50CustomerSelect: React.FC<Wbase50CustomerSelectProps> = ({
   onExit,
 }) => {
   const { isDark } = useTheme();
-  const [cursor, setCursor] = useState(0);
+  /** 目前列 (FoxProGridV2 onSelectRow 回報；Enter / Space 切換後先自行往下一列，連按時不會重複切換同一列) */
+  const cursorRef = useRef(0);
   const [locate, setLocate] = useState<{ no: string; seq: number } | null>(null);
   const [modal, setModal] = useState<'range' | 'find' | 'assign' | null>(null);
   const [message, setMessage] = useState<MessageState | null>(null);
@@ -61,11 +63,11 @@ export const Wbase50CustomerSelect: React.FC<Wbase50CustomerSelectProps> = ({
 
   const toggle = useCallback(
     (idx: number) => {
-      onRowsChange(rows.map((r, i) => (i === idx ? withChoice(r, !isCustomerChosen(r, mode)) : r)));
+      onRowsChange((prev) => prev.map((r, i) => (i === idx ? withChoice(r, !isCustomerChosen(r, mode)) : r)));
     },
-    [rows, onRowsChange, withChoice, mode]
+    [onRowsChange, withChoice, mode]
   );
-  const chooseAll = (chosen: boolean) => onRowsChange(rows.map((r) => withChoice(r, chosen)));
+  const chooseAll = (chosen: boolean) => onRowsChange((prev) => prev.map((r) => withChoice(r, chosen)));
 
   /** 把格線游標移到指定客戶 (FoxProGridV2 activeRowKey；每次定位換一個 seq，同一家客戶也能重複定位) */
   const moveTo = (no: string) => setLocate((prev) => ({ no, seq: (prev?.seq ?? 0) + 1 }));
@@ -75,15 +77,17 @@ export const Wbase50CustomerSelect: React.FC<Wbase50CustomerSelectProps> = ({
   /** VFP enter.Click / space.Click：切換後移到下一列 (末筆停在末筆)。以 ↓ 交給 FoxProGridV2 移動游標 */
   const toggleAndNext = () => {
     if (rows.length === 0) return;
-    toggle(cursor);
+    const idx = Math.min(cursorRef.current, rows.length - 1);
+    toggle(idx);
+    cursorRef.current = Math.min(idx + 1, rows.length - 1);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
   };
 
   /** VFP f8.Click (wbase4001 / wbase201202)：區間內設為選擇，區間外不變 */
   const applyRange = (startNo: string, endNo: string) => {
     setModal(null);
-    onRowsChange(
-      rows.map((r) => {
+    onRowsChange((prev) =>
+      prev.map((r) => {
         const no = r.no.toUpperCase();
         const inRange = (!startNo || no >= startNo) && (!endNo || no <= endNo);
         return inRange ? withChoice(r, true) : r;
@@ -101,7 +105,7 @@ export const Wbase50CustomerSelect: React.FC<Wbase50CustomerSelectProps> = ({
       setMessage({ type: 'warning', title: '訊息', lines: ['客戶已經選擇!!'] });
       return;
     }
-    onRowsChange(rows.map((r, i) => (i === idx ? withChoice(r, true) : r)));
+    onRowsChange((prev) => prev.map((r) => (r.no === item.code ? withChoice(r, true) : r)));
   };
 
   /** VFP f7.Click (_form_find)：只移動游標，不改選擇 */
@@ -236,7 +240,9 @@ export const Wbase50CustomerSelect: React.FC<Wbase50CustomerSelectProps> = ({
             selected: false,
           })}
           onRowsChange={handleGridRowsChange}
-          onSelectRow={(_row, idx) => setCursor(idx)}
+          onSelectRow={(_row, idx) => {
+            cursorRef.current = idx;
+          }}
           getRowKey={getRowKey}
           activeRowKey={activeRowKey}
           allowInsert={false}

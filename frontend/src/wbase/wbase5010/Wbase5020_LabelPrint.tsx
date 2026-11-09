@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Printer, FileSpreadsheet, Tag, X } from 'lucide-react';
+import { Printer, FileSpreadsheet, LayoutGrid, MapPin, Tag, User, X } from 'lucide-react';
 import { generateLabels, exportReportToXlsx, type LabelCustomerItem } from './services/wbase5010';
 import { printElement } from '../../utils/printUtil';
 import { useTheme } from '../menu/ThemeContext';
 import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { MessageDialog, type MessageState } from '../wbase2030/Wbase2030Dialogs';
 import { Wbase50CustomerSelect } from './Wbase50CustomerSelect';
-import { Wbase50ConditionForm, type ConditionFieldDef, type ConditionValues } from './Wbase50ConditionForm';
-import { isCustomerChosen, toCopies, useWbase50Customers } from './wbase50Shared';
+import { Wbase50ConditionForm, type ConditionSection, type ConditionValues } from './Wbase50ConditionForm';
+import { isCustomerChosen, toCopies, useWbase50Customers, useWbase50XlsxExport } from './wbase50Shared';
 
 interface Wbase5020LabelPrintProps {
   onClose?: () => void;
@@ -24,49 +24,27 @@ const DEFAULT_LABEL_XLSX_FIELDS: XlsxFieldItem[] = [
   { key: 'prn', label: '列印份數', customTitle: '份數', selected: true },
 ];
 
+/** 名冊匯出欄位設定 (第二段 F8) */
+const XLSX_STORAGE_KEY = 'wbase5020_xlsx_export_config';
+
+const option = (key: string, title: string, icon: ConditionSection['icon'], labels: string[]): ConditionSection => ({
+  title,
+  icon,
+  fields: [{ kind: 'options', key, label: title, options: labels.map((label, i) => ({ value: i + 1, label })) }],
+});
+
 /** VFP wbase2012 的四組選項 (依 TabIndex 順序：lab、lty、k_add、pname) */
-const FIELDS: ConditionFieldDef[] = [
-  {
-    kind: 'options',
-    key: 'labelType',
-    label: '標籤種類：',
-    options: [
-      { value: 1, label: '磁片標籤' },
-      { value: 2, label: '郵遞標籤' },
-    ],
-  },
-  {
-    kind: 'options',
-    key: 'layoutType',
-    label: '列印樣式：',
-    options: [
-      { value: 1, label: '橫式 (2 欄)' },
-      { value: 2, label: '直式 (3 欄)' },
-    ],
-  },
-  {
-    kind: 'options',
-    key: 'addrType',
-    label: '列印地址：',
-    options: [
-      { value: 1, label: '公司地址' },
-      { value: 2, label: '聯絡地址' },
-    ],
-  },
-  {
-    kind: 'options',
-    key: 'recipientType',
-    label: '收信人：',
-    options: [
-      { value: 1, label: '負責人' },
-      { value: 2, label: '聯絡人' },
-    ],
-  },
+const SECTIONS: ConditionSection[] = [
+  option('labelType', '標籤種類', Tag, ['磁片標籤', '郵遞標籤']),
+  option('layoutType', '列印樣式', LayoutGrid, ['橫式 (2 欄)', '直式 (3 欄)']),
+  option('addrType', '列印地址', MapPin, ['公司地址', '聯絡地址']),
+  option('recipientType', '收信人', User, ['負責人', '聯絡人']),
 ];
 
 /**
  * 5-2 郵寄標籤列印 (VFP base50.prg wbasemenu05cmd02)。
- * 第一段設定各客戶列印份數 (wbase201201)，Esc 離開後有份數才進入第二段標籤條件 (wbase2012)，F7 產生標籤並開預覽。
+ * 第一段設定各客戶列印份數 (wbase201201)，Esc 離開後有份數才進入第二段標籤條件 (wbase2012)，
+ * F7 產生標籤並開預覽、F8 匯出標籤名冊 Excel。
  */
 export const Wbase5020_LabelPrint: React.FC<Wbase5020LabelPrintProps> = ({ onClose }) => {
   const { isDark } = useTheme();
@@ -86,6 +64,14 @@ export const Wbase5020_LabelPrint: React.FC<Wbase5020LabelPrintProps> = ({ onClo
   const layoutType = Number(values.layoutType);
   const addrType = Number(values.addrType);
   const recipientType = Number(values.recipientType);
+
+  /** F8 匯出名冊：份數大於 0 的客戶 (不必查詢) */
+  const xlsx = useWbase50XlsxExport({
+    storageKey: XLSX_STORAGE_KEY,
+    fields: DEFAULT_LABEL_XLSX_FIELDS,
+    fileName: () => '郵寄標籤列印名冊',
+    load: async () => chosen.map((r) => ({ ...r, prn: toCopies(r.prn) })),
+  });
 
   /** VFP：tmpcust 刪除份數為 0 的客戶後沒有資料就直接回選單，不開 wbase2012 */
   const leaveSelect = () => {
@@ -172,17 +158,28 @@ export const Wbase5020_LabelPrint: React.FC<Wbase5020LabelPrintProps> = ({ onClo
       ) : (
         <Wbase50ConditionForm
           title="郵寄標籤列印"
-          fields={FIELDS}
+          formCode="VFP wbase2012 ‧ wbasemenu05cmd02"
+          sections={SECTIONS}
           values={values}
           onChange={setValues}
           chosenCount={chosen.length}
           chosenNote={`共 ${totalCopies} 張標籤`}
-          active={!isLabelPreviewOpen && !generating && message === null}
-          printLabel="F7 標籤列印"
-          onPrint={() => void handleGenerateLabels()}
+          active={!isLabelPreviewOpen && !generating && message === null && !xlsx.busy && !xlsx.selectorOpen}
+          printLabel="F7. 標籤列印"
+          onPrint={() => {
+            xlsx.setStatus(null);
+            void handleGenerateLabels();
+          }}
+          onExport={() => void xlsx.run()}
+          exportLabel="F8. 匯出名冊"
+          exportConfigure={xlsx.configure}
+          onExportConfigureChange={xlsx.setConfigure}
+          status={xlsx.status}
           onCancel={() => onClose?.()}
         />
       )}
+
+      {xlsx.selectorElement}
 
       {message && (
         <MessageDialog

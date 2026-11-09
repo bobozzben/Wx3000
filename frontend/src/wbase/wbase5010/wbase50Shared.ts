@@ -1,5 +1,12 @@
-import { useEffect, useState } from 'react';
-import { fetchCustomers, type LabelCustomerItem } from './services/wbase5010';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  FormUtilSelectXlsxFieldsList,
+  parseXlsxConfigParams,
+  type XlsxFieldItem,
+  type XlsxSerializedConfig,
+} from '../../components/SelectXlsxField';
+import { exportReportToXlsx, fetchCustomers, type LabelCustomerItem } from './services/wbase5010';
+import type { ConditionStatus } from './Wbase50ConditionForm';
 
 /**
  * 5-1 ~ 5-5 共用：第一段選擇客戶的資料與第二段列印條件的欄位檢核。
@@ -89,3 +96,108 @@ export const validEndCode =
     const end = v.trim();
     return start && end && end < start ? message : null;
   };
+
+const EMPTY_XLSX_CONFIG: XlsxSerializedConfig = { vFieldList: '', vCaptionList: '', vDisplayFormat: '', vColorList: '' };
+
+/** 讀取已儲存的匯出欄位設定 (與 FoxProPrintModal 的 xlsxStorageKey 共用) */
+const readXlsxConfig = (storageKey: string): XlsxSerializedConfig | null => {
+  try {
+    const saved = localStorage.getItem(storageKey);
+    const parsed = saved ? (JSON.parse(saved) as XlsxSerializedConfig) : null;
+    return parsed && parsed.vFieldList ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+interface XlsxExportOptions<T> {
+  /** 與列印預覽 (FoxProPrintModal xlsxStorageKey) 共用的設定 key */
+  storageKey: string;
+  fields: XlsxFieldItem[];
+  /** 檔名 (不含 .xlsx)，匯出當下取值 */
+  fileName: () => string;
+  /** 取得要匯出的資料 */
+  load: () => Promise<T[]>;
+}
+
+/**
+ * 第二段的 F8 匯出 Excel (比照 wbase3020_buyinv_print)：查詢資料 → 依已儲存的欄位設定匯出；
+ * 勾選「匯出 xlsx 設定」時先開 FormUtilSelectXlsxFieldsList，確定後儲存設定再匯出。
+ * 設定在每次匯出時才讀 localStorage，所以在列印預覽改過的設定這裡也會用到。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const useWbase50XlsxExport = <T extends Record<string, any>>({ storageKey, fields, fileName, load }: XlsxExportOptions<T>) => {
+  const [configure, setConfigure] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<ConditionStatus | null>(null);
+  const [selector, setSelector] = useState<XlsxSerializedConfig | null>(null);
+  const dataRef = useRef<T[]>([]);
+
+  const write = async (selected: XlsxFieldItem[]) => {
+    const active = selected.filter((f) => f.selected);
+    if (active.length === 0) {
+      setStatus({ type: 'error', text: '請至少選擇一個匯出欄位!' });
+      return;
+    }
+    const name = fileName();
+    const ok = await exportReportToXlsx(dataRef.current, active, name);
+    setStatus(
+      ok
+        ? { type: 'success', text: `已匯出 ${dataRef.current.length} 筆資料：${name}.xlsx` }
+        : { type: 'error', text: 'Excel 匯出失敗，請檢查瀏覽器的下載設定。' }
+    );
+  };
+
+  const run = async () => {
+    setBusy(true);
+    setStatus({ type: 'info', text: '查詢匯出資料中…' });
+    try {
+      const data = await load();
+      if (data.length === 0) {
+        setStatus({ type: 'warning', text: '查無符合資料，沒有匯出。' });
+        return;
+      }
+      dataRef.current = data;
+      const saved = readXlsxConfig(storageKey);
+      if (configure) {
+        setStatus({ type: 'info', text: `共 ${data.length} 筆資料，請選擇匯出欄位。` });
+        setSelector(saved ?? EMPTY_XLSX_CONFIG);
+        return;
+      }
+      await write(parseXlsxConfigParams(fields, saved?.vFieldList, saved?.vCaptionList, saved?.vDisplayFormat, saved?.vColorList));
+    } catch (err) {
+      setStatus({ type: 'error', text: `查詢失敗：${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const selectorElement = selector
+    ? React.createElement(FormUtilSelectXlsxFieldsList, {
+        isOpen: true,
+        fields,
+        defaultFields: fields,
+        vFieldList: selector.vFieldList,
+        vCaptionList: selector.vCaptionList,
+        vDisplayFormat: selector.vDisplayFormat,
+        vColorList: selector.vColorList,
+        onConfirm: (selected: XlsxFieldItem[], savedConfig?: XlsxSerializedConfig) => {
+          if (savedConfig) {
+            try {
+              localStorage.setItem(storageKey, JSON.stringify(savedConfig));
+            } catch {
+              // 無法儲存設定時仍照常匯出
+            }
+          }
+          setSelector(null);
+          void write(selected);
+        },
+        onClose: () => {
+          setSelector(null);
+          setStatus(null);
+        },
+      })
+    : null;
+
+  return { configure, setConfigure, busy, status, setStatus, run, selectorOpen: selector !== null, selectorElement };
+};
