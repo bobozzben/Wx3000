@@ -1,7 +1,7 @@
 # 規格書：wbase5010 管理報表 (5-1 ~ 5-6)
 
-> **模組代號**：`wbase5010` (選單 `wbase5010`~`wbase5060` 共用 `Wbase5010Index`，以 `initialTab` 切換子頁籤)  
-> **功能名稱**：管理報表 (畫面標題「5. 客戶資料列印與委任書管理」：客戶資料列印、郵寄標籤、登打統計、營業狀況、財務狀況參考、委任書)  
+> **模組代號**：`wbase5010` (選單 `wbase5010`~`wbase5060` 共用 `Wbase5010Index`，以 `initialTab` 決定顯示的畫面)  
+> **功能名稱**：管理報表 (客戶資料列印、郵寄標籤、登打統計、營業狀況、財務狀況參考、委任書)  
 > **所屬模組**：`frontend/src/wbase/wbase5010/` (service 在 `frontend/src/wbase/wbase5010/services/wbase5010.ts`) & `backend/Controllers/Wbase5010Controller.cs`  
 > **原始 Visual FoxPro 來源**：`SourS9BASE\PROGS\base50.prg` `wbasemenu05cmd01`~`wbasemenu05cmd06` (5-1 `wbase4000` 選客戶 + `wbase2011` 列印、5-2 `wbase201201` + `wbase2012`、5-3 `wbase5030`、5-4 `wbase5040`、5-5 `wbase5050`、5-6 `SourS9BASE\FORMS\wbs_rep2.scx`)
 
@@ -9,9 +9,9 @@
 
 ## 1. 模組定位與職責
 
-選單「500 管理報表」的六個項目都進入同一個頁面 `Wbase5010Index`：`wbaseMainPage.tsx` 的 `handleSelectAction` 依選單代號設定 `wbase5010Tab` 後顯示 `<Wbase5010Index initialTab={...} onClose={...} />`。
+選單「500 管理報表」的六個項目都進入同一個頁面 `Wbase5010Index`：`wbaseMainPage.tsx` 的 `handleSelectAction` 依選單代號設定 `wbase5010Tab` 後顯示 `<Wbase5010Index initialTab={...} onClose={...} />`。畫面不顯示頁籤，要換畫面須回選單另選 510~560。
 
-| 選單 | 代號 | 頁籤 (`initialTab`) | 元件 |
+| 選單 | 代號 | 畫面標題 (`initialTab`) | 元件 |
 | :--- | :--- | :--- | :--- |
 | 510 客戶明細資料 | `wbase5010` | `5010` 5-1 客戶資料列印 | `Wbase5010_CustomerPrint.tsx` |
 | 520 客戶郵遞標籤 | `wbase5020` | `5020` 5-2 郵寄標籤列印 | `Wbase5020_LabelPrint.tsx` |
@@ -21,8 +21,8 @@
 | 560 委任書輸入列印 | `wbase5060` | `5060` 5-6 委任書輸入維護 | `Wbase5060_BsdescForm.tsx` |
 
 **共通行為**
-- 頂部 `<WbasePageHeader />` (類別「基本資料」、模式 `grid`) 下方為頁籤列，可點選或按 `Alt+1`~`Alt+6` 切換。
-- 各子頁的 `Esc` 直接回到 wbase 主選單 (不是回上一個頁籤)。
+- 頂部 `<WbasePageHeader />` (類別「管理報表」、標題為上表的畫面標題、代號 `wbase{initialTab}`、模式 `grid`)，下方直接是子頁畫面。
+- 各子頁的 `Esc` 直接回到 wbase 主選單。
 - 子頁格線都是 `<FoxProGridV2 />`，除 5-2 的「列印張數」與 5-6 的條文欄位外皆唯讀。
 - 5-1 ~ 5-5 只讀資料；5-6 讀寫 `bsdesc.dbf`。
 - 5-1 ~ 5-5 的報表在瀏覽器端輸出：5-1、5-3、5-4、5-5 用 `<FoxProPrintModal />` (預覽表格、`printElement` 紙張列印、xlsx 匯出)，5-2 用頁面自訂的預覽視窗。本模組**沒有使用 `wbaseRP.dll`**，`localagent/dlls.json` 也沒有本模組的報表函數。
@@ -139,7 +139,6 @@
 
 | 按鍵 | 5-1 | 5-2 | 5-3 / 5-4 / 5-5 | 5-6 |
 | :--- | :--- | :--- | :--- | :--- |
-| `Alt+1`~`Alt+6` | 切換頁籤 | 同左 | 同左 | 同左 |
 | `F3` / `F4` | 全選 / 全不選 | 全選 / 全不選 | - | `F4` 複製條文 |
 | `F6` | - | - | - | 以 Word 開啟委任書範本 |
 | `F7` | 查詢並開列印預覽 | 產生標籤並開預覽 | 開列印預覽 | 轉出 Word 委任書 (沒有 Word 時網頁預覽) |
@@ -159,7 +158,7 @@
 
 ```text
 frontend/src/wbase/wbase5010/
-├── index.tsx                      # Wbase5010Index：WbasePageHeader + 頁籤列 (Alt+1~6)，依 initialTab 切換子頁
+├── index.tsx                      # Wbase5010Index：WbasePageHeader + 依 initialTab 顯示子頁 (不顯示頁籤)
 ├── Wbase5010_CustomerPrint.tsx    # 5-1 客戶資料列印 (FoxProGridV2 勾選 + SearchModal + FoxProPrintModal)
 ├── Wbase5020_LabelPrint.tsx       # 5-2 郵寄標籤列印 (張數設定、F8 區間、標籤排版預覽)
 ├── Wbase5030_KeyinStats.tsx       # 5-3 客戶登打統計表
