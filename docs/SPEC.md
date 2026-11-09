@@ -62,7 +62,7 @@
 - 📌 [wbase4020 營業稅與共用參數設定模組規格 (`docs/frontend/wbase/wbase4020/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase4020/SPEC.md)
   - 選單 `wbase4020`~`wbase4060` 共用同一頁面，依選單顯示對應畫面 (不顯示頁籤)：4-2 營業稅設定 (`customer.dbf` + `accpara.dbf`)、4-3 傳票轉檔設定、4-4 進銷存方式設定 (`acc_st.dbf` / `customer.dbf`)、4-5 共用科目摘要 (`descrip.dbf`)、4-6 共用參數設定 (`pub_para.dbf`)。
 - 📌 [wbase5010 管理報表模組規格 (`docs/frontend/wbase/wbase5010/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase5010/SPEC.md)
-  - 選單 `wbase5010`~`wbase5060` 共用 `Wbase5010Index`，依選單顯示對應畫面 (不顯示頁籤)：5-1 客戶資料列印、5-2 郵寄標籤列印、5-3 客戶登打統計表、5-4 客戶營業狀況表、5-5 客戶財務狀況參考表、5-6 委任書輸入維護 (`bsdesc.dbf`)。
+  - 選單 `wbase5010`~`wbase5060` 共用 `Wbase5010Index`，依選單顯示對應畫面 (不顯示頁籤)：5-1 客戶資料列印、5-2 郵寄標籤列印、5-3 客戶登打統計表、5-4 客戶營業狀況表、5-5 客戶財務狀況參考表、5-6 委任書輸入維護 (`bsdesc.dbf`)。5-1 ~ 5-5 與 `wbase5070` 相同分兩段：先選擇客戶 (5-2 為設定列印份數)，`Esc` 後再輸入列印條件、`F7` 預覽。
 - 📌 [wbase5070 碳健檢企業名單匯出模組規格 (`docs/frontend/wbase/wbase5070/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase5070/SPEC.md)
   - 選單 `wbase5070`：`<FoxProGridV2 />` 勾選客戶 (VFP `wbase4000`) → 資料年度、起訖月份 (VFP `wbase5070`) → 轉檔列印密碼 → 加總各客戶 `<drive>:\w3000\data\<客戶代號>\<年末 2 碼>\t403.dbf` 的 `t025` → 瀏覽器匯出 Excel；只讀資料，沒有列印報表。
 

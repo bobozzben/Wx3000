@@ -369,6 +369,10 @@ namespace Wx3000.Backend.Models
 
         [JsonPropertyName("endKeyin")]
         public string? EndKeyin { get; set; }
+
+        /// <summary>第一段選擇的客戶代號 (有值時只列這些客戶)</summary>
+        [JsonPropertyName("selectedNos")]
+        public List<string>? SelectedNos { get; set; }
     }
 
     /// <summary>
@@ -390,6 +394,10 @@ namespace Wx3000.Backend.Models
 
         [JsonPropertyName("endNo")]
         public string? EndNo { get; set; }
+
+        /// <summary>第一段選擇的客戶代號 (有值時只列這些客戶)</summary>
+        [JsonPropertyName("selectedNos")]
+        public List<string>? SelectedNos { get; set; }
     }
 
     /// <summary>
@@ -405,6 +413,10 @@ namespace Wx3000.Backend.Models
 
         [JsonPropertyName("endNo")]
         public string? EndNo { get; set; }
+
+        /// <summary>第一段選擇的客戶代號 (有值時只列這些客戶)</summary>
+        [JsonPropertyName("selectedNos")]
+        public List<string>? SelectedNos { get; set; }
     }
 
     /// <summary>

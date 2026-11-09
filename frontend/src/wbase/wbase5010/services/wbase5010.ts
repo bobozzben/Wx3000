@@ -127,6 +127,8 @@ export interface KeyinStatsQueryParams {
   endNo?: string;
   startKeyin?: string;
   endKeyin?: string;
+  /** 第一段選擇的客戶代號 */
+  selectedNos?: string[];
 }
 
 export interface BusinessStatusQueryParams {
@@ -135,12 +137,16 @@ export interface BusinessStatusQueryParams {
   endMonth?: string;
   startNo?: string;
   endNo?: string;
+  /** 第一段選擇的客戶代號 */
+  selectedNos?: string[];
 }
 
 export interface FinanceStatusQueryParams {
   year?: string;
   startNo?: string;
   endNo?: string;
+  /** 第一段選擇的客戶代號 */
+  selectedNos?: string[];
 }
 
 export interface BsdescBatchUpdatePayload {

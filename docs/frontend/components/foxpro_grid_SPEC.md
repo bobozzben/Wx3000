@@ -98,6 +98,7 @@ frontend/src/components/
 
 - **`<FoxProPrintModal />`**：統一全系統 `F7` 區間列印彈窗，內建起迄代號輸入、預覽表格、純淨紙張直印 (`printElement`)、自訂 `extraActions`（如以 `FoxProDllPrintButton` 透過 `LocalAgent` (`http://localhost:5009/report`) 呼叫原生 `wbaseRP.dll` 報表），並整合「匯出 xlsx 設定」勾選框。
   - 視窗內按鍵：`Esc` 關閉、`F7` 網頁列印、`F8` 匯出 xlsx (需 `enableXlsxExport` 且有資料)。
+  - `showFilter` (預設 `true`) 設為 `false` 時不顯示起迄代號篩選列，用於範圍已在前一個畫面決定的報表 (例如 `wbase5010` 5-1、5-3 ~ 5-5 先選擇客戶)；此時起迄的 props 仍須傳入，但不會用到。
   - 未勾選「匯出 xlsx 設定」時直接以上次儲存的欄位設定匯出；勾選時先開啟 `<FormUtilSelectXlsxFieldsList />`。設定存於 `localStorage` (`xlsxStorageKey`，預設 `<reportTitle>_xlsx_export_config`)，檔名為 `<xlsxFileName 或 reportTitle>_<yyyy-MM-dd>.xlsx`。
   - 使用模組：`wbase1020`、`1030`、`1050`、`1060`、`1070`、`3010`、`4010`、`5010`/`5030`/`5040`/`5050` 等。
 - **`<FormUtilSelectXlsxFieldsList />`**：單一欄位清單（選擇 / 欄位名稱 / 自訂匯出標題），可勾選匯出欄位、點選標題儲存格自訂匯出標題、調整欄位順序。設定以 `vFieldList` / `vCaptionList` / `vDisplayFormat` / `vColorList` 字串序列化 (`serializeXlsxConfigParams` / `parseXlsxConfigParams`)，持久化由呼叫端負責 (`FoxProPrintModal`，或 `SelectXlsxField/index.ts` 的 `useSelectXlsxExport` Hook，預設 key `common_xlsx_export_config`)。

@@ -40,6 +40,8 @@ export interface FoxProPrintModalProps<T extends Record<string, any>> {
   onEndCodeChange: (val: string) => void;
 
   onSearch: () => void | Promise<void>;
+  /** 是否顯示起訖編號篩選列 (預設 true)；範圍已在前一個畫面決定時設為 false */
+  showFilter?: boolean;
 
   // Data & Table definitions
   data: T[];
@@ -102,6 +104,7 @@ export function FoxProPrintModal<T extends Record<string, any>>({
   endCodeValue,
   onEndCodeChange,
   onSearch,
+  showFilter = true,
   data,
   columns,
   getRowKey,
@@ -355,6 +358,7 @@ export function FoxProPrintModal<T extends Record<string, any>>({
         </div>
 
         {/* Filter Area - 列印時隱藏 */}
+        {showFilter && (
         <form
           onSubmit={handleSubmit}
           className={`py-3.5 border-b grid grid-cols-1 md:grid-cols-3 gap-3 items-end transition-colors print:hidden ${
@@ -405,6 +409,7 @@ export function FoxProPrintModal<T extends Record<string, any>>({
             </button>
           </div>
         </form>
+        )}
 
         {/* Print Preview Content */}
         <div className="flex-1 overflow-y-auto py-4 font-mono print:overflow-visible print:p-0 print:py-0">
