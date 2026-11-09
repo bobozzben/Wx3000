@@ -17,13 +17,13 @@
 - **下半部「資料匯入」**（VFP `Label14` / `Text7` XLS檔 / `Command1` [...] / `Command2` [轉入] / `BUYPOSI` / `GPQTY` / `Command4`~`Command6`）：
   - `XLS檔`：`Enter` 或點選開啟檔案選擇 (`.xls` / `.xlsx`)，`[...]` 同。
   - **來源格式** (`importMode`，VFP `BUYPOSI`)：`1` 網路購買、`2` 代售點購買。購買次數輸入 `2` (追加) 時強制為代售點購買且網路購買不可選，輸入 `1` 時回到網路購買 (VFP `Text2.Valid`)。
-  - **I 欄數量 / F 欄數量** (`qtyColOption`，VFP `GPQTY`)：只影響代售點購買的欄位位置與格式預覽圖。
-  - **格式預覽**：以 `GET /api/wbase3060/doc-image/{name}` 讀取資料磁碟機的圖檔顯示在彈窗 (`Esc`/`Enter` 關閉)：網路購買 `tgo01.jpg`；代售點購買依 I 欄 / F 欄數量為 `tgo02.jpg` / `tgo022.jpg` (VFP `Command4` / `Command5`)。圖檔不存在時彈窗顯示後端訊息「找不到格式預覽圖檔 X:\W3000\doc\tgo022.jpg」。
+  - VFP 的 `GPQTY` (I 欄數量 / F 欄數量) 在舊版畫面已隱藏，網頁版不提供這個選項，代售點購買一律用 I 欄數量格式。
+  - **格式預覽**：以 `GET /api/wbase3060/doc-image/{name}` 讀取資料磁碟機的圖檔顯示在彈窗 (`Esc`/`Enter` 關閉)：網路購買 `tgo01.jpg`、代售點購買 `tgo02.jpg` (VFP `Command4` / `Command5`)。圖檔不存在時彈窗顯示後端訊息「找不到格式預覽圖檔 X:\W3000\doc\tgo02.jpg」。
   - **下載點網址**：另開 `https://invoice.ppmof.gov.tw/` (VFP `Command6`)。
   - **[轉入]** (VFP `Command2.Click`)：依序檢查「年度不可空白!!」「月份不可空白!!」「年度輸入不正確!!」(< 34)「月份輸入不正確!!」(1~12)「請輸入奇數月份!!」「月份區間不正確!!」與是否選了檔案，再以 `ConfirmDialog` 問「確定轉入 財政部印刷廠發票網路購買配號明細 Excel資料 / 代售點購買發票配號明細 Y/N ?」。確定後在前端用 SheetJS 解析第一個工作表 (`wbase3060Import.ts`)，呼叫 `POST /api/wbase3060/import-track`，結果以 `MessageDialog` 顯示「轉入期別:11506 / 共轉入 N 家公司資料：新增 X 筆、更新 Y 筆、Z 筆無異動 / 找不到客戶資料，未轉入：... / 請繼續執行 <F8.確定> 編輯該資料.」，並在匯入區顯示一行摘要。
 - **Excel 解析規則** (`wbase3060Import.ts`，與 VFP `APPEND FROM ... XL8` 一樣依欄位位置，不看表頭文字)：
   - **網路購買 (`tgo01.jpg`)**：第 1 列 `N` 欄為期別 (年 3 碼 + 迄月 2 碼，例如 `11506`)，與畫面的年度、迄月不符時回「轉入期別:11506 與發票購買期別不符!」(VFP 錯誤 #6809)。資料列為 `A` 欄以數字開頭的列：`A` 統編 `B` 公司名稱 `C` 稅籍編號，之後每 4 欄 (數量、字軌、起號、迄號) 依序為 `D~G` 二聯式、`H~K` 二聯副、`L~O` 三聯式、`P~S` 三聯副、`T~W` 特種、`X~AA` 二收銀、`AB~AE` 三收銀、`AF~AI` 三收副；每種發票有任一值才產生一筆。
-  - **代售點購買 (`tgo02.jpg` / `tgo022.jpg`)**：`A` 期別 `B` 統編 `C` 稅籍 `D` 公司名稱 `E` 發票種類 `J` 購買方式 `K` 購買地點 `L` 購買日期 (取前 7 碼，VFP `netbuy.buydate c(7)`)；I 欄數量時 `F` 字軌 `G` 起號 `H` 迄號 `I` 數量，F 欄數量時 `F` 數量 `G` 字軌 `H` 起號 `I` 迄號。追加購買只取購買方式以「零售」開頭的列，首次購買只取非零售 (VFP `SET FILTER TO btype='零售'`)；期別取第一列 5 碼數字的 `A` 欄，年度與迄月不符即拒絕，每列的迄月也要相同。發票種類對應：`二聯式` `二聯副` `三聯式` `三聯副` `二收銀` `三收銀` `三收副` `特種` / `特種稅`，其他種類略過並在結果列出。
+  - **代售點購買 (`tgo02.jpg`)**：`A` 期別 `B` 統編 `C` 稅籍 `D` 公司名稱 `E` 發票種類 `F` 字軌 `G` 起號 `H` 迄號 `I` 數量 `J` 購買方式 `K` 購買地點 `L` 購買日期 (取前 7 碼，VFP `netbuy.buydate c(7)`)。解析器另保留 VFP `GPQTY` F 欄數量格式 (`F` 數量 `G` 字軌 `H` 起號 `I` 迄號，`qtyCol: 'F'`) 但畫面不提供。追加購買只取購買方式以「零售」開頭的列，首次購買只取非零售 (VFP `SET FILTER TO btype='零售'`)；期別取第一列 5 碼數字的 `A` 欄，年度與迄月不符即拒絕，每列的迄月也要相同。發票種類對應：`二聯式` `二聯副` `三聯式` `三聯副` `二收銀` `三收銀` `三收副` `特種` / `特種稅`，其他種類略過並在結果列出。
   - 統編與起迄號為純數字且不足 8 碼時補前導 0 (Excel 數值儲存格會掉 0)；字軌轉大寫；數量用 `parseInt` (VFP `Val()`)。
 
 ### 1.2 階段 2：8 大發票種類字軌與起迄號整頁盲打 (`wbase3060_02.tsx`)
@@ -84,7 +84,7 @@ backend/Controllers/
 | `GET` | `/api/wbase3060?period={p}&times={t}&sortOrder={s}&keyword={q}` | 同步 `buyinv.dbf` 後查詢指定期別與次數之客戶字軌清單（關聯 `customer` 補齊簡稱、統編、稅籍編號） |
 | `PUT` | `/api/wbase3060/batch` | 更新一筆或多筆客戶字軌與起迄號：逐筆以 `WriteRecordAsync(UPDATE, keyField: "RECNO(),yymm,times,no")` 寫入 `buyinv.dbf`，再更新 PostgreSQL |
 | `POST` | `/api/wbase3060/import-track` | 轉入前端解析的 Excel 資料，見 4.1 |
-| `GET` | `/api/wbase3060/doc-image/{name}` | 讀 `<Drive>:\W3000\doc\{name}.jpg` (`name` 只接受 `tgo01`、`tgo02`、`tgo022`)，回 `image/jpeg`；不存在回 `404 { message }` |
+| `GET` | `/api/wbase3060/doc-image/{name}` | 讀 `<Drive>:\W3000\doc\{name}.jpg` (`name` 只接受 `tgo01`、`tgo02`)，回 `image/jpeg`；不存在回 `404 { message }` |
 | `POST` | `/api/wbase3060/clear` | 清除指定期別與次數所有客戶的字軌與起迄號，保留申購本數 |
 
 ### 4.1 `POST /api/wbase3060/import-track`
@@ -110,7 +110,7 @@ backend/Controllers/
 - `Enter` / `↓` / `↑`：於年、起月、迄月、次數、排序之間移動；排序欄 `↓` 進入 `XLS檔`
 - `XLS檔`：`Enter` / `Space` 選擇檔案、`↓` 到 [轉入]、`↑` 回排序欄
 - [轉入]：`Enter` 轉入 (先確認 Y/N)、`↓` 到 [F8. 確定]、`↑` 回 `XLS檔`；[F8. 確定] `↑` 回 [轉入]
-- 網路購買 / 代售點購買、I 欄 / F 欄數量：`Tab` 到單選鈕後以 `←` `→` 切換
+- 網路購買 / 代售點購買：`Tab` 到單選鈕後以 `←` `→` 切換
 - 確認視窗 `Y`/`Enter` 確定、`N`/`Esc` 取消；訊息視窗與格式預覽 `Enter`/`Esc` 關閉
 - `F8`：確定並進入階段 2（轉入中不作用）
 - `Esc`：退回 wbase 主選單
@@ -141,4 +141,4 @@ backend/Controllers/
 - VFP 轉入只在 3022 建 netbuy，要按 `F8` 進編輯畫面、再離開才真的寫回 `buyinv`；網頁版按 [轉入] 確認後直接寫入 DBF。
 - VFP 網路購買 + 追加購買時 netbuy 會建立但 `wbasemenu03cmd06` 不合併 (`xFlag`)；網頁版在次數為 2 時直接不允許選網路購買。
 - 新列的公司名稱直接用客戶簡稱 (VFP 先寫客戶全名，下次進入 3-6 時才被 `customer.abbr` 蓋掉)。
-- VFP 的 `GPQTY` (I 欄 / F 欄數量) 在畫面上是隱藏的；網頁版顯示出來並用它決定代售點格式與預覽圖。
+- VFP 的 `GPQTY` (I 欄 / F 欄數量) 在畫面上是隱藏的，網頁版同樣不顯示，代售點購買固定用 I 欄數量格式與 `tgo02.jpg`。

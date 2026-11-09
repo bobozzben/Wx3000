@@ -741,14 +741,14 @@ namespace Wx3000.Backend.Controllers
         }
 
         /// <summary>
-        /// 格式預覽圖檔 (VFP wbase3022 Command4 / Command5：<磁碟機>:\W3000\doc\tgo01.jpg 網路購買、tgo02.jpg 代售點 I 欄數量、tgo022.jpg 代售點 F 欄數量)
+        /// 格式預覽圖檔 (VFP wbase3022 Command4 / Command5：<磁碟機>:\W3000\doc\tgo01.jpg 網路購買、tgo02.jpg 代售點購買)
         /// GET: api/wbase3060/doc-image/tgo01
         /// </summary>
         [HttpGet("doc-image/{name}")]
         public IActionResult GetDocImage(string name)
         {
             var key = (name ?? string.Empty).Trim().ToLowerInvariant();
-            if (key != "tgo01" && key != "tgo02" && key != "tgo022")
+            if (key != "tgo01" && key != "tgo02")
                 return NotFound(new { message = $"不支援的格式預覽圖檔 {name}" });
 
             var path = $@"{_configService.DataDrive}:\W3000\doc\{key}.jpg";

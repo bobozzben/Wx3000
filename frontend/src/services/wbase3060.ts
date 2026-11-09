@@ -134,7 +134,7 @@ export interface ImportExcelTrackResult {
   message: string;
 }
 
-export type DocImageName = 'tgo01' | 'tgo02' | 'tgo022';
+export type DocImageName = 'tgo01' | 'tgo02';
 
 /**
  * 查詢統購發票字軌資料

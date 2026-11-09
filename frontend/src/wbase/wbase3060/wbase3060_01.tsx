@@ -23,7 +23,6 @@ import {
   readFirstSheetRows,
   validatePeriodInput,
   type ImportMode,
-  type QtyColumn,
 } from './wbase3060Import';
 
 export interface Wbase3060_01Props {
@@ -64,17 +63,16 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
   const [times, setTimes] = useState('1'); // 1: 首次購買, 2: 追加購買
   const [sortOrder, setSortOrder] = useState<'1' | '2' | '3'>('1'); // 1: 依公司統編, 2: 依公司編號, 3: 依稅籍編號
 
-  // 資料匯入區域狀態 (VFP wbase3022 Label14 資料匯入 / Text7 XLS檔 / Command2 轉入 / BUYPOSI / GPQTY)
+  // 資料匯入區域狀態 (VFP wbase3022 Label14 資料匯入 / Text7 XLS檔 / Command2 轉入 / BUYPOSI；GPQTY I/F 欄數量在舊版已隱藏，一律 I 欄)
   const [xlsFileName, setXlsFileName] = useState('');
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [importMode, setImportMode] = useState<ImportMode>('1'); // 1: 網路購買, 2: 代售點購買
-  const [qtyColOption, setQtyColOption] = useState<QtyColumn>('I'); // 'I': I 欄數量, 'F': F 欄數量
   const [isImporting, setIsImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ type: 'info' | 'success' | 'error'; text: string } | null>(null);
   const [confirmImport, setConfirmImport] = useState(false);
   const [message, setMessage] = useState<MessageState | null>(null);
 
-  // 格式預覽 (<磁碟機>:\W3000\doc\tgo01.jpg / tgo02.jpg / tgo022.jpg)
+  // 格式預覽 (<磁碟機>:\W3000\doc\tgo01.jpg / tgo02.jpg)
   const [preview, setPreview] = useState<DocPreviewState | null>(null);
   const previewUrlRef = useRef<string | null>(null);
 
@@ -288,7 +286,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
     try {
       const rows = await readFirstSheetRows(excelFile);
-      const parsed = parseImportRows(rows, { year: y, endMonth: em, times, mode: importMode, qtyCol: qtyColOption });
+      const parsed = parseImportRows(rows, { year: y, endMonth: em, times, mode: importMode });
       if (parsed.items.length === 0) {
         throw new ImportParseError(
           importMode === '2'
@@ -325,7 +323,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
     }
   };
 
-  // 格式預覽：VFP Command4 (tgo01.jpg) / Command5 (tgo02.jpg 或 tgo022.jpg 依 I 欄 / F 欄數量)
+  // 格式預覽：VFP Command4 (tgo01.jpg) / Command5 (tgo02.jpg)
   const openPreview = async (name: DocImageName, title: string) => {
     if (previewUrlRef.current) {
       URL.revokeObjectURL(previewUrlRef.current);
@@ -364,7 +362,6 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
     return () => window.removeEventListener('keydown', onKey, true);
   }, [preview, closePreview]);
 
-  const agentPreviewName: DocImageName = qtyColOption === 'F' ? 'tgo022' : 'tgo02';
   const dataDrive = getDataDrive().toUpperCase();
 
   const smallButtonClass = `px-2 py-0.5 text-xs font-bold rounded border transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 ${
@@ -813,9 +810,9 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
                   <button
                     type="button"
-                    onClick={() => openPreview(agentPreviewName, `「代售點購買」Excel 格式預覽 (${qtyColOption} 欄數量)`)}
+                    onClick={() => openPreview('tgo02', '「代售點購買」Excel 格式預覽')}
                     className={smallButtonClass}
-                    title={`${dataDrive}:\\W3000\\doc\\${agentPreviewName}.jpg`}
+                    title={`${dataDrive}:\\W3000\\doc\\tgo02.jpg`}
                   >
                     格式預覽
                   </button>
@@ -829,37 +826,6 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                     <ExternalLink className="w-3 h-3" />
                     下載點網址
                   </button>
-
-                  {/* I 欄數量 vs F 欄數量 單選 */}
-                  <div className="flex items-center space-x-1.5 pl-1.5 border-l border-slate-300">
-                    <label className="flex items-center space-x-1 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="qtyColOption"
-                        value="I"
-                        checked={qtyColOption === 'I'}
-                        onChange={() => setQtyColOption('I')}
-                        className="w-3 h-3 text-blue-600"
-                      />
-                      <span className={`text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
-                        I 欄數量
-                      </span>
-                    </label>
-
-                    <label className="flex items-center space-x-1 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="qtyColOption"
-                        value="F"
-                        checked={qtyColOption === 'F'}
-                        onChange={() => setQtyColOption('F')}
-                        className="w-3 h-3 text-blue-600"
-                      />
-                      <span className={`text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
-                        F 欄數量
-                      </span>
-                    </label>
-                  </div>
                 </div>
               </div>
             </div>
@@ -991,9 +957,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
               <span className="text-[11px] font-mono font-bold text-slate-500">
                 {preview.name === 'tgo01'
                   ? '第 1 列 N 欄為期別；資料列 A 統編 B 公司 C 稅籍，之後每 4 欄 (數量/字軌/起號/迄號) 依序為 二聯式、二聯副、三聯式、三聯副、特種、二收銀、三收銀、三收副'
-                  : preview.name === 'tgo02'
-                  ? 'A 期別 B 統編 C 稅籍 D 公司 E 發票種類 F 字軌 G 起號 H 迄號 I 數量 J 購買方式 K 購買地點 (L 購買日期)'
-                  : 'A 期別 B 統編 C 稅籍 D 公司 E 發票種類 F 數量 G 字軌 H 起號 I 迄號 J 購買方式 K 購買地點 (L 購買日期)'}
+                  : 'A 期別 B 統編 C 稅籍 D 公司 E 發票種類 F 字軌 G 起號 H 迄號 I 數量 J 購買方式 K 購買地點 (L 購買日期)'}
               </span>
               <button
                 type="button"

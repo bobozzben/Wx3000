@@ -7,8 +7,8 @@ import type { ImportExcelTrackItem, TrackKind } from '../../services/wbase3060';
  *   網路購買 (tgo01.jpg)：第 1 列 B 欄事務所統編、N 欄期別 (例如 11010 = 110 年 10 月)；
  *     資料列 A 統編 B 公司名稱 C 稅籍編號，之後每 4 欄一種發票 (數量、字軌、起號、迄號)：
  *     D~G 二聯式、H~K 二聯副、L~O 三聯式、P~S 三聯副、T~W 特種、X~AA 二收銀、AB~AE 三收銀、AF~AI 三收副。
- *   代售點購買 (tgo02.jpg / tgo022.jpg)：A 期別 B 統編 C 稅籍 D 公司名稱 E 發票種類、J 購買方式 K 購買地點 L 購買日期，
- *     I 欄數量：F 字軌 G 起號 H 迄號 I 數量；F 欄數量：F 數量 G 字軌 H 起號 I 迄號。
+ *   代售點購買 (tgo02.jpg)：A 期別 B 統編 C 稅籍 D 公司名稱 E 發票種類 F 字軌 G 起號 H 迄號 I 數量 J 購買方式 K 購買地點 L 購買日期。
+ *     (VFP 的 GPQTY「F 欄數量」格式 F 數量 G 字軌 H 起號 I 迄號 在舊版畫面已隱藏，這裡只保留 qtyCol: 'F' 的解析，畫面一律 I 欄。)
  */
 
 export type ImportMode = '1' | '2';
@@ -22,7 +22,8 @@ export interface ImportParseOptions {
   /** 購買次數 1 首次 2 追加 */
   times: string;
   mode: ImportMode;
-  qtyCol: QtyColumn;
+  /** 代售點購買的數量欄位，預設 'I' (畫面不再提供選項) */
+  qtyCol?: QtyColumn;
 }
 
 export interface ImportParseResult {
@@ -163,7 +164,7 @@ export const parseAgentRows = (rows: string[][], opt: ImportParseOptions): Impor
       continue;
     }
     const [track, startNo, endNo, qty] =
-      opt.qtyCol === 'F'
+      (opt.qtyCol ?? 'I') === 'F'
         ? [cellText(row[6]), cellText(row[7]), cellText(row[8]), cellText(row[5])]
         : [cellText(row[5]), cellText(row[6]), cellText(row[7]), cellText(row[8])];
     const buyDate = cellText(row[11]).slice(0, 7); // netbuy.buydate c(7)

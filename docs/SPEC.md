@@ -51,7 +51,7 @@
 - 📌 [wbase3050 統購發票清單列印與單價設定規格 (`docs/frontend/wbase/wbase3050/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase3050/SPEC.md)
   - 包含統購發票清單列印 (`wbase3050_buylist_print`，支援 A4 發票清單與中一刀發票領取簽收單 `wbase350_buyinv_list`)、8 種發票工本費單價設定 (`wbase3050_buyinv_setamt`) 與 Excel 動態欄位匯出。
 - 📌 [wbase3060 統購發票字軌輸入與 Excel 匯入規格 (`docs/frontend/wbase/wbase3060/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase3060/SPEC.md)
-  - 包含期別排序設定與財政部印刷廠網路購買 / 代售點購買 Excel 轉入 (`wbase3060_01`，依 VFP `wbase3022` 的欄位位置解析、`tgo01/tgo02/tgo022.jpg` 格式預覽，轉入時每家每期只對應一列以避免舊程式的重覆資料)、8 大發票種類之「字軌 / 起號 / 迄號」雙層表頭 `<FoxProGridV2 />` 盲打與起迄號自動推算 (`wbase3060_02`)，以及 DBF (`buyinv.dbf`) 雙向同步。
+  - 包含期別排序設定與財政部印刷廠網路購買 / 代售點購買 Excel 轉入 (`wbase3060_01`，依 VFP `wbase3022` 的欄位位置解析、`tgo01/tgo02.jpg` 格式預覽，轉入時每家每期只對應一列以避免舊程式的重覆資料)、8 大發票種類之「字軌 / 起號 / 迄號」雙層表頭 `<FoxProGridV2 />` 盲打與起迄號自動推算 (`wbase3060_02`)，以及 DBF (`buyinv.dbf`) 雙向同步。
 
 ---
 
