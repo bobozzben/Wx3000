@@ -7,13 +7,24 @@ import {
   ArrowUpDown,
   Upload,
   FileSpreadsheet,
-  HelpCircle,
+  Image as ImageIcon,
   ExternalLink,
+  Loader2,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import axios from 'axios';
 import { getSystemParam, setSystemParam } from '../../services/systemParamService';
+import { getDataDrive } from '../../services/apiConfig';
 import { useTheme } from '../menu/ThemeContext';
-import { importExcelTracks, type ImportExcelTrackItem } from '../../services/wbase3060';
+import { importExcelTracks, fetchDocImage, readBlobErrorMessage, type DocImageName } from '../../services/wbase3060';
+import { ConfirmDialog, MessageDialog, type MessageState } from '../wbase2030/Wbase2030Dialogs';
+import {
+  ImportParseError,
+  parseImportRows,
+  readFirstSheetRows,
+  validatePeriodInput,
+  type ImportMode,
+  type QtyColumn,
+} from './wbase3060Import';
 
 export interface Wbase3060_01Props {
   onConfirm: (params: {
@@ -23,6 +34,25 @@ export interface Wbase3060_01Props {
   }) => void;
   onClose: () => void;
 }
+
+/** VFP wbase3022 Command6：財政部印刷廠發票網路申購 */
+const PPMOF_URL = 'https://invoice.ppmof.gov.tw/';
+
+interface DocPreviewState {
+  name: DocImageName;
+  title: string;
+  url?: string;
+  error?: string;
+}
+
+const describeImportError = (err: unknown): string => {
+  if (err instanceof ImportParseError) return err.message;
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { message?: string } | undefined;
+    return data?.message || err.message;
+  }
+  return err instanceof Error ? err.message : '檔案格式無法辨識';
+};
 
 export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }) => {
   const { isDark } = useTheme();
@@ -34,17 +64,19 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
   const [times, setTimes] = useState('1'); // 1: 首次購買, 2: 追加購買
   const [sortOrder, setSortOrder] = useState<'1' | '2' | '3'>('1'); // 1: 依公司統編, 2: 依公司編號, 3: 依稅籍編號
 
-  // 資料匯入區域狀態 (如 screen1.png)
+  // 資料匯入區域狀態 (VFP wbase3022 Label14 資料匯入 / Text7 XLS檔 / Command2 轉入 / BUYPOSI / GPQTY)
   const [xlsFileName, setXlsFileName] = useState('');
   const [excelFile, setExcelFile] = useState<File | null>(null);
-  const [importMode, setImportMode] = useState<'1' | '2'>('1'); // 1: 網路購買, 2: 代售點購買
-  const [qtyColOption, setQtyColOption] = useState<'I' | 'F'>('I'); // 'I': I 欄數量, 'F': F 欄數量
+  const [importMode, setImportMode] = useState<ImportMode>('1'); // 1: 網路購買, 2: 代售點購買
+  const [qtyColOption, setQtyColOption] = useState<QtyColumn>('I'); // 'I': I 欄數量, 'F': F 欄數量
   const [isImporting, setIsImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ type: 'info' | 'success' | 'error'; text: string } | null>(null);
+  const [confirmImport, setConfirmImport] = useState(false);
+  const [message, setMessage] = useState<MessageState | null>(null);
 
-  // 格式預覽與下載點 Modal
-  const [previewModalType, setPreviewModalType] = useState<'online' | 'agent' | null>(null);
-  const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
+  // 格式預覽 (<磁碟機>:\W3000\doc\tgo01.jpg / tgo02.jpg / tgo022.jpg)
+  const [preview, setPreview] = useState<DocPreviewState | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
 
   // Refs for Keyboard Navigation
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,7 +85,11 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
   const endMonthRef = useRef<HTMLInputElement>(null);
   const timesRef = useRef<HTMLInputElement>(null);
   const sortOrderRef = useRef<HTMLInputElement>(null);
+  const fileBoxRef = useRef<HTMLInputElement>(null);
+  const importBtnRef = useRef<HTMLButtonElement>(null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+
+  const dialogOpen = confirmImport || message !== null || preview !== null;
 
   const focusAndSelect = (ref: React.RefObject<HTMLInputElement | null>) => {
     setTimeout(() => {
@@ -91,7 +127,21 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
     loadParams();
   }, []);
 
+  // VFP wbase3022 Text2.Valid：購買次數 2 (追加) 只能用代售點購買格式，1 (首次) 預設回網路購買
+  useEffect(() => {
+    if (times === '2') setImportMode('2');
+    else if (times === '1') setImportMode('1');
+  }, [times]);
+
+  // 離開畫面時釋放預覽圖片
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    };
+  }, []);
+
   const handleConfirm = useCallback(async () => {
+    if (isImporting) return;
     const formattedPeriod = `${year}${startMonth.padStart(2, '0')}-${endMonth.padStart(2, '0')}`;
     try {
       await setSystemParam('c:/w3000/comm', '參數設定', '營業稅發票購買期別', formattedPeriod);
@@ -106,12 +156,12 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
       times,
       sortOrder,
     });
-  }, [year, startMonth, endMonth, times, sortOrder, onConfirm]);
+  }, [year, startMonth, endMonth, times, sortOrder, onConfirm, isImporting]);
 
   // 全域快捷鍵監聽
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (previewModalType || isUrlModalOpen) return;
+      if (dialogOpen) return;
 
       if (e.key === 'F8') {
         e.preventDefault();
@@ -127,7 +177,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleConfirm, onClose, previewModalType, isUrlModalOpen]);
+  }, [handleConfirm, onClose, dialogOpen]);
 
   // 輸入欄位鍵盤導航
   const handleInputKeyDown = (
@@ -165,7 +215,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
           focusAndSelect(sortOrderRef);
           break;
         case 'sortOrder':
-          confirmBtnRef.current?.focus();
+          fileBoxRef.current?.focus();
           break;
       }
     } else if (e.key === 'ArrowUp') {
@@ -185,7 +235,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
     }
   };
 
-  // 檔案選取處理
+  // 檔案選取處理 (VFP Command1：GETFILE('xls?'))
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -193,113 +243,135 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
       setXlsFileName(file.name);
       setImportMsg(null);
     }
+    // 同一個檔案重選也要觸發 onChange
+    e.target.value = '';
+    fileBoxRef.current?.focus();
   };
 
-  // 執行 Excel 轉入解析
-  const handleImportExcel = async () => {
+  const openFilePicker = () => {
+    if (isImporting) return;
+    fileInputRef.current?.click();
+  };
+
+  const sourceLabel =
+    importMode === '1' ? '財政部印刷廠發票網路購買配號明細 Excel資料' : '代售點購買發票配號明細';
+
+  // [轉入]：VFP Command2.Click 的檢查，再問 Y/N
+  const startImport = () => {
+    if (isImporting) return;
     if (!excelFile) {
-      alert('請先點選 [...] 按鈕選擇 XLS / XLSX 檔案！');
+      setMessage({ type: 'warning', title: 'XLS 檔', lines: ['檔案不存在  或 未選擇檔案!'], onClose: () => fileBoxRef.current?.focus() });
       return;
     }
+    const error = validatePeriodInput(year, startMonth, endMonth);
+    if (error) {
+      setMessage({ type: 'warning', title: '訊息', lines: [error], onClose: () => focusAndSelect(yearRef) });
+      return;
+    }
+    setConfirmImport(true);
+  };
+
+  // 執行 Excel 解析與轉入
+  const runImport = async () => {
+    setConfirmImport(false);
+    if (!excelFile) return;
+
+    const y = year.trim();
+    const bm = startMonth.trim().padStart(2, '0');
+    const em = endMonth.trim().padStart(2, '0');
+    setStartMonth(bm);
+    setEndMonth(em);
+    const formattedPeriod = `${y}${bm}-${em}`;
 
     setIsImporting(true);
     setImportMsg({ type: 'info', text: '正在解析 Excel 內容並轉入資料庫...' });
 
     try {
-      const data = await excelFile.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-
-      if (rows.length < 2) {
-        throw new Error('Excel 檔案內無足夠的資料列');
+      const rows = await readFirstSheetRows(excelFile);
+      const parsed = parseImportRows(rows, { year: y, endMonth: em, times, mode: importMode, qtyCol: qtyColOption });
+      if (parsed.items.length === 0) {
+        throw new ImportParseError(
+          importMode === '2'
+            ? '檔案中沒有符合期別與購買方式 (首次購買取非零售、追加購買取零售) 的資料列'
+            : '檔案中沒有統一編號開頭的資料列'
+        );
       }
 
-      const items: ImportExcelTrackItem[] = [];
-      const formattedPeriod = `${year}${startMonth.padStart(2, '0')}-${endMonth.padStart(2, '0')}`;
+      const res = await importExcelTracks(formattedPeriod, times, importMode, parsed.items);
 
-      // 檢查表頭或首列
-      let headerRowIndex = 0;
-      for (let i = 0; i < Math.min(5, rows.length); i++) {
-        const rowStr = rows[i].join(',');
-        if (rowStr.includes('統編') || rowStr.includes('統一編號') || rowStr.includes('字軌') || rowStr.includes('起號')) {
-          headerRowIndex = i;
-          break;
-        }
+      const lines = [`轉入期別:${parsed.periodCode}`, '', res.message];
+      if (parsed.skippedTypes.length > 0) lines.push(`略過不認得的發票種類：${parsed.skippedTypes.join('、')}`);
+      if (res.unmatched.length > 0) {
+        lines.push('', '找不到客戶資料，未轉入：');
+        res.unmatched.slice(0, 10).forEach((u) => lines.push(`${u.unifiedNo} ${u.taxNo} ${u.companyName}`.trim()));
+        if (res.unmatched.length > 10) lines.push(`… 共 ${res.unmatched.length} 家`);
       }
+      lines.push('', '請繼續執行 <F8.確定> 編輯該資料.');
 
-      const header = rows[headerRowIndex].map((h: any) => String(h).trim());
-
-      // 尋找各欄位索引
-      const findColIdx = (keywords: string[]) =>
-        header.findIndex((col) => keywords.some((k) => col.includes(k)));
-
-      let unifiedIdx = findColIdx(['統一編號', '統編', '營利事業統一編號']);
-      let taxIdx = findColIdx(['稅籍編號', '稅籍']);
-      let typeIdx = findColIdx(['發票類別', '發票種類', '種類', '聯式', '品名']);
-      let trackIdx = findColIdx(['字軌', '發票字軌']);
-      let startNoIdx = findColIdx(['起號', '發票起號', '起始號碼']);
-      let endNoIdx = findColIdx(['迄號', '發票迄號', '截止號碼']);
-      let qtyIdx = findColIdx(['本數', '數量', '冊數']);
-
-      // 若為「代售點購買」且特定選擇 F 欄或 I 欄
-      if (importMode === '2') {
-        if (qtyColOption === 'F' && qtyIdx === -1) qtyIdx = 5; // F 欄 (0-indexed: 5)
-        if (qtyColOption === 'I' && qtyIdx === -1) qtyIdx = 8; // I 欄 (0-indexed: 8)
-      }
-
-      // 若未找到明確標題，預設常用位置
-      if (unifiedIdx === -1) unifiedIdx = 1;
-      if (trackIdx === -1) trackIdx = 3;
-      if (startNoIdx === -1) startNoIdx = 4;
-      if (endNoIdx === -1) endNoIdx = 5;
-
-      for (let r = headerRowIndex + 1; r < rows.length; r++) {
-        const row = rows[r];
-        if (!row || row.length === 0) continue;
-
-        const unifiedNo = unifiedIdx >= 0 ? String(row[unifiedIdx] || '').trim() : '';
-        const taxNo = taxIdx >= 0 ? String(row[taxIdx] || '').trim() : '';
-        const invoiceType = typeIdx >= 0 ? String(row[typeIdx] || '').trim() : '';
-        const track = trackIdx >= 0 ? String(row[trackIdx] || '').trim().toUpperCase() : '';
-        const startNo = startNoIdx >= 0 ? String(row[startNoIdx] || '').trim() : '';
-        const endNo = endNoIdx >= 0 ? String(row[endNoIdx] || '').trim() : '';
-        const quantity = qtyIdx >= 0 ? parseInt(String(row[qtyIdx] || '0'), 10) : 0;
-
-        // 至少有統編或字軌才記錄
-        if (unifiedNo || track || startNo) {
-          items.push({
-            unifiedNo,
-            taxNo,
-            invoiceType,
-            track,
-            startNo,
-            endNo,
-            quantity: isNaN(quantity) ? 0 : quantity,
-          });
-        }
-      }
-
-      if (items.length === 0) {
-        throw new Error('未從檔案中辨識到有效的發票字軌資料列');
-      }
-
-      const res = await importExcelTracks(formattedPeriod, times, importMode, items);
-      setImportMsg({
-        type: 'success',
-        text: res.message || `轉入成功！共解析 ${items.length} 列，已更新至資料庫。`,
+      setImportMsg({ type: 'success', text: `轉入期別 ${parsed.periodCode}：${res.message}` });
+      setMessage({
+        type: res.unmatched.length > 0 ? 'warning' : 'success',
+        title: importMode === '1' ? '網路購買' : '代售點購買',
+        lines,
+        onClose: () => confirmBtnRef.current?.focus(),
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Import excel error:', err);
-      setImportMsg({
-        type: 'error',
-        text: `轉入失敗：${err.message || '檔案格式無法辨識'}`,
-      });
+      const text = describeImportError(err);
+      setImportMsg({ type: 'error', text: `轉入失敗：${text}` });
+      setMessage({ type: 'error', title: '轉入失敗', lines: [text], onClose: () => importBtnRef.current?.focus() });
     } finally {
       setIsImporting(false);
     }
   };
+
+  // 格式預覽：VFP Command4 (tgo01.jpg) / Command5 (tgo02.jpg 或 tgo022.jpg 依 I 欄 / F 欄數量)
+  const openPreview = async (name: DocImageName, title: string) => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setPreview({ name, title });
+    try {
+      const url = await fetchDocImage(name);
+      previewUrlRef.current = url;
+      setPreview((p) => (p && p.name === name ? { ...p, url } : p));
+    } catch (err) {
+      const fallback = `找不到格式預覽圖檔 ${getDataDrive().toUpperCase()}:\\W3000\\doc\\${name}.jpg`;
+      const text = await readBlobErrorMessage(err, fallback);
+      setPreview((p) => (p && p.name === name ? { ...p, error: text } : p));
+    }
+  };
+
+  const closePreview = useCallback(() => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setPreview(null);
+  }, []);
+
+  // 預覽視窗：Esc / Enter 關閉 (capture 階段，不讓畫面的 Esc 回選單)
+  useEffect(() => {
+    if (!preview) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' && e.key !== 'Enter') return;
+      e.preventDefault();
+      e.stopPropagation();
+      closePreview();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [preview, closePreview]);
+
+  const agentPreviewName: DocImageName = qtyColOption === 'F' ? 'tgo022' : 'tgo02';
+  const dataDrive = getDataDrive().toUpperCase();
+
+  const smallButtonClass = `px-2 py-0.5 text-xs font-bold rounded border transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+    isDark
+      ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+      : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-2xs'
+  }`;
 
   return (
     <div
@@ -342,7 +414,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                   </span>
                 </h1>
                 <p className="text-[10px] text-blue-100 font-mono font-bold">
-                  FormWBase360BuyinvSele
+                  FormWBase360BuyinvSele ‧ VFP wbase3022
                 </p>
               </div>
             </div>
@@ -590,7 +662,7 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
             </div>
           </div>
 
-          {/* Section 4: 資料匯入區塊 (如 screen1.png 所示規格) */}
+          {/* Section 4: 資料匯入 (VFP wbase3022：XLS檔 [...] [轉入]、網路購買 / 代售點購買、格式預覽、下載點網址) */}
           <div
             className={`p-2 sm:p-2.5 rounded-xl border-2 transition-colors ${
               isDark
@@ -599,11 +671,20 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
             }`}
           >
             {/* 標題：資料匯入 */}
-            <div className="flex items-center space-x-1.5 mb-1.5">
-              <Upload className={`w-3.5 h-3.5 ${isDark ? 'text-blue-400' : 'text-blue-700'}`} />
-              <h2 className={`text-xs sm:text-sm font-black tracking-wide ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
-                資料匯入
-              </h2>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center space-x-1.5">
+                <Upload className={`w-3.5 h-3.5 ${isDark ? 'text-blue-400' : 'text-blue-700'}`} />
+                <h2 className={`text-xs sm:text-sm font-black tracking-wide ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
+                  資料匯入
+                </h2>
+              </div>
+              <span
+                className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                  isDark ? 'text-blue-300 bg-blue-950/60' : 'text-blue-700 bg-blue-50 border border-blue-200'
+                }`}
+              >
+                [Enter 選檔] [↓ 轉入]
+              </span>
             </div>
 
             {/* XLS檔：輸入框 + [...] + [轉入] */}
@@ -612,23 +693,36 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
                 XLS檔：
               </span>
               <input
+                ref={fileBoxRef}
                 type="text"
                 value={xlsFileName}
                 readOnly
-                placeholder="請選擇統購發票 Excel 檔案 (.xls 或 .xlsx)"
-                onClick={() => fileInputRef.current?.click()}
-                className={`flex-1 px-2.5 py-1 rounded-md font-mono text-xs font-bold border-2 transition-all outline-none cursor-pointer ${
+                placeholder="Enter 選擇統購發票 Excel 檔案 (.xls 或 .xlsx)"
+                onClick={openFilePicker}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openFilePicker();
+                  } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    importBtnRef.current?.focus();
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    focusAndSelect(sortOrderRef);
+                  }
+                }}
+                className={`flex-1 px-2.5 py-1 rounded-md font-mono text-xs font-bold border-2 transition-all outline-none cursor-pointer focus:ring-2 focus:ring-amber-400 ${
                   isDark
-                    ? 'bg-slate-900 border-slate-700 text-slate-200 placeholder-slate-500 focus:border-blue-500'
-                    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-600 shadow-2xs'
+                    ? 'bg-slate-900 border-slate-700 text-slate-200 placeholder-slate-500 focus:border-amber-400'
+                    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-amber-500 shadow-2xs'
                 }`}
               />
 
               {/* [...] 瀏覽按鈕 */}
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className={`px-2.5 py-1 rounded-md border-2 font-black text-xs sm:text-sm transition-all cursor-pointer ${
+                onClick={openFilePicker}
+                className={`px-2.5 py-1 rounded-md border-2 font-black text-xs sm:text-sm transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 ${
                   isDark
                     ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
                     : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100 shadow-2xs'
@@ -640,13 +734,27 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
               {/* [轉入] 按鈕 */}
               <button
+                ref={importBtnRef}
                 type="button"
-                onClick={handleImportExcel}
-                disabled={isImporting || !excelFile}
-                className={`px-3 py-1 rounded-md border-2 font-black text-xs sm:text-sm transition-all shadow-md cursor-pointer ${
-                  excelFile && !isImporting
+                onClick={startImport}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    confirmBtnRef.current?.focus();
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    fileBoxRef.current?.focus();
+                  }
+                }}
+                disabled={isImporting}
+                className={`px-3 py-1 rounded-md border-2 font-black text-xs sm:text-sm transition-all shadow-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                  isImporting
+                    ? 'bg-slate-200/60 border-slate-300 text-slate-400 cursor-not-allowed'
+                    : excelFile
                     ? 'bg-red-50 hover:bg-red-100 border-red-300 text-red-600 active:scale-95'
-                    : 'bg-slate-200/60 border-slate-300 text-slate-400 cursor-not-allowed'
+                    : isDark
+                    ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
+                    : 'bg-white border-slate-300 text-slate-500 hover:bg-slate-100 shadow-2xs'
                 }`}
               >
                 {isImporting ? '轉入中...' : '轉入'}
@@ -660,14 +768,15 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
               }`}
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                {/* 網路購買選項 */}
+                {/* 網路購買選項 (追加購買不可用，VFP Text2.Valid) */}
                 <div className="flex items-center space-x-1.5">
-                  <label className="flex items-center space-x-1 cursor-pointer">
+                  <label className={`flex items-center space-x-1 ${times === '2' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
                       type="radio"
                       name="importMode"
                       value="1"
                       checked={importMode === '1'}
+                      disabled={times === '2'}
                       onChange={() => setImportMode('1')}
                       className="w-3.5 h-3.5 text-blue-600 focus:ring-blue-500"
                     />
@@ -678,12 +787,9 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
                   <button
                     type="button"
-                    onClick={() => setPreviewModalType('online')}
-                    className={`px-2 py-0.5 text-xs font-bold rounded border transition-colors cursor-pointer ${
-                      isDark
-                        ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                        : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-2xs'
-                    }`}
+                    onClick={() => openPreview('tgo01', '「網路購買」Excel 格式預覽')}
+                    className={smallButtonClass}
+                    title={`${dataDrive}:\\W3000\\doc\\tgo01.jpg`}
                   >
                     格式預覽
                   </button>
@@ -707,25 +813,20 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
 
                   <button
                     type="button"
-                    onClick={() => setPreviewModalType('agent')}
-                    className={`px-2 py-0.5 text-xs font-bold rounded border transition-colors cursor-pointer ${
-                      isDark
-                        ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                        : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-2xs'
-                    }`}
+                    onClick={() => openPreview(agentPreviewName, `「代售點購買」Excel 格式預覽 (${qtyColOption} 欄數量)`)}
+                    className={smallButtonClass}
+                    title={`${dataDrive}:\\W3000\\doc\\${agentPreviewName}.jpg`}
                   >
                     格式預覽
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setIsUrlModalOpen(true)}
-                    className={`px-2 py-0.5 text-xs font-bold rounded border transition-colors cursor-pointer ${
-                      isDark
-                        ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                        : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-2xs'
-                    }`}
+                    onClick={() => window.open(PPMOF_URL, '_blank', 'noopener,noreferrer')}
+                    className={`${smallButtonClass} inline-flex items-center gap-1`}
+                    title={PPMOF_URL}
                   >
+                    <ExternalLink className="w-3 h-3" />
                     下載點網址
                   </button>
 
@@ -796,6 +897,12 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
               ref={confirmBtnRef}
               type="button"
               onClick={handleConfirm}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  importBtnRef.current?.focus();
+                }
+              }}
               className="flex items-center space-x-1.5 px-4 sm:px-5 py-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-950/20 border-2 border-emerald-700 transition-all hover:scale-102 active:scale-98 cursor-pointer focus:ring-2 focus:ring-emerald-400"
             >
               <Check className="w-4 h-4 stroke-[3]" />
@@ -818,122 +925,82 @@ export const Wbase3060_01: React.FC<Wbase3060_01Props> = ({ onConfirm, onClose }
         </div>
       </div>
 
-      {/* 格式預覽彈跳視窗 */}
-      {previewModalType && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      {/* 轉入確認 (VFP: 確定轉入 ... Y/N ?) */}
+      {confirmImport && (
+        <ConfirmDialog
+          title={importMode === '1' ? '網路購買' : '代售點購買'}
+          lines={[`確定轉入 ${sourceLabel} Y/N ?`, `期別 ${year}${startMonth.padStart(2, '0')}-${endMonth.padStart(2, '0')}  次數 ${times}`, `檔案：${xlsFileName}`]}
+          onYes={() => void runImport()}
+          onNo={() => {
+            setConfirmImport(false);
+            importBtnRef.current?.focus();
+          }}
+        />
+      )}
+
+      {/* 訊息視窗 (VFP messagebox) */}
+      {message && (
+        <MessageDialog
+          message={message}
+          onDismiss={() => {
+            const current = message;
+            setMessage(null);
+            current.onClose?.();
+          }}
+        />
+      )}
+
+      {/* 格式預覽圖檔 (VFP: RUN <磁碟機>:\W3000\doc\tgo0x.jpg) */}
+      {preview && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4" onClick={closePreview}>
           <div
-            className={`w-full max-w-xl rounded-2xl border-2 p-5 shadow-2xl overflow-hidden ${
+            className={`w-full max-w-6xl max-h-full flex flex-col rounded-2xl border-2 shadow-2xl overflow-hidden ${
               isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
             }`}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-3 border-b pb-2.5">
-              <h3 className="text-base font-black flex items-center gap-2">
-                <HelpCircle className="w-5 h-5 text-indigo-500" />
-                <span>
-                  {previewModalType === 'online' ? '「網路購買」標準 Excel 格式範例' : '「代售點購買」標準 Excel 格式範例'}
+            <div className={`flex items-center justify-between px-4 py-2.5 border-b-2 shrink-0 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+              <h3 className="text-sm sm:text-base font-black flex items-center gap-2">
+                <ImageIcon className="w-5 h-5 text-indigo-500" />
+                <span>{preview.title}</span>
+                <span className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>
+                  {dataDrive}:\W3000\doc\{preview.name}.jpg
                 </span>
               </h3>
-              <button
-                onClick={() => setPreviewModalType(null)}
-                className="p-1 rounded-lg hover:bg-slate-500/20"
-              >
+              <button type="button" onClick={closePreview} className="p-1 rounded-lg hover:bg-slate-500/20 cursor-pointer" title="關閉 (Esc)">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs leading-relaxed">
-              <p className="font-bold text-slate-600 dark:text-slate-300">
-                系統支援自動比對公司統編、稅籍編號與發票種類，請確認 Excel 包含以下主要欄位：
-              </p>
-
-              <div className="overflow-x-auto rounded-lg border border-slate-300 dark:border-slate-700">
-                <table className="w-full text-left font-mono">
-                  <thead className="bg-slate-100 dark:bg-slate-800 border-b">
-                    <tr>
-                      <th className="p-2">統一編號</th>
-                      <th className="p-2">發票種類</th>
-                      <th className="p-2">字軌</th>
-                      <th className="p-2">起號</th>
-                      <th className="p-2">迄號</th>
-                      <th className="p-2">數量/本數</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                    <tr>
-                      <td className="p-2">70400563</td>
-                      <td className="p-2">手開三聯</td>
-                      <td className="p-2">AB</td>
-                      <td className="p-2">12345601</td>
-                      <td className="p-2">12345650</td>
-                      <td className="p-2">1</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2">49103249</td>
-                      <td className="p-2">手開二聯副</td>
-                      <td className="p-2">AC</td>
-                      <td className="p-2">87654301</td>
-                      <td className="p-2">87654400</td>
-                      <td className="p-2">2</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {previewModalType === 'agent' && (
-                <div className="p-2.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200">
-                  <span className="font-bold">提示：</span> 代售點購買如數量在第 6 欄請選「F 欄數量」；若數量在第 9 欄請選「I 欄數量」。
+            <div className={`min-h-0 flex-1 overflow-auto p-3 ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
+              {preview.error ? (
+                <div className="p-3 rounded-lg bg-rose-500/15 border border-rose-500/40 text-rose-600 dark:text-rose-400 text-sm font-bold">
+                  {preview.error}
+                </div>
+              ) : preview.url ? (
+                <img src={preview.url} alt={preview.title} className="max-w-none rounded border border-slate-300 bg-white" />
+              ) : (
+                <div className="flex items-center gap-2 p-3 text-sm font-bold text-slate-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  讀取圖檔中…
                 </div>
               )}
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className={`px-4 py-2 border-t-2 flex items-center justify-between shrink-0 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+              <span className="text-[11px] font-mono font-bold text-slate-500">
+                {preview.name === 'tgo01'
+                  ? '第 1 列 N 欄為期別；資料列 A 統編 B 公司 C 稅籍，之後每 4 欄 (數量/字軌/起號/迄號) 依序為 二聯式、二聯副、三聯式、三聯副、特種、二收銀、三收銀、三收副'
+                  : preview.name === 'tgo02'
+                  ? 'A 期別 B 統編 C 稅籍 D 公司 E 發票種類 F 字軌 G 起號 H 迄號 I 數量 J 購買方式 K 購買地點 (L 購買日期)'
+                  : 'A 期別 B 統編 C 稅籍 D 公司 E 發票種類 F 數量 G 字軌 H 起號 I 迄號 J 購買方式 K 購買地點 (L 購買日期)'}
+              </span>
               <button
                 type="button"
-                onClick={() => setPreviewModalType(null)}
-                className="px-4 py-1.5 rounded-lg font-bold bg-indigo-600 text-white hover:bg-indigo-500"
+                onClick={closePreview}
+                className="px-4 py-1.5 rounded-lg font-bold bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer"
               >
-                關閉
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 下載點網址彈跳視窗 */}
-      {isUrlModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div
-            className={`w-full max-w-md rounded-2xl border-2 p-5 shadow-2xl overflow-hidden ${
-              isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-3 border-b pb-2.5">
-              <h3 className="text-base font-black flex items-center gap-2">
-                <ExternalLink className="w-5 h-5 text-indigo-500" />
-                <span>代售點發票購票清單下載網址</span>
-              </h3>
-              <button onClick={() => setIsUrlModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-500/20">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs leading-relaxed">
-              <p className="font-bold">
-                請登入電子發票整合服務平台或各區國稅局指定代售點系統下載統購 Excel 清單：
-              </p>
-              <ul className="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-300 font-mono">
-                <li>財政部電子發票整合服務平台：https://www.einvoice.nat.gov.tw</li>
-                <li>財政部印刷廠發票網路申購：https://invoice.ppmof.gov.tw</li>
-              </ul>
-            </div>
-
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsUrlModalOpen(false)}
-                className="px-4 py-1.5 rounded-lg font-bold bg-indigo-600 text-white hover:bg-indigo-500"
-              >
-                確定關閉
+                Esc. 關閉
               </button>
             </div>
           </div>

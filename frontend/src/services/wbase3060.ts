@@ -92,16 +92,49 @@ export interface UpdateTrackItem {
   cashThreeSubEndNo?: string;
 }
 
+/** buyinv 的 8 種發票 (本數欄位名；字軌 / 起號 / 迄號為 {kind}beg / {kind}begno / {kind}endno) */
+export type TrackKind = 'a02' | 'a02b' | 'a03' | 'a03b' | 'spec' | 'c02' | 'c03' | 'c03b';
+
+/** 前端解析 Excel 後的一筆「公司 × 發票種類」資料 (VFP wbase3022 轉入時 netbuy.dbf 的一個欄位群) */
 export interface ImportExcelTrackItem {
-  unifiedNo?: string;
-  taxNo?: string;
-  companyCode?: string;
-  invoiceType?: string;
-  track?: string;
-  startNo?: string;
-  endNo?: string;
-  quantity?: number;
+  unifiedNo: string;
+  taxNo: string;
+  companyName: string;
+  /** 購買日期 (代售點 Excel L 欄，7 碼；網路購買為空) */
+  buyDate: string;
+  kind: TrackKind;
+  quantity: number;
+  track: string;
+  startNo: string;
+  endNo: string;
 }
+
+export interface ImportUnmatchedItem {
+  unifiedNo: string;
+  taxNo: string;
+  companyName: string;
+}
+
+export interface ImportExcelTrackResult {
+  success: boolean;
+  period: string;
+  times: string;
+  sourceType: string;
+  totalItems: number;
+  /** 對應到的公司家數 */
+  companies: number;
+  /** 對應到的購買紀錄筆數 (追加購買同一家不同購買日期算不同筆) */
+  rows: number;
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  skipped: number;
+  /** 找不到客戶資料、沒有轉入的統編 */
+  unmatched: ImportUnmatchedItem[];
+  message: string;
+}
+
+export type DocImageName = 'tgo01' | 'tgo02' | 'tgo022';
 
 /**
  * 查詢統購發票字軌資料
@@ -134,21 +167,45 @@ export async function updateInvoiceTracksBatch(
 }
 
 /**
- * 匯入 Excel 解析資料
+ * 轉入 Excel 解析後的統購字軌資料 (VFP wbase3022 [轉入])
  */
 export async function importExcelTracks(
   period: string,
   times: string,
-  sourceType: string,
+  sourceType: '1' | '2',
   items: ImportExcelTrackItem[]
-): Promise<{ success: boolean; totalItems: number; matched: number; unmatched: number; message: string }> {
-  const response = await axios.post('/api/wbase3060/import-track', {
+): Promise<ImportExcelTrackResult> {
+  const response = await axios.post<ImportExcelTrackResult>('/api/wbase3060/import-track', {
     period,
     times,
     sourceType,
     items,
   });
   return response.data;
+}
+
+/**
+ * 取得格式預覽圖檔 (<磁碟機>:\W3000\doc\tgo01.jpg 等)，回傳可放進 <img> 的 object URL；用完請 URL.revokeObjectURL
+ */
+export async function fetchDocImage(name: DocImageName): Promise<string> {
+  const response = await axios.get<Blob>(`/api/wbase3060/doc-image/${name}`, { responseType: 'blob' });
+  return URL.createObjectURL(response.data);
+}
+
+/** axios 以 blob 讀取時，錯誤內容也是 blob，要再讀成文字才拿得到後端的 message */
+export async function readBlobErrorMessage(err: unknown, fallback: string): Promise<string> {
+  const data = axios.isAxiosError(err) ? err.response?.data : undefined;
+  if (data instanceof Blob) {
+    try {
+      const parsed = JSON.parse(await data.text()) as { message?: string };
+      if (parsed.message) return parsed.message;
+    } catch {
+      /* 不是 JSON */
+    }
+  } else if (data && typeof data === 'object' && 'message' in data && typeof (data as { message: unknown }).message === 'string') {
+    return (data as { message: string }).message;
+  }
+  return fallback;
 }
 
 /**
