@@ -347,3 +347,6 @@ publish/*
 !publish/*.md
 localagent/agent.obf.js
 localagent/package.obf.json
+
+# .claude/launch.json (本機測試用的啟動設定)
+.claude/launch.json
