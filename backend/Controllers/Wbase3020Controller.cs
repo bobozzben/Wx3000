@@ -267,15 +267,15 @@ namespace Wx3000.Backend.Controllers
             var fields = AssembleDbfFields(model, p, t, c);
 
             // 2. 核心原則：DBF 絕對權威！先寫 DBF
-            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, keyVal, fields);
+            var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, keyVal, fields, DbfWriteOptions.UniqueKeyIfInsert(operation));
             if (!dbfResult.Success)
             {
-                if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                if (dbfResult.IsConflict)
                 {
                     return StatusCode(StatusCodes.Status409Conflict, new
                     {
                         error = dbfResult.Error,
-                        message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消"
+                        message = ConflictMessage(dbfResult, p, t, c)
                     });
                 }
                 return BadRequest(new
@@ -353,15 +353,15 @@ namespace Wx3000.Backend.Controllers
                 var fields = AssembleDbfFields(model, p, t, c);
 
                 // 2. 核心原則：DBF 絕對權威！先寫 DBF
-                var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, keyVal, fields);
+                var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, operation, KeyField, keyVal, fields, DbfWriteOptions.UniqueKeyIfInsert(operation));
                 if (!dbfResult.Success)
                 {
-                    if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                    if (dbfResult.IsConflict)
                     {
                         return StatusCode(StatusCodes.Status409Conflict, new
                         {
                             error = dbfResult.Error,
-                            message = dbfResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消"
+                            message = ConflictMessage(dbfResult, p, t, c)
                         });
                     }
                     return BadRequest(new
@@ -418,7 +418,7 @@ namespace Wx3000.Backend.Controllers
                 var dbfResult = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "DELETE", KeyField, keyVal, new Dictionary<string, object?>());
                 if (!dbfResult.Success)
                 {
-                    if (dbfResult.ErrorType == "LOCK_TIMEOUT")
+                    if (dbfResult.IsConflict)
                     {
                         return StatusCode(StatusCodes.Status409Conflict, new
                         {
@@ -512,15 +512,17 @@ namespace Wx3000.Backend.Controllers
                     var keyVal = $"{p},{t},{item.CompanyCode}";
                     var fields = AssembleDbfFields(item, p, t, item.CompanyCode);
 
-                    var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, keyVal, fields);
+                    var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, op, KeyField, keyVal, fields, DbfWriteOptions.UniqueKeyIfInsert(op));
                     if (!dbfRes.Success)
                     {
-                        if (dbfRes.ErrorType == "LOCK_TIMEOUT")
+                        if (dbfRes.IsConflict)
                         {
                             return StatusCode(StatusCodes.Status409Conflict, new
                             {
                                 error = dbfRes.Error,
-                                message = $"發票購買紀錄 [{item.CompanyCode}] 正被地端其他工作站編輯中，批次存檔取消"
+                                message = dbfRes.ErrorType == "DUPLICATE_KEY"
+                                    ? $"發票購買紀錄 [{item.CompanyCode}] 已被其他工作站新增，批次存檔取消，請重新整理後再試"
+                                    : $"發票購買紀錄 [{item.CompanyCode}] 正被地端其他工作站編輯中，批次存檔取消"
                             });
                         }
                         return BadRequest(new
@@ -553,6 +555,12 @@ namespace Wx3000.Backend.Controllers
             }
         }
 
+        /// <summary>409 的訊息：DUPLICATE_KEY 說明是哪一期哪一家已有資料，LOCK_TIMEOUT 沿用 LocalAgent 的說明</summary>
+        private static string ConflictMessage(DbfWriteResult res, string period, string times, string companyCode) =>
+            res.ErrorType == "DUPLICATE_KEY"
+                ? $"公司 [{companyCode}] 在 {period} 期第 {times} 次已有發票購買紀錄 (可能剛被其他工作站新增)，這次新增已取消，請重新整理後再試"
+                : res.Message ?? "資料正被地端其他工作站編輯中，存檔取消";
+
         public class TransferCompanyDataRequest
         {
             public string? Period { get; set; }
@@ -579,6 +587,7 @@ namespace Wx3000.Backend.Controllers
                     .ToDictionary(g => g.Key, g => g.First());
 
                 var insertedCount = 0;
+                var skippedExisting = false;
                 foreach (var c in companies)
                 {
                     if (string.IsNullOrWhiteSpace(c.CompanyCode)) continue;
@@ -597,7 +606,14 @@ namespace Wx3000.Backend.Controllers
 
                         var fields = AssembleDbfFields(item, targetPeriod, targetTimes, code);
                         var keyVal = $"{targetPeriod},{targetTimes},{code}";
-                        var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "INSERT", KeyField, keyVal, fields);
+                        var dbfRes = await _dbfSyncService.WriteRecordAsync(DbfPath, DbfName, "INSERT", KeyField, keyVal, fields, DbfWriteOptions.UniqueKey);
+                        if (dbfRes.ErrorType == "DUPLICATE_KEY")
+                        {
+                            // 同步快照之後才被其他工作站轉入：DBF 已有就不再新增；這筆不在快照裡，所以不更新 Checksum，下次讀取重灌
+                            skippedExisting = true;
+                            existingMap[code] = item;
+                            continue;
+                        }
                         if (!dbfRes.Success)
                         {
                             // 不寫 PostgreSQL、不更新 Checksum：已新增的列只在 DBF，下次讀取會自動重灌快照，重跑 F3 也會略過它們
@@ -640,7 +656,7 @@ namespace Wx3000.Backend.Controllers
                     Console.WriteLine($"Wbase3020 F3 轉檔 PostgreSQL 同步失敗，下次讀取將重灌快照: {ex.Message}");
                 }
 
-                if (pgSynced && insertedCount > 0)
+                if (pgSynced && insertedCount > 0 && !skippedExisting)
                 {
                     await _dbfSyncService.CommitWriteChecksumAsync(DbfPath, DbfName);
                 }

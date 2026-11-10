@@ -31,7 +31,13 @@
 - **Word 範本白名單 (`WORD_TEMPLATES`)**：`/api/office/word/*` 只接受範本代號與單一磁碟機字母，檔案路徑固定為 `<磁碟機>:\W3000\comm\<範本檔>`；PowerShell 腳本是固定字串，資料寫進 `%TEMP%\Wx3000\` 的暫存 JSON 後以環境變數傳路徑，不組進腳本或命令列。巨集名稱也必須在白名單內。
 - **Electron 限制**：目前 `file://` 頁面 (`webSecurity: false`) 的請求不帶 `Origin`，因此無 `Origin` 的跨站 POST 會放行；無 `Origin` 的跨站 GET 只放行唯讀端點 (`/`、`/test.html`、`/mac`、`/config`、`/dllList`、`/api/check-drive`、`/api/dbf/check_drive`、`/api/office/status`)。若日後開啟 `webSecurity`，請將實際 Origin 加入放行規則。
 
-修改後請執行 `npm test` (`localagent/agent.test.js`，共 32 項；`HTTP surface` 含 7 個子測試、`enqueueDbfWithin` 含 3 個，`node --test` 統計為 42)。
+修改後請執行 `npm test` (`localagent/agent.test.js`，共 43 項；`HTTP surface` 含 7 個子測試、`enqueueDbfWithin` 含 3 個，`node --test` 統計為 53，有 DBFBridge 時 61)。
+
+`guarded INSERT against real VFP` 會用真的 `DBFBridge.exe` 在暫存目錄建一張表，驗證檢查主鍵、取號 (含範圍與前綴、略過已刪除記錄) 與檔頭鎖等待的 VFP 腳本，有跑時另有 8 個子測試。
+
+- 預設找 `localagent\DBFBridge.exe` 或 `localagent\bridge\lazarus\DBFBridge.exe`，都找不到時略過 (CI 與 worktree 沒有這些執行檔)。
+- 也可以用環境變數指定，例如 `$env:WX3000_DBFBRIDGE='F:\ADSProject\Wx3000\localagent\DBFBridge.exe'; npm test`。
+- 整項約需 5 秒，其中鎖定等待佔 4 秒。
 
 ## 🔌 主要 API 端點
 
@@ -47,6 +53,17 @@
   - `keyField` 可為欄位名、`RECNO()` 或 `ALLTRIM()` / `STR()` / `VAL()` / `TRANSFORM()` 包住的欄位，多個鍵以逗號分隔 (例如 `RECNO(),rno`)，`keyValue` 依同樣順序以逗號分隔；一般鍵以 `ALLTRIM(TRANSFORM(欄位)) == 值` 比對。
   - 欄位值只接受字串、數字、布林、`null` 與日期值；日期 (D) 欄位傳 `{ "$date": "yyyy-MM-dd" }`，會轉成 VFP `{^yyyy-MM-dd}`，`""` 或 `null` 代表空日期。一般字串一律當字元值；含換行或引號的字串以 CP950 + Base64 經 `STRCONV(..., 14)` 寫入。
   - DBF 被其他工作站獨佔或鎖定 (VFP 錯誤 3、108、109、130、1705) 時回 `errorType: "LOCK_TIMEOUT"`，後端據此回 409。
+  - **新增時的防重複與取號**：`INSERT` 可以加 `unique` 與 `autoNumber` 兩個選項，`UPDATE` / `DELETE` 帶這兩個選項會回 `INVALID_REQUEST`。只要有其中一個選項，腳本就改成以下順序：
+    1. `SET DELETED ON`，再用 `RLOCK("0")` 鎖住檔頭。已用真的 VFP 驗證：另一個程序持有檔頭鎖時，`INSERT INTO` 會等約 2 秒後以錯誤 108 失敗；修改既有記錄則不受影響。所以舊系統的 `APPEND` / `INSERT` 會和這段腳本排隊。
+    2. 檔頭被別人鎖住時，最多重試 2 秒 (`SET REPROCESS TO 2 SECONDS`)，之後回 `errorType: "LOCK_TIMEOUT"`。
+    3. 檢查或取號，然後 `INSERT`，最後 `UNLOCK`。
+    - `unique: true`：以 `keyField` / `keyValue` 做 `LOCATE`，不含已刪除的記錄。DBF 已有這筆時不新增，回 `{ success: false, errorType: "DUPLICATE_KEY", message }`，後端回 409。
+    - `autoNumber: { field, assignTo?, scopeField?, scopeValue?, prefix?, width? }`：用 `CALCULATE MAX(field)` 取號，不含已刪除的記錄。
+      - `scopeField` / `scopeValue` 會用 `keyField` 的比對規則限定範圍。
+      - 有 `prefix` 時，`field` 是字元欄，號碼 = `prefix` + `PADL(MAX(VAL(去掉前綴的部分)) + 1, width, "0")`。前綴只能是 1–10 個英數字，`width` 為 1–18。
+      - 號碼會寫進 `field` 與 `assignTo` 列出的欄位，`fields` 裡同名的值不寫。成功時回傳 `autoNumber` (字串，例如 `"21"`、`"A114000012"`)。
+    - 這兩個選項是後來加的，舊版 LocalAgent 會忽略它們，照一般 INSERT 寫入 `fields`。所以後端仍要在 `fields` 放入自己算的號碼，回傳沒有 `autoNumber` 時就沿用。
+    - 腳本對 DBF 的實際變動與一般 INSERT 相同 (鎖不會改到檔案內容)，`checksumBefore` / `checksumAfter` / `otherChanges` 的判斷不變。`DUPLICATE_KEY` 與腳本自己回的 `LOCK_TIMEOUT` 都沒有寫入，所以不回傳 checksum。
 - `POST /api/dbf/read`：讀取單筆 DBF 記錄。
 - `POST /api/dbf/export_custbak`：2-2 客戶資料匯出。內容 `{ dbfPath, keys, targetFile }`，把 `customer.dbf` 中指定代號的客戶 `COPY TO` 新檔 (依代號排序、CP950)，輸出檔的 `sel` 填 `"=>"`；回 `{ success, count }`。目的檔不可已存在。
 - `POST /api/dbf/import_custbak`：2-3 客戶資料匯入。內容 `{ dbfPath, keys, sourceFile }`，以 customer 結構 `APPEND FROM` 來源檔 (依欄名對應)，指定代號存在就整筆覆蓋、不存在就新增，`customer.sel` 不覆蓋；回 `{ success, inserted, updated, failed: [{ key, reason }] }`，單筆被鎖定時記在 `failed`，其餘照常寫入。

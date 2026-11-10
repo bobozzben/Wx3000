@@ -99,18 +99,14 @@ const agent = (method, urlPath, body) => request(AGENT, method, urlPath, body);
 /**
  * 模擬舊系統 (VFP) 直接改 DBF：另外啟動一個 32-bit DBFBridge.exe 執行 REPLACE，
  * 和真正的 VFP 工作站一樣不經 LocalAgent 的隊列，也不經後端，所以 PostgreSQL 與 checksum 字典都不會更新。
- * 只支援以單一欄位定位的 UPDATE，值只能是英數字 (測試標記)。
+ * legacyWrite 以單一欄位定位後 REPLACE，legacyInsert 直接 INSERT；值只能是英數字 (測試標記)。
  */
 const BRIDGE_EXE = path.resolve(String(args.bridge || path.join(__dirname, '..', '..', 'localagent', 'bridge', 'lazarus', 'DBFBridge.exe')));
 
 function legacyWrite(dbfName, keyField, keyValue, fields) {
-  const started = performance.now();
   const alias = `lg_${dbfName}`;
-  const vfpPath = `${DBF_DIR}\\${dbfName}.dbf`.replace(/\\/g, '\\\\');
-  for (const v of [keyValue, ...Object.values(fields)]) {
-    if (!/^[A-Za-z0-9 -]*$/.test(String(v))) throw new Error(`legacyWrite 只接受英數字：${v}`);
-  }
-  const script = [
+  const vfpPath = legacyPath(dbfName, [keyValue, ...Object.values(fields)]);
+  return legacyExec([
     `USE "${vfpPath}" IN 0 ALIAS ${alias} SHARED AGAIN`,
     `SELECT ${alias}`,
     `LOCATE FOR ALLTRIM(${keyField}) == "${keyValue}"`,
@@ -121,7 +117,30 @@ function legacyWrite(dbfName, keyField, keyValue, fields) {
     `REPLACE ${Object.entries(fields).map(([k, v]) => `${alias}.${k} WITH "${v}"`).join(', ')}`,
     `USE IN ${alias}`,
     'RETURN "OK"',
-  ].join('\r\n');
+  ]);
+}
+
+function legacyInsert(dbfName, fields) {
+  const alias = `lg_${dbfName}`;
+  const vfpPath = legacyPath(dbfName, Object.values(fields));
+  return legacyExec([
+    `USE "${vfpPath}" IN 0 ALIAS ${alias} SHARED AGAIN`,
+    `INSERT INTO ${alias} (${Object.keys(fields).join(', ')}) VALUES (${Object.values(fields).map((v) => `"${v}"`).join(', ')})`,
+    `USE IN ${alias}`,
+    'RETURN "OK"',
+  ]);
+}
+
+function legacyPath(dbfName, values) {
+  for (const v of values) {
+    if (!/^[A-Za-z0-9 -]*$/.test(String(v))) throw new Error(`模擬舊系統寫入只接受英數字：${v}`);
+  }
+  return `${DBF_DIR}\\${dbfName}.dbf`.replace(/\\/g, '\\\\');
+}
+
+function legacyExec(lines) {
+  const started = performance.now();
+  const script = lines.join('\r\n');
   const b64 = Buffer.from(JSON.stringify({ action: 'EXEC_VFP', script }), 'utf8').toString('base64');
   return new Promise((resolve) => {
     const child = spawn(BRIDGE_EXE, [b64], { cwd: path.dirname(BRIDGE_EXE), windowsHide: true });
@@ -393,7 +412,10 @@ async function stampede() {
   }
 }
 
-/** 兩個人同時新增同一個代號：後端各自查 PostgreSQL 都說「不存在」，於是 DBF 被插入兩筆。 */
+/**
+ * 多人同時新增同一個代號：後端各自查 PostgreSQL 都說「不存在」。
+ * 修正前 DBF 被插入多筆；修正後 LocalAgent 在 DBF 檔頭鎖內確認代號不存在才新增，其餘的人收到 409。
+ */
 async function dupKey() {
   const base = await cpaRecord(cpaCodes[0]);
   // cpa.no 只有 C(2)，找一個還沒用過的兩碼代號
@@ -404,58 +426,86 @@ async function dupKey() {
   delete body.recordNumber;
   const res = await Promise.all(Array.from({ length: BURST }, () => api('POST', '/api/wbase1020', body)));
   const inDbf = dbfRows('cpa').filter((r) => trim(r.no) === code).length;
+  const created = res.filter((r) => r.ok).length;
+  const other = res.filter((r) => !r.ok && r.status !== 409);
   const details = [
     `${BURST} 人同時新增會計師代號 ${code}，狀態：${statusCounts(res)}`,
     `DBF 中代號 ${code} 的筆數：${inDbf}`,
   ];
   if (res.some((r) => !r.ok)) details.push(`錯誤範例：${errorSample(res)}`);
-  report('dup-key', inDbf === 1 ? 'PASS' : 'FAIL',
-    inDbf === 1 ? '同一代號只寫入一筆' : `同一代號在 DBF 寫入了 ${inDbf} 筆 (DBF 沒有唯一限制，之後依代號修改只會找到第一筆)`,
-    details);
+  let title;
+  if (inDbf !== 1) title = `同一代號在 DBF 寫入了 ${inDbf} 筆 (DBF 沒有唯一限制，之後依代號修改只會找到第一筆)`;
+  else if (created !== 1 || other.length) title = `DBF 只有一筆，但 ${created} 人收到成功、${other.length} 人收到 409 以外的錯誤`;
+  report('dup-key', title ? 'FAIL' : 'PASS', title || '同一代號只寫入一筆，其餘的人收到 409', details);
+
+  // 舊系統剛新增、PostgreSQL 快照還沒重灌時，網頁新增同一代號 (後端查快照會以為不存在)
+  const used2 = new Set(dbfRows('cpa').map((r) => trim(r.no)));
+  const code2 = [...'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((c) => `Y${c}`).find((c) => !used2.has(c));
+  if (!code2) { report('dup-key', 'WARN', '找不到未使用的兩碼代號，略過舊系統新增的檢查'); return; }
+  const lg = await legacyInsert('cpa', { no: code2, name: 'LEGACY' });
+  if (!lg.ok) { report('dup-key', 'FAIL', '無法模擬舊系統新增 cpa.dbf', [String(lg.error || lg.text).slice(0, 200)]); return; }
+  const web = await api('POST', '/api/wbase1020', { ...base, cpaCode: code2, cpaName: '壓力測試舊系統已新增', guid: '' });
+  const inDbf2 = dbfRows('cpa').filter((r) => trim(r.no) === code2).length;
+  const ok2 = inDbf2 === 1 && web.status === 409;
+  report('dup-key', ok2 ? 'PASS' : 'FAIL',
+    ok2 ? '舊系統剛新增的代號，網頁再新增時回 409' : '舊系統剛新增的代號，網頁仍可再新增一筆', [
+      `舊系統新增會計師 ${code2} 後，網頁立刻新增同一代號：${web.status}${web.ok ? '' : ` ${errorSample([web])}`}`,
+      `DBF 中代號 ${code2} 的筆數：${inDbf2}`,
+    ]);
 }
 
-/** 同時新增需要自動取號的資料：比對 DBF 中的號碼是否重複。 */
+/**
+ * 同時新增需要自動取號的資料：比對 DBF 中的號碼是否重複，並確認每個請求都成功、DBF 新增的筆數等於成功的回應數
+ * (回應失敗但 DBF 已寫入，使用者會以為沒存到而重按)。
+ */
+function judgeNumbering(label, res, added, dup, keyName) {
+  const created = res.filter((r) => r.ok).length;
+  const k = /[A-Za-z]$/.test(keyName) ? `${keyName} ` : keyName; // 英文欄名後面空一格
+  const details = [`${label}：${BURST} 人同時新增，狀態：${statusCounts(res)}；DBF 新增 ${added} 筆`];
+  if (res.some((r) => !r.ok)) details.push(`錯誤範例：${errorSample(res)}`);
+  if (dup.length) details.push(`DBF 重複的 ${keyName}：${dup.map(([k, c]) => `${k} (${c} 筆)`).join('、')}`);
+  let title;
+  if (dup.length) title = `${label}：${k}重複`;
+  else if (created !== BURST) title = `${label}：${BURST - created} 個請求失敗`;
+  else if (added !== created) title = `${label}：成功 ${created} 筆，DBF 卻新增 ${added} 筆`;
+  return { status: title ? 'FAIL' : 'PASS', title: title || `${label}：${k}沒有重複，全部成功`, details };
+}
+
 async function numbering() {
-  // 5-6 委任書條文：seq 由後端取 MAX(seq)+1，沒有鎖
+  // 5-6 委任書條文：seq 由 VFP 在 DBF 檔頭鎖內取 MAX(seq)+1 (修正前由後端查 PostgreSQL 取號，沒有鎖)
   {
+    const before = dbfRows('bsdesc').length;
     const res = await Promise.all(Array.from({ length: BURST }, (_, i) =>
       api('POST', '/api/wbase5010/bsdesc', { seq: 0, no: '', desc: `壓力測試條文 ${i + 1}`, sel: '', serial: 0 })));
-    const dup = duplicates(dbfRows('bsdesc'), (r) => String(r.seq));
-    const details = [`${BURST} 人同時新增委任書條文，狀態：${statusCounts(res)}`];
-    if (res.some((r) => !r.ok)) details.push(`錯誤範例：${errorSample(res)}`);
-    if (dup.length) details.push(`DBF 重複的 seq：${dup.map(([k, c]) => `${k} (${c} 筆)`).join('、')}`);
-    report('numbering', dup.length ? 'FAIL' : 'PASS',
-      dup.length ? '5-6 委任書條文 seq 重複' : '5-6 委任書條文 seq 沒有重複', details);
+    const rows = dbfRows('bsdesc');
+    const r = judgeNumbering('5-6 委任書條文', res, rows.length - before, duplicates(rows, (x) => String(x.seq)), 'seq');
+    report('numbering', r.status, r.title, r.details);
   }
 
-  // 4-5 共用摘要：serial 由後端取該科目 MAX(serial)+1，沒有鎖
+  // 4-5 共用摘要：serial 由 VFP 取該科目 MAX(serial)+1 (修正前由後端查 PostgreSQL 取號，沒有鎖)
   {
     const acc = await api('GET', '/api/wbase4020/descrip/accounts');
     const accno = Array.isArray(acc.json) && acc.json.length ? trim(acc.json[0].accno) : '';
     if (!accno) {
       report('numbering', 'WARN', '4-5 共用摘要：找不到會計科目，略過', [errorSample([acc])]);
     } else {
+      const before = dbfRows('descrip').length;
       const res = await Promise.all(Array.from({ length: BURST }, (_, i) =>
         api('POST', '/api/wbase4020/descrip', { accno, descrip: `壓力測試摘要 ${i + 1}` })));
-      const dup = duplicates(dbfRows('descrip').filter((r) => trim(r.accno) === accno), (r) => String(r.serial));
-      const details = [`${BURST} 人同時在科目 ${accno} 新增共用摘要，狀態：${statusCounts(res)}`];
-      if (res.some((r) => !r.ok)) details.push(`錯誤範例：${errorSample(res)}`);
-      if (dup.length) details.push(`DBF 重複的 serial：${dup.map(([k, c]) => `${k} (${c} 筆)`).join('、')}`);
-      report('numbering', dup.length ? 'FAIL' : 'PASS',
-        dup.length ? '4-5 共用摘要 serial 重複' : '4-5 共用摘要 serial 沒有重複', details);
+      const rows = dbfRows('descrip');
+      const dup = duplicates(rows.filter((x) => trim(x.accno) === accno), (x) => String(x.serial));
+      const r = judgeNumbering(`4-5 共用摘要 (科目 ${accno})`, res, rows.length - before, dup, 'serial');
+      report('numbering', r.status, r.title, r.details);
     }
   }
 
-  // 2-4 客戶收費：單號在後端用 SemaphoreSlim 排隊取號
+  // 2-4 客戶收費：單號由 VFP 在 DBF 檔頭鎖內取號 (修正前在後端用 SemaphoreSlim 排隊，擋不住舊系統同時新增)
   {
+    const before = dbfRows('recmom').length;
     const res = await Promise.all(Array.from({ length: BURST }, () => api('POST', '/api/wbase2040')));
-    const dup = duplicates(dbfRows('recmom'), (r) => trim(r.rno));
-    const details = [`${BURST} 人同時新增收費單，狀態：${statusCounts(res)}`];
-    if (res.some((r) => !r.ok)) details.push(`錯誤範例：${errorSample(res)}`);
-    if (dup.length) details.push(`DBF 重複的單號：${dup.map(([k, c]) => `${k} (${c} 筆)`).join('、')}`);
-    details.push('只防得住同一台後端內的同時新增；舊系統同時新增收費單仍可能取到同一號');
-    report('numbering', dup.length ? 'FAIL' : 'PASS',
-      dup.length ? '2-4 收費單號重複' : '2-4 收費單號沒有重複', details);
+    const rows = dbfRows('recmom');
+    const r = judgeNumbering('2-4 收費單', res, rows.length - before, duplicates(rows, (x) => trim(x.rno)), '單號');
+    report('numbering', r.status, r.title, r.details);
 
     // 一張收費單有多筆明細 (recmod 以 rno 新增，rno 本來就會重複)，不能被 LocalAgent 的重複代號檢查擋下
     const rno = trim(res.find((r) => r.ok)?.json?.receipt?.rno);

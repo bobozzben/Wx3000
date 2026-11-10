@@ -655,13 +655,18 @@ namespace Wx3000.Backend.Controllers
 
             try
             {
+                // 快照不存在 (第一次使用的磁碟機) 時下面的查詢與寫入都會失敗；鍵值與清單一致，避免以不同 keyFields 重灌
+                await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, "bsdesc", PgSchema, "bsdesc", "seq");
+
                 // 1. 決定新 seq
                 var conn = _context.Database.GetDbConnection();
                 if (conn.State != ConnectionState.Open) await conn.OpenAsync();
 
                 int nextSeq = model.Seq;
-                if (nextSeq <= 0)
+                var autoNumber = nextSeq <= 0;
+                if (autoNumber)
                 {
+                    // 只給舊版 LocalAgent 用；新版由 VFP 在 DBF 檔頭鎖內取 MAX(seq)+1
                     using var maxCmd = conn.CreateCommand();
                     maxCmd.CommandText = $@"
                         SELECT COALESCE(MAX(""seq""), 0) + 1 
@@ -678,20 +683,27 @@ namespace Wx3000.Backend.Controllers
                     ["serial"] = nextSeq
                 };
 
-                // 2. 寫入 DBF (DBF 絕對權威原則)
-                var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "bsdesc", "INSERT", "seq", nextSeq.ToString(), fields);
+                // 2. 寫入 DBF (DBF 絕對權威原則)：自動取號時 seq 與 serial 都用 VFP 取到的號碼；指定 seq 時確認 DBF 沒有同一個 seq
+                var options = autoNumber
+                    ? new DbfWriteOptions { AutoNumber = new DbfAutoNumber { Field = "seq", AssignTo = new[] { "serial" } } }
+                    : DbfWriteOptions.UniqueKey;
+                var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "bsdesc", "INSERT", "seq", nextSeq.ToString(), fields, options);
                 if (!writeRes.Success)
                 {
                     return BsdescWriteFailure(writeRes, "寫入 bsdesc.dbf 失敗");
                 }
+                nextSeq = (int)writeRes.AutoNumberOr(nextSeq);
 
                 // 3. 同步至 PostgreSQL
                 using (var insertCmd = conn.CreateCommand())
                 {
                     insertCmd.CommandText = $@"
                         INSERT INTO ""{PgSchema}"".""bsdesc"" (""seq"", ""no"", ""desc"", ""sel"", ""serial"", ""_record_number"")
-                        SELECT @seq, @no, @desc, @sel, @serial, COALESCE(MAX(""_record_number""), 0) + 1
-                        FROM ""{PgSchema}"".""bsdesc"";";
+                        SELECT @seq, @no, @desc, @sel, @serial,
+                               CASE WHEN @recno > 0 THEN @recno ELSE COALESCE(MAX(""_record_number""), 0) + 1 END
+                        FROM ""{PgSchema}"".""bsdesc""
+                        -- 寫完 DBF 後若有其他請求先重灌了快照，這筆已在快照裡，不再新增
+                        HAVING NOT EXISTS (SELECT 1 FROM ""{PgSchema}"".""bsdesc"" WHERE ""_record_number"" = @recno);";
 
                     var pSeq = insertCmd.CreateParameter();
                     pSeq.ParameterName = "@seq";
@@ -717,6 +729,12 @@ namespace Wx3000.Backend.Controllers
                     pSerial.ParameterName = "@serial";
                     pSerial.Value = nextSeq;
                     insertCmd.Parameters.Add(pSerial);
+
+                    // 快照的 _record_number 必須等於 DBF 的 RECNO (批次重編以 RECNO 定位)
+                    var pRecno = insertCmd.CreateParameter();
+                    pRecno.ParameterName = "@recno";
+                    pRecno.Value = writeRes.Recno;
+                    insertCmd.Parameters.Add(pRecno);
 
                     await insertCmd.ExecuteNonQueryAsync();
                 }
@@ -965,9 +983,10 @@ namespace Wx3000.Backend.Controllers
         /// <summary>bsdesc.dbf 寫入失敗：LOCK_TIMEOUT 回 409，其他錯誤回 500 並附上 LocalAgent 的錯誤訊息</summary>
         private ObjectResult BsdescWriteFailure(DbfWriteResult writeRes, string message)
         {
-            if (writeRes.ErrorType == "LOCK_TIMEOUT")
+            if (writeRes.IsConflict)
             {
-                return StatusCode(StatusCodes.Status409Conflict, new { error = writeRes.Error, message = $"{message}：資料正被地端其他工作站鎖定中" });
+                var reason = writeRes.ErrorType == "DUPLICATE_KEY" ? "這個順序 (seq) 已有條文，請重新整理後再試" : "資料正被地端其他工作站鎖定中";
+                return StatusCode(StatusCodes.Status409Conflict, new { error = writeRes.Error, message = $"{message}：{reason}" });
             }
             if (writeRes.IsUnconfirmed)
             {
