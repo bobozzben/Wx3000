@@ -317,35 +317,50 @@ export const FoxProPrintModalv2: React.FC<FoxProPrintModalv2Props> = ({
   const renderText = (f: PrintTextFieldDef, idx: number) => (
     <React.Fragment key={f.key}>
       {f.prefix && <span className={`font-bold ${mutedText}`}>{f.prefix}</span>}
-      <input
-        ref={(el) => {
-          refs.current[f.key] = el;
-        }}
-        aria-label={f.label}
-        value={String(values[f.key] ?? '')}
-        maxLength={f.maxLength}
-        inputMode={f.digits ? 'numeric' : undefined}
-        autoComplete="off"
-        placeholder={f.placeholder}
-        onChange={(e) => {
-          let v = e.target.value;
-          if (f.digits) v = v.replace(/\D/g, '');
-          if (f.uppercase) v = v.toUpperCase();
-          setValue(f.key, v);
-        }}
-        onFocus={(e) => e.target.select()}
-        onKeyDown={onTextKeyDown(idx, f)}
-        className={`${f.widthClass ?? 'w-20'} px-2.5 border-2 rounded-xl text-center font-black text-base transition outline-none ${
-          f.uppercase ? 'uppercase' : ''
-        } ${
-          error?.key === f.key
-            ? 'border-red-500 bg-red-50 text-red-700 ring-2 ring-red-300'
-            : isDark
-              ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-400 focus:ring-2 focus:ring-amber-400/50'
-              : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-amber-500 focus:bg-white focus:ring-2 focus:ring-amber-200'
-        }`}
-        style={{ height: 38 }}
-      />
+      <div className="relative inline-flex items-center">
+        <input
+          ref={(el) => {
+            refs.current[f.key] = el;
+          }}
+          aria-label={f.label}
+          value={String(values[f.key] ?? '')}
+          maxLength={f.maxLength}
+          inputMode={f.digits ? 'numeric' : undefined}
+          autoComplete="off"
+          placeholder={f.placeholder}
+          onChange={(e) => {
+            let v = e.target.value;
+            if (f.digits) v = v.replace(/\D/g, '');
+            if (f.uppercase) v = v.toUpperCase();
+            setValue(f.key, v);
+          }}
+          onFocus={(e) => e.target.select()}
+          onKeyDown={onTextKeyDown(idx, f)}
+          className={`${f.widthClass ?? 'w-20'} ${f.onF2 ? 'pl-2.5 pr-11 text-left' : 'px-2.5 text-center'} border-2 rounded-xl font-black text-base transition outline-none ${
+            f.uppercase ? 'uppercase' : ''
+          } ${
+            error?.key === f.key
+              ? 'border-red-500 bg-red-50 text-red-700 ring-2 ring-red-300'
+              : isDark
+                ? 'bg-slate-900 border-slate-700 text-white focus:border-amber-400 focus:ring-2 focus:ring-amber-400/50'
+                : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-amber-500 focus:bg-white focus:ring-2 focus:ring-amber-200'
+          }`}
+          style={{ height: 38 }}
+        />
+        {f.onF2 && (
+          <button
+            type="button"
+            tabIndex={-1}
+            disabled={!active}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => f.onF2?.()}
+            title="按 F2 或點此開啟搜尋選單"
+            className="absolute right-1 px-2 py-0.5 bg-blue-600 hover:bg-blue-500 active:scale-95 disabled:opacity-50 text-white text-[11px] font-extrabold rounded-md shadow-xs transition cursor-pointer"
+          >
+            F2
+          </button>
+        )}
+      </div>
       {f.suffix && <span className={`font-bold ${mutedText}`}>{f.suffix}</span>}
     </React.Fragment>
   );

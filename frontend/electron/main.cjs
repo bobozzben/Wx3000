@@ -1,5 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 
 let mainWindow = null;
 
@@ -179,6 +181,82 @@ ipcMain.handle('window-print', async (_, options = {}) => {
         resolve(success);
       }
     );
+  });
+});
+
+ipcMain.handle('get-printers', async () => {
+  if (!mainWindow) return [];
+  try {
+    return await mainWindow.webContents.getPrintersAsync();
+  } catch (err) {
+    console.warn('Failed to list printers:', err);
+    return [];
+  }
+});
+
+async function withHiddenPrintWindow(htmlContent, task) {
+  const tempFile = path.join(
+    os.tmpdir(),
+    `wx3000_report_${Date.now()}_${Math.random().toString(36).slice(2)}.html`
+  );
+  fs.writeFileSync(tempFile, htmlContent, 'utf8');
+  const printWin = new BrowserWindow({
+    show: false,
+    width: 1024,
+    height: 768,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+  try {
+    await printWin.loadFile(tempFile);
+    return await task(printWin);
+  } finally {
+    if (!printWin.isDestroyed()) {
+      printWin.destroy();
+    }
+    try {
+      fs.unlinkSync(tempFile);
+    } catch {
+      // ignore temp cleanup failure
+    }
+  }
+}
+
+ipcMain.handle('print-html', async (_, { html, options = {} }) => {
+  if (!html) return { success: false, reason: 'Empty HTML' };
+  return withHiddenPrintWindow(html, (printWin) => {
+    return new Promise((resolve) => {
+      printWin.webContents.print(
+        {
+          silent: Boolean(options.silent),
+          printBackground: options.printBackground ?? true,
+          deviceName: options.deviceName || '',
+          landscape: Boolean(options.landscape),
+          color: options.color ?? true,
+          copies: options.copies || 1,
+          pageSize: options.pageSize,
+          margins: options.margins,
+        },
+        (success, failureReason) => {
+          resolve({ success, reason: failureReason || '' });
+        }
+      );
+    });
+  });
+});
+
+ipcMain.handle('print-to-pdf', async (_, { html, options = {} }) => {
+  if (!html) return null;
+  return withHiddenPrintWindow(html, async (printWin) => {
+    const buffer = await printWin.webContents.printToPDF({
+      landscape: Boolean(options.landscape),
+      printBackground: options.printBackground ?? true,
+      pageSize: options.pageSize || 'A4',
+      preferCSSPageSize: true,
+    });
+    return buffer.toString('base64');
   });
 });
 

@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 列印支援（ERP 報表/進貨單/發票憑單列印）
   print: (options) => ipcRenderer.invoke('window-print', options),
+  getPrinters: () => ipcRenderer.invoke('get-printers'),
+  printHtml: (html, options) => ipcRenderer.invoke('print-html', { html, options }),
+  printToPDF: (html, options) => ipcRenderer.invoke('print-to-pdf', { html, options }),
   
   // 系統資訊
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),

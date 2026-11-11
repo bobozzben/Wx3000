@@ -868,4 +868,14 @@ test('HTTP surface', async (t) => {
     assert.equal(parsed.errorType, 'FORBIDDEN');
     assert.ok(parsed.error.includes('統一編號'), parsed.error);
   });
+
+  await t.test('printers and direct print enforce origin rules and validate payloads', async () => {
+    assert.equal((await send('GET', '/api/printers', { Origin: 'https://evil.example.com' })).status, 403);
+    assert.equal((await send('POST', '/api/print/direct', { Origin: 'https://evil.example.com' }, ['{}'])).status, 403);
+    const badJson = await send('POST', '/api/print/direct', { Origin: 'http://localhost:5173' }, ['{bad']);
+    assert.equal(badJson.status, 400);
+    const emptyPages = await send('POST', '/api/print/direct', { Origin: 'http://localhost:5173' }, [JSON.stringify({ pages: [] })]);
+    assert.equal(emptyPages.status, 400);
+    assert.equal(JSON.parse(emptyPages.body).errorType, 'INVALID_REQUEST');
+  });
 });
