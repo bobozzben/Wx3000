@@ -252,16 +252,18 @@ namespace Wx3000.Backend.Controllers
                     ["lcamount"] = model.Lcamount ?? 0
                 };
 
-                // 寫入 DBF 優先
-                var writeResult = await _dbfSyncService.WriteRecordAsync(DbfPath, dbfName, "INSERT", "accno", accno, fields);
+                // 寫入 DBF 優先：在 DBF 檔頭鎖內確認代號不存在、取 MAX(serial)+1 再新增 (fields 的 serial 只給舊版 LocalAgent 用)
+                var writeResult = await _dbfSyncService.WriteRecordAsync(DbfPath, dbfName, "INSERT", "accno", accno, fields, SerialInsert);
                 if (!writeResult.Success)
                 {
-                    if (writeResult.ErrorType == "LOCK_TIMEOUT")
+                    if (writeResult.IsConflict)
                     {
                         return StatusCode(StatusCodes.Status409Conflict, new { error = writeResult.Error, message = writeResult.Message ?? "資料正被地端其他工作站編輯中，存檔取消" });
                     }
                     return StatusCode(StatusCodes.Status500InternalServerError, new { error = writeResult.Error, message = writeResult.Message ?? "寫入 DBF 失敗" });
                 }
+                nextSerial = (int)writeResult.AutoNumberOr(nextSerial);
+                fields["serial"] = nextSerial;
 
                 // 同步寫入 PostgreSQL
                 var recno = await InsertAccountToPg(dbfName, fields, writeResult.Recno);
@@ -505,9 +507,11 @@ namespace Wx3000.Backend.Controllers
                         ["lcamount"] = 0
                     };
 
-                    var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, dbfName, "INSERT", "accno", trimmed, fields);
+                    // 已存在的科目 (快照之後才被其他工作站新增) 回 DUPLICATE_KEY，與其他失敗一樣略過
+                    var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, dbfName, "INSERT", "accno", trimmed, fields, SerialInsert);
                     if (writeRes.Success)
                     {
+                        fields["serial"] = (int)writeRes.AutoNumberOr(Convert.ToInt32(fields["serial"]));
                         await InsertAccountToPg(dbfName, fields, writeRes.Recno);
                         copiedCount++;
                     }
@@ -526,6 +530,13 @@ namespace Wx3000.Backend.Controllers
         }
 
         #region Helper DB & PG Queries
+
+        /// <summary>新增科目：DBF 檔頭鎖內確認 accno 不存在，並取 MAX(serial)+1</summary>
+        private static readonly DbfWriteOptions SerialInsert = new()
+        {
+            Unique = true,
+            AutoNumber = new DbfAutoNumber { Field = "serial" }
+        };
 
         private static bool IsDebitAccount(string accno)
         {

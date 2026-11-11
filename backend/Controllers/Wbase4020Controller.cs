@@ -518,7 +518,12 @@ namespace Wx3000.Backend.Controllers
                     ["acctype"] = acctypeCode,
                     ["serial"] = model.Serial ?? 0
                 };
-                writeRes1 = await _dbfSyncService.WriteRecordAsync(DbfPath, "acc_st", "INSERT", "no", trimmedNo, fieldsAccStInsert);
+                writeRes1 = await _dbfSyncService.WriteRecordAsync(DbfPath, "acc_st", "INSERT", "no", trimmedNo, fieldsAccStInsert, DbfWriteOptions.UniqueKey);
+                if (writeRes1.ErrorType == "DUPLICATE_KEY")
+                {
+                    // 更新與新增之間被其他工作站 (或另一個同時送出的請求) 新增了：改回更新那一筆
+                    writeRes1 = await _dbfSyncService.WriteRecordAsync(DbfPath, "acc_st", "UPDATE", "no", trimmedNo, fieldsAccSt);
+                }
             }
             if (!writeRes1.Success)
             {
@@ -707,6 +712,9 @@ namespace Wx3000.Backend.Controllers
 
             var trimmedAccno = model.Accno.Trim().ToUpper();
 
+            // 快照不存在 (第一次使用的磁碟機) 時下面的查詢與寫入都會失敗；鍵值與清單一致
+            await _dbfSyncService.EnsureTableSyncedAsync(DbfPath, "descrip", PgSchema, "descrip", "");
+
             // 取得目前該科目下最大 serial
             var conn = _context.Database.GetDbConnection();
             if (conn.State != ConnectionState.Open) await conn.OpenAsync();
@@ -730,12 +738,17 @@ namespace Wx3000.Backend.Controllers
                 ["serial"] = nextSerial
             };
 
-            // 同一科目有多筆摘要，accno 本來就會重複
-            var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "INSERT", "accno", trimmedAccno, fields, allowDuplicateKey: true);
+            // serial 由 VFP 在 DBF 檔頭鎖內取該科目的 MAX(serial)+1 (上面查 PostgreSQL 的值只給舊版 LocalAgent 用)；
+            // 多人同時新增、或舊系統剛新增而快照尚未重灌時都不會重號。同一科目有多筆摘要，accno 本來就會重複，不做鍵值查重
+            var writeRes = await _dbfSyncService.WriteRecordAsync(DbfPath, "descrip", "INSERT", "accno", trimmedAccno, fields, new DbfWriteOptions
+            {
+                AutoNumber = new DbfAutoNumber { Field = "serial", ScopeField = "accno", ScopeValue = trimmedAccno }
+            }, allowDuplicateKey: true);
             if (!writeRes.Success)
             {
                 return DbfWriteFailure(writeRes, "新增摘要至 DBF 失敗");
             }
+            nextSerial = writeRes.AutoNumberOr(nextSerial);
 
             // 同步寫入 PostgreSQL
             int targetRecno = writeRes.Recno;
@@ -743,7 +756,9 @@ namespace Wx3000.Backend.Controllers
             {
                 insCmd.CommandText = $@"
                     INSERT INTO ""{PgSchema}"".""descrip"" (""accno"", ""descrip"", ""serial"", ""_record_number"")
-                    VALUES (@accno, @descrip, @serial, @recno);";
+                    SELECT @accno, @descrip, @serial, @recno
+                    -- 寫完 DBF 後若有其他請求先重灌了快照，這筆已在快照裡 (descrip 沒有唯一鍵，再新增會變成兩筆)
+                    WHERE NOT EXISTS (SELECT 1 FROM ""{PgSchema}"".""descrip"" WHERE ""_record_number"" = @recno);";
                 var p1 = insCmd.CreateParameter(); p1.ParameterName = "@accno"; p1.Value = trimmedAccno; insCmd.Parameters.Add(p1);
                 var p2 = insCmd.CreateParameter(); p2.ParameterName = "@descrip"; p2.Value = (model.Descrip ?? "").Trim(); insCmd.Parameters.Add(p2);
                 var p3 = insCmd.CreateParameter(); p3.ParameterName = "@serial"; p3.Value = nextSerial; insCmd.Parameters.Add(p3);

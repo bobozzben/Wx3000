@@ -149,9 +149,9 @@ function callDbfBridge(reqObj) {
   return enqueueDbf(() => runDbfBridge(reqObj));
 }
 
-function runDbfBridge(reqObj) {
+// bridgeExe 只有測試會指定 (用真的 VFP 驗證寫入腳本)
+function runDbfBridge(reqObj, bridgeExe = CONFIG.getDbfBridgePath()) {
   return new Promise((resolve) => {
-    const bridgeExe = CONFIG.getDbfBridgePath();
     if (!existsOnRealDisk(bridgeExe)) {
       resolve({ success: false, error: `DBFBridge.exe 不存在於實體磁碟: ${bridgeExe}` });
       return;
@@ -524,40 +524,134 @@ function shouldCheckDuplicateKey(operation, keyField, allowDuplicateKey) {
   return operation === 'INSERT' && !allowDuplicateKey && !/RECNO\(\)/i.test(String(keyField));
 }
 
+// 寫入最多排隊多久 (毫秒)：後端傳 queueTimeoutMs，要比它呼叫 LocalAgent 的逾時短，後端才收得到「沒有寫入」的明確回覆
+const MAX_WRITE_QUEUE_MS = 10 * 60 * 1000;
+
+// ========== 新增時的防重複與取號 ==========
+// 後端判斷「新增或修改」或取 MAX()+1 時只看 PostgreSQL 快照，快照過期、多人同時新增或舊系統剛新增時 DBF 會重複 (DBF 沒有唯一限制)。
+// 所以 INSERT 預設都在同一段 VFP 腳本內先查重 (shouldCheckDuplicateKey；後端可傳 allowDuplicateKey 略過，或傳 unique 明確要求)，
+// 另可帶 autoNumber 由 VFP 以 CALCULATE MAX() 取號 (不含已刪除記錄)，號碼寫進 field 與 assignTo，回傳給後端寫 PostgreSQL；
+// 有 autoNumber 時不做預設查重，因為 keyValue 裡的號碼只是後端由快照算的。
+// 有查重或取號時先以 RLOCK("0") 鎖住檔頭：舊系統與其他程式的 APPEND / INSERT 會等到這段結束，修改既有記錄不受影響。
+// 沒有用 FLOCK()：舊系統編輯記錄時常持有記錄鎖，FLOCK() 會讓網頁的新增經常失敗，實測檔頭鎖仍會成功。
+// 舊版 LocalAgent 不認得 unique / autoNumber，會照原本的 INSERT 寫入 fields 裡的值，所以後端仍要在 fields 放入自己算的號碼。
+const AUTO_NUMBER_PREFIX = /^[A-Za-z0-9]{1,10}$/;
+const INSERT_LOCK_SECONDS = 2; // 檔頭被其他工作站鎖住時最多等幾秒
+
+// 這些結果代表腳本沒有寫入任何東西 (DUPLICATE_KEY 後面接 ":<既有記錄的 RECNO>")
+const isNoWriteResult = (result) => {
+  const r = String(result ?? '');
+  return r === 'RECORD_NOT_FOUND' || r === 'LOCK_TIMEOUT' || r.startsWith('DUPLICATE_KEY');
+};
+
+const isVfpKeyExpr = (expr) => typeof expr === 'string' && expr.trim() !== '' &&
+  expr.split(',').every((k) => VFP_KEY_EXPR.test(k.trim()));
+
+function validateInsertGuard(operation, { unique, autoNumber }) {
+  if (unique !== undefined && unique !== null && typeof unique !== 'boolean') return 'unique 必須是 true 或 false';
+  const hasAutoNumber = autoNumber !== undefined && autoNumber !== null;
+  if (unique !== true && !hasAutoNumber) return null;
+  if (operation !== 'INSERT') return 'unique / autoNumber 只能用於 INSERT';
+  if (!hasAutoNumber) return null;
+  if (typeof autoNumber !== 'object' || Array.isArray(autoNumber)) return 'autoNumber 格式錯誤';
+
+  const { field, assignTo, scopeField, scopeValue, prefix, width } = autoNumber;
+  if (typeof field !== 'string' || !VFP_IDENTIFIER.test(field)) return `不合法的取號欄位: ${field}`;
+  if (assignTo !== undefined && (!Array.isArray(assignTo) || assignTo.some((f) => typeof f !== 'string' || !VFP_IDENTIFIER.test(f)))) {
+    return `不合法的取號填入欄位: ${JSON.stringify(assignTo)}`;
+  }
+  if (scopeField !== undefined) {
+    if (!isVfpKeyExpr(scopeField)) return `不合法的取號範圍欄位: ${scopeField}`;
+    if (typeof scopeValue !== 'string') return '取號範圍的值必須是字串';
+  }
+  if (prefix !== undefined) {
+    if (typeof prefix !== 'string' || !AUTO_NUMBER_PREFIX.test(prefix)) return `不合法的取號前綴: ${prefix}`;
+    if (!Number.isInteger(width) || width < 1 || width > 18) return '取號前綴要搭配 1~18 的 width';
+  } else if (width !== undefined) {
+    return 'width 只能搭配 prefix';
+  }
+  return null;
+}
+
 /**
- * 組出寫入用的 VFP 腳本；未知的操作回傳 null。
- * checkDuplicate：新增前在同一段腳本內找未刪除、鍵值相同的記錄，有就回傳 "DUPLICATE_KEY:<RECNO>" 而不新增。
- * 後端判斷「新增或修改」只看 PostgreSQL 快照，快照過期或多人同時新增時，DBF 是最後一道防線。
- * LocalAgent 的隊列讓網頁之間的寫入依序執行；和舊系統 (VFP) 之間仍有幾毫秒的空窗，沒有用 FLOCK()，
- * 因為舊系統編輯記錄時常持有記錄鎖，FLOCK() 會讓網頁的新增經常失敗。
+ * 組 INSERT / UPDATE / DELETE 的 VFP 腳本；呼叫前必須先通過 validateDbfWrite 與 validateInsertGuard。未知的操作回傳 null。
+ * checkDuplicate (或 unique)：新增前在檔頭鎖內找未刪除、鍵值相同的記錄，有就回 "DUPLICATE_KEY:<RECNO>" 而不新增。
+ * autoNumber：在檔頭鎖內以 CALCULATE MAX() 取號再新增，回 "OK<TAB>RECNO<TAB>號碼"。
  */
-function buildDbfWriteScript(operation, { vfpFullPath, cAlias, whereClause, fields, checkDuplicate }) {
+function buildDbfWriteScript({ operation, vfpFullPath, cAlias, keyField, keyValue, fields, checkDuplicate, unique, autoNumber }) {
+  const whereClause = buildWhereClause(keyField, keyValue);
+  const guard = checkDuplicate === true || unique === true;
   const open = [
     `USE "${vfpFullPath}" IN 0 ALIAS ${cAlias} SHARED AGAIN`,
     `SELECT ${cAlias}`
   ];
-  if (operation === 'INSERT') {
+
+  if (operation === 'INSERT' && !guard && !autoNumber) {
     const cols = Object.keys(fields).join(', ');
     const vals = Object.values(fields).map(toVfpLiteral).join(', ');
-    const duplicateCheck = checkDuplicate
-      ? [
-          `LOCATE FOR (${whereClause}) AND NOT DELETED()`,
-          `IF FOUND()`,
-          `  lnRec = RECNO("${cAlias}")`,
-          `  USE IN ${cAlias}`,
-          `  RETURN "DUPLICATE_KEY:" + TRANSFORM(lnRec)`,
-          `ENDIF`
-        ]
-      : [];
     return [
       ...open,
-      ...duplicateCheck,
       `INSERT INTO ${cAlias} (${cols}) VALUES (${vals})`,
       `lnRec = RECNO("${cAlias}")`,
       `USE IN ${cAlias}`,
       `RETURN TRANSFORM(lnRec)`
     ].join('\r\n');
   }
+
+  if (operation === 'INSERT') {
+    const lines = [
+      'SET DELETED ON',
+      'SET MULTILOCKS ON',
+      `SET REPROCESS TO ${INSERT_LOCK_SECONDS} SECONDS`,
+      ...open,
+      `IF !RLOCK("0", "${cAlias}")`,
+      `  USE IN ${cAlias}`,
+      '  RETURN "LOCK_TIMEOUT"',
+      'ENDIF'
+    ];
+    if (guard) {
+      lines.push(
+        `LOCATE FOR (${whereClause}) AND NOT DELETED()`,
+        'IF FOUND()',
+        `  lnRec = RECNO("${cAlias}")`,
+        `  UNLOCK IN ${cAlias}`,
+        `  USE IN ${cAlias}`,
+        '  RETURN "DUPLICATE_KEY:" + TRANSFORM(lnRec)',
+        'ENDIF'
+      );
+    }
+
+    let numberFields = [];
+    if (autoNumber) {
+      const { field, assignTo = [], scopeField, scopeValue, prefix, width } = autoNumber;
+      numberFields = [...new Set([field, ...assignTo].map((f) => f.toLowerCase()))];
+      const conds = [];
+      if (prefix) conds.push(`LEFT(ALLTRIM(${field}), ${prefix.length}) == ${toVfpLiteral(prefix)}`);
+      if (scopeField) conds.push(buildWhereClause(scopeField, scopeValue));
+      const target = prefix ? `VAL(SUBSTR(ALLTRIM(${field}), ${prefix.length + 1}))` : field;
+      lines.push(
+        'lnWxMax = 0',
+        `CALCULATE MAX(${target}) TO lnWxMax${conds.length ? ` FOR ${conds.join(' AND ')}` : ''}`,
+        prefix
+          ? `lvWxNo = ${toVfpLiteral(prefix)} + PADL(TRANSFORM(lnWxMax + 1), ${width}, "0")`
+          : 'lvWxNo = lnWxMax + 1'
+      );
+    }
+
+    // 取號欄位一律用 VFP 算出的號碼，fields 裡同名的值 (後端給舊版 LocalAgent 用的) 不寫
+    const plain = Object.entries(fields).filter(([k]) => !numberFields.includes(k.toLowerCase()));
+    const cols = [...plain.map(([k]) => k), ...numberFields].join(', ');
+    const vals = [...plain.map(([, v]) => toVfpLiteral(v)), ...numberFields.map(() => 'lvWxNo')].join(', ');
+    lines.push(
+      `INSERT INTO ${cAlias} (${cols}) VALUES (${vals})`,
+      `lnRec = RECNO("${cAlias}")`,
+      `UNLOCK IN ${cAlias}`,
+      `USE IN ${cAlias}`,
+      `RETURN "OK" + CHR(9) + TRANSFORM(lnRec) + CHR(9) + ${autoNumber ? 'TRANSFORM(lvWxNo)' : '""'}`
+    );
+    return lines.join('\r\n');
+  }
+
   if (operation === 'UPDATE') {
     // 採用 FoxPro 原生 REPLACE [alias.]field WITH ...，徹底避免 SQL UPDATE 遇到保留字 (如 desc, order, date, status 等) 拋出語法錯誤 10
     const replList = Object.entries(fields).map(([k, v]) => `${cAlias}.${k} WITH ${toVfpLiteral(v)}`);
@@ -575,6 +669,7 @@ function buildDbfWriteScript(operation, { vfpFullPath, cAlias, whereClause, fiel
       `RETURN TRANSFORM(lnRec)`
     ].join('\r\n');
   }
+
   if (operation === 'DELETE') {
     return [
       ...open,
@@ -592,13 +687,18 @@ function buildDbfWriteScript(operation, { vfpFullPath, cAlias, whereClause, fiel
   return null;
 }
 
-// 寫入最多排隊多久 (毫秒)：後端傳 queueTimeoutMs，要比它呼叫 LocalAgent 的逾時短，後端才收得到「沒有寫入」的明確回覆
-const MAX_WRITE_QUEUE_MS = 10 * 60 * 1000;
+// 有查重或取號的 INSERT 回 "OK<TAB>記錄號<TAB>號碼"；其他寫入只回記錄號
+function parseWriteResult(raw) {
+  const parts = String(raw ?? '').split('\t');
+  if (parts[0] === 'OK' && parts.length === 3) return { recno: parseInt(parts[1], 10) || 0, autoNumber: parts[2].trim() };
+  return { recno: parseInt(parts[0], 10) || 0, autoNumber: '' };
+}
 
 /**
  * options.isCancelled()：呼叫端 (後端) 已經斷線時回傳 true，還沒輪到的寫入就不執行。
+ * options.runBridge：只有測試會替換 (假的橋接程式，或指定執行檔的真 DBFBridge)。
  */
-async function executeDbfWrite(payload, options = {}) {
+async function executeDbfWrite(payload, { isCancelled, runBridge = runDbfBridge } = {}) {
   const operation = (payload.operation || 'UPDATE').toUpperCase();
   const dbfPath = payload.dbfPath || 'C:\\w3000\\comm';
   const dbfName = payload.dbfName || 'keyin';
@@ -606,11 +706,16 @@ async function executeDbfWrite(payload, options = {}) {
   const keyValue = payload.keyValue || '';
   const fields = payload.fields || {};
   const queueTimeoutMs = Math.min(Math.max(Number(payload.queueTimeoutMs) || 0, 0), MAX_WRITE_QUEUE_MS);
+  const unique = payload.unique === true;
+  const autoNumber = payload.autoNumber || undefined;
 
   const cAlias = path.basename(dbfName, path.extname(dbfName));
-  const invalid = validateDbfWrite(cAlias, keyField, fields);
+  const invalid = validateDbfWrite(cAlias, keyField, fields) || validateInsertGuard(operation, payload);
   if (invalid) {
     return { success: false, errorType: 'INVALID_REQUEST', error: invalid };
+  }
+  if (!['INSERT', 'UPDATE', 'DELETE'].includes(operation)) {
+    return { success: false, error: `未知的操作類型: ${operation}` };
   }
   const fullPath = path.join(dbfPath, cAlias + (cAlias.toLowerCase().endsWith('.dbf') ? '' : '.dbf'));
   if (!fs.existsSync(fullPath)) {
@@ -619,26 +724,18 @@ async function executeDbfWrite(payload, options = {}) {
 
   const vfpFullPath = fullPath.replace(/\\/g, '\\\\');
   const whereClause = buildWhereClause(keyField, keyValue);
-  const script = buildDbfWriteScript(operation, {
-    vfpFullPath,
-    cAlias,
-    whereClause,
-    fields,
-    checkDuplicate: shouldCheckDuplicateKey(operation, keyField, payload.allowDuplicateKey)
-  });
-  if (!script) {
-    return { success: false, error: `未知的操作類型: ${operation}` };
-  }
+  // 預設查重；後端明確傳 unique 時一定查，有 autoNumber 時 keyValue 只是快照算的號碼，不查
+  const checkDuplicate = unique || (!autoNumber && shouldCheckDuplicateKey(operation, keyField, payload.allowDuplicateKey));
+  const script = buildDbfWriteScript({ operation, vfpFullPath, cAlias, keyField, keyValue, fields, checkDuplicate, autoNumber });
 
   // 寫入前後的檔案內容在同一個隊列項目內讀取，中間不會插進其他 LocalAgent 動作；
   // 舊系統 (VFP) 若在這段時間也改了檔案，onlyExpectedChanges 會發現多出來的差異
   const queued = await enqueueDbfWithin(async () => {
     const beforeBuf = await readFileOrNull(fullPath);
-    const res = await runDbfBridge({ action: 'EXEC_VFP', script });
-    const wrote = res.success && res.result !== 'RECORD_NOT_FOUND' && !String(res.result).startsWith('DUPLICATE_KEY');
-    const afterBuf = wrote ? await readFileOrNull(fullPath) : null;
+    const res = await runBridge({ action: 'EXEC_VFP', script });
+    const afterBuf = res.success && !isNoWriteResult(res.result) ? await readFileOrNull(fullPath) : null;
     return { execRes: res, before: beforeBuf, after: afterBuf };
-  }, { timeoutMs: queueTimeoutMs, isCancelled: options.isCancelled });
+  }, { timeoutMs: queueTimeoutMs, isCancelled });
 
   if (queued.skipped) {
     const reason = queued.skipped === 'QUEUE_TIMEOUT'
@@ -669,8 +766,8 @@ async function executeDbfWrite(payload, options = {}) {
       success: false,
       errorType: 'DUPLICATE_KEY',
       recno: existingRecno,
-      error: `DBF 已有相同鍵值的記錄 (第 ${existingRecno} 筆): ${whereClause}`,
-      message: `${cAlias}.dbf 已有 ${keyValue} 的資料，這次沒有新增。網頁上的資料可能還沒同步，請重新整理後再確認`
+      error: `DBF 已有相同鍵值的記錄${existingRecno ? ` (第 ${existingRecno} 筆)` : ''}: ${whereClause}`,
+      message: `${cAlias}.dbf 已有 ${keyValue} 的資料 (可能剛被其他工作站新增)，這次沒有新增。網頁上的資料可能還沒同步，請重新整理後再確認`
     };
   }
   if (execRes.result === 'RECORD_NOT_FOUND') {
@@ -680,7 +777,15 @@ async function executeDbfWrite(payload, options = {}) {
       error: `找不到欲${operation === 'DELETE' ? '刪除' : '更新'}的記錄: ${whereClause}`
     };
   }
-  const recno = parseInt(execRes.result, 10) || 0;
+  if (execRes.result === 'LOCK_TIMEOUT') {
+    return {
+      success: false,
+      errorType: 'LOCK_TIMEOUT',
+      error: `${INSERT_LOCK_SECONDS} 秒內無法鎖定 ${cAlias}.dbf 檔頭`,
+      message: '資料檔正被其他工作站新增或整批處理中，這次新增已取消 (未寫入)。請稍候幾秒再試一次。'
+    };
+  }
+  const { recno, autoNumber: number } = parseWriteResult(execRes.result);
   // 後端只有在 checksumBefore 等於快照記錄、且 otherChanges 為 false 時，才把 checksumAfter 記為快照的 checksum
   const integrity = before && after
     ? {
@@ -693,6 +798,7 @@ async function executeDbfWrite(payload, options = {}) {
     success: true,
     operation,
     recno,
+    ...(autoNumber ? { autoNumber: number } : {}),
     elapsedMs: execRes.elapsedMs,
     ...integrity
   };
@@ -1584,8 +1690,11 @@ module.exports = {
   validateDbfWrite,
   buildWhereClause,
   toVfpLiteral,
+  validateInsertGuard,
   buildDbfWriteScript,
   shouldCheckDuplicateKey,
+  parseWriteResult,
+  runDbfBridge,
   enqueueDbf,
   enqueueDbfWithin,
   executeDbfWrite,
