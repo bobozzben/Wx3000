@@ -206,6 +206,27 @@ function dbfChecksum(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex') + ':' + buf.length;
 }
 
+/**
+ * 優先直接在 Node.js 讀取 DBF 計算 SHA-256 Checksum (~1ms)，避免每次進畫面都 spawn 32-bit DBFBridge.exe (~600ms)；
+ * 僅當檔案無法直接讀取（例如被 VFP 獨佔開啟）時才退回 DBFBridge。
+ */
+async function executeDbfChecksum(payload = {}) {
+  let targetPath = String(payload.filePath || payload.path || '').trim();
+  if (!targetPath && payload.dbfPath && payload.dbfName) {
+    targetPath = path.join(String(payload.dbfPath), String(payload.dbfName));
+  }
+  if (targetPath && !targetPath.toLowerCase().endsWith('.dbf')) {
+    targetPath += '.dbf';
+  }
+  if (targetPath) {
+    const buf = await enqueueDbf(() => readFileOrNull(targetPath));
+    if (buf !== null) {
+      return { success: true, filePath: targetPath, checksum: dbfChecksum(buf) };
+    }
+  }
+  return callDbfBridge(buildDbfBridgeRequest('CHECKSUM', payload));
+}
+
 async function readFileOrNull(filePath) {
   try {
     return await fs.promises.readFile(filePath);
@@ -1532,7 +1553,7 @@ const handleRequest = async (req, res) => {
         const filePath = url.searchParams.get('path') || url.searchParams.get('filePath') || '';
         const dbfPath = url.searchParams.get('dbfPath') || '';
         const dbfName = url.searchParams.get('dbfName') || '';
-        const result = await callDbfBridge({ action: 'CHECKSUM', filePath, dbfPath, dbfName });
+        const result = await executeDbfChecksum({ filePath, dbfPath, dbfName });
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify(result));
         return;
@@ -1557,6 +1578,13 @@ const handleRequest = async (req, res) => {
 
           if (dbfAction === 'EXPORT_CUSTBAK' || dbfAction === 'IMPORT_CUSTBAK') {
             const result = dbfAction === 'EXPORT_CUSTBAK' ? await executeCustbakExport(payload) : await executeCustbakImport(payload);
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify(result));
+            return;
+          }
+
+          if (dbfAction === 'CHECKSUM') {
+            const result = await executeDbfChecksum(payload);
             res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify(result));
             return;
@@ -1845,6 +1873,7 @@ module.exports = {
   enqueueDbf,
   enqueueDbfWithin,
   executeDbfWrite,
+  executeDbfChecksum,
   dbfChecksum,
   onlyExpectedChanges,
   validateCustbakRequest,

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileSpreadsheet, Filter, Moon, Printer, RotateCcw, Sun, X } from 'lucide-react';
+import { FileSpreadsheet, Filter, Moon, Printer, RotateCcw, Sun, X, type LucideIcon } from 'lucide-react';
 import { useTheme } from '../../wbase/menu/ThemeContext';
 
 export type FoxProRangeFieldKey = 'start' | 'end';
@@ -12,6 +12,13 @@ export interface FoxProRangePrintConditionValues {
 export interface FoxProRangePrintConditionStatus {
   type: 'info' | 'success' | 'warning' | 'error';
   text: string;
+}
+
+export interface FoxProRangePrintConditionSummary {
+  title: string;
+  value: React.ReactNode;
+  note?: string;
+  icon?: LucideIcon;
 }
 
 export interface FoxProRangePrintConditionModalProps {
@@ -51,8 +58,20 @@ export interface FoxProRangePrintConditionModalProps {
   allRangeText?: string;
   /** 符合筆數標籤文字 (例如「目前清冊符合：12 筆」) */
   matchedCountText?: string | null;
+  /** 上方摘要卡片 (例如已選擇客戶數) */
+  summary?: FoxProRangePrintConditionSummary;
   /** 額外自訂條件內容區 (插槽) */
   extraContent?: React.ReactNode;
+  /** 帶有焦點導覽工具的自訂延伸條件內容 */
+  renderExtraContent?: (nav: {
+    focusRangeEnd: () => void;
+    focusNextAfterExtra: () => void;
+    clearValidationError: () => void;
+  }) => React.ReactNode;
+  /** 結束欄按 Enter / ↓ 時嘗試把焦點移入延伸欄位；回傳 true 表示已處理 */
+  onFocusExtra?: () => boolean;
+  /** 送出 (F7 確定 / F8 匯出) 前的延伸檢核；回傳非空物件則阻擋送出並顯示錯誤訊息 */
+  validateBeforeAction?: () => { text: string; focus?: () => void } | null;
   /** 區間值狀態 */
   values: FoxProRangePrintConditionValues;
   onChange: (next: FoxProRangePrintConditionValues) => void;
@@ -112,7 +131,11 @@ export const FoxProRangePrintConditionModal: React.FC<FoxProRangePrintConditionM
   rangeSummaryLabel = '列印範圍：',
   allRangeText = '全部資料',
   matchedCountText,
+  summary,
   extraContent,
+  renderExtraContent,
+  onFocusExtra,
+  validateBeforeAction,
   values,
   onChange,
   active,
@@ -139,7 +162,7 @@ export const FoxProRangePrintConditionModal: React.FC<FoxProRangePrintConditionM
   const endInputRef = useRef<HTMLInputElement | null>(null);
   const exportConfigRef = useRef<HTMLInputElement | null>(null);
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
-  const [validationError, setValidationError] = useState<{ key: FoxProRangeFieldKey; text: string } | null>(null);
+  const [validationError, setValidationError] = useState<{ key?: FoxProRangeFieldKey; text: string } | null>(null);
 
   const hasExportSection = Boolean(onExport) && (showExportOption ?? true);
   const startNorm = normalizeRangeValue(values.start, uppercase);
@@ -160,6 +183,18 @@ export const FoxProRangePrintConditionModal: React.FC<FoxProRangePrintConditionM
     }
   }, []);
 
+  const focusNextAfterExtra = useCallback(() => {
+    if (hasExportSection && onExportConfigureChange && exportConfigRef.current) {
+      exportConfigRef.current.focus();
+    } else {
+      confirmBtnRef.current?.focus();
+    }
+  }, [hasExportSection, onExportConfigureChange]);
+
+  const clearValidationError = useCallback(() => {
+    setValidationError(null);
+  }, []);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       focusField('start');
@@ -177,27 +212,35 @@ export const FoxProRangePrintConditionModal: React.FC<FoxProRangePrintConditionM
 
   const isBusy = isSubmitting || isExportBusy;
 
-  const triggerConfirm = useCallback(() => {
-    if (!active || isBusy) return;
+  const runValidation = useCallback((): boolean => {
     if (rangeValidationMsg) {
       setValidationError({ key: 'end', text: rangeValidationMsg });
       focusField('end');
-      return;
+      return false;
+    }
+    if (validateBeforeAction) {
+      const extraErr = validateBeforeAction();
+      if (extraErr) {
+        setValidationError({ text: extraErr.text });
+        extraErr.focus?.();
+        return false;
+      }
     }
     setValidationError(null);
+    return true;
+  }, [rangeValidationMsg, focusField, validateBeforeAction]);
+
+  const triggerConfirm = useCallback(() => {
+    if (!active || isBusy) return;
+    if (!runValidation()) return;
     onConfirm();
-  }, [active, isBusy, rangeValidationMsg, focusField, onConfirm]);
+  }, [active, isBusy, runValidation, onConfirm]);
 
   const triggerExport = useCallback(() => {
     if (!active || isBusy || !onExport) return;
-    if (rangeValidationMsg) {
-      setValidationError({ key: 'end', text: rangeValidationMsg });
-      focusField('end');
-      return;
-    }
-    setValidationError(null);
+    if (!runValidation()) return;
     onExport();
-  }, [active, isBusy, rangeValidationMsg, focusField, onExport]);
+  }, [active, isBusy, onExport, runValidation]);
 
   // Capture 階段全域熱鍵：F7 確定列印、F8 匯出 Excel、Esc 離開
   useEffect(() => {
@@ -248,11 +291,10 @@ export const FoxProRangePrintConditionModal: React.FC<FoxProRangePrintConditionM
         setValidationError({ key: 'end', text: rangeValidationMsg });
       } else {
         setValidationError(null);
-        if (hasExportSection && onExportConfigureChange && exportConfigRef.current) {
-          exportConfigRef.current.focus();
-        } else {
-          confirmBtnRef.current?.focus();
+        if (onFocusExtra?.()) {
+          return;
         }
+        focusNextAfterExtra();
       }
       return;
     }
@@ -357,6 +399,8 @@ export const FoxProRangePrintConditionModal: React.FC<FoxProRangePrintConditionM
     );
   };
 
+  const SummaryIcon = summary?.icon;
+
   const dialog = (
     <div
       className={`w-full max-w-xl rounded-2xl shadow-2xl flex flex-col overflow-hidden border transition-colors ${
@@ -415,6 +459,33 @@ export const FoxProRangePrintConditionModal: React.FC<FoxProRangePrintConditionM
 
       {/* 內容區 */}
       <div className={`p-4 sm:p-5 space-y-3.5 ${overlay ? 'overflow-y-auto flex-1' : ''}`}>
+        {summary && (
+          <div
+            className={`rounded-xl p-3.5 border shadow-xs flex items-center justify-between gap-2.5 flex-wrap transition-colors ${
+              isDark ? 'bg-slate-800/85 border-slate-700' : 'bg-white border-slate-200/90'
+            }`}
+          >
+            <div className="flex items-center gap-2 font-bold text-sm sm:text-base">
+              {SummaryIcon && <SummaryIcon className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500" />}
+              <span className={isDark ? 'text-white' : 'text-slate-800'}>{summary.title}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {summary.note && (
+                <span
+                  className={`text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-lg ${
+                    isDark ? 'bg-indigo-950/60 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+                  }`}
+                >
+                  {summary.note}
+                </span>
+              )}
+              <span className="bg-indigo-600 text-white px-3 py-1 rounded-xl font-black text-xs sm:text-sm shadow-sm tracking-wider">
+                {summary.value}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div
           className={`rounded-xl p-4 sm:p-5 border shadow-xs space-y-4 transition-colors ${
             isDark ? 'bg-slate-800/85 border-slate-700' : 'bg-white border-slate-200/90'
@@ -513,7 +584,13 @@ export const FoxProRangePrintConditionModal: React.FC<FoxProRangePrintConditionM
         </div>
 
         {/* 呼叫端自訂延伸條件 */}
-        {extraContent}
+        {renderExtraContent
+          ? renderExtraContent({
+              focusRangeEnd: () => focusField('end'),
+              focusNextAfterExtra,
+              clearValidationError,
+            })
+          : extraContent}
 
         {/* 匯出 xlsx 設定勾選區 */}
         {hasExportSection && onExportConfigureChange && (
@@ -540,6 +617,7 @@ export const FoxProRangePrintConditionModal: React.FC<FoxProRangePrintConditionM
                   confirmBtnRef.current?.focus();
                 } else if (e.key === 'ArrowUp') {
                   e.preventDefault();
+                  if (onFocusExtra?.()) return;
                   focusField('end');
                 }
               }}
@@ -610,7 +688,7 @@ export const FoxProRangePrintConditionModal: React.FC<FoxProRangePrintConditionM
                 e.preventDefault();
                 if (hasExportSection && onExportConfigureChange && exportConfigRef.current) {
                   exportConfigRef.current.focus();
-                } else {
+                } else if (!onFocusExtra?.()) {
                   focusField('end');
                 }
               }

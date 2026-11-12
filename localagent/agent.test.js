@@ -21,6 +21,7 @@ const {
   enqueueDbf,
   enqueueDbfWithin,
   executeDbfWrite,
+  executeDbfChecksum,
   dbfChecksum,
   onlyExpectedChanges,
   validateCustbakRequest,
@@ -323,6 +324,21 @@ const baseRows = [{ no: '01', tel: '1111', fax: '2222' }, { no: '02', tel: '3333
 test('dbfChecksum matches the DBFBridge CHECKSUM format', () => {
   const buf = makeDbf(baseRows);
   assert.match(dbfChecksum(buf), new RegExp(`^[0-9a-f]{64}:${buf.length}$`));
+});
+
+test('executeDbfChecksum computes matching checksum directly from disk', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wx3000-chk-'));
+  try {
+    const file = path.join(dir, 'customer.dbf');
+    const buf = makeDbf(baseRows);
+    fs.writeFileSync(file, buf);
+
+    const res = await executeDbfChecksum({ dbfPath: dir, dbfName: 'customer' });
+    assert.equal(res.success, true);
+    assert.equal(res.checksum, dbfChecksum(buf));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('onlyExpectedChanges accepts a write that touched only its own bytes', () => {
