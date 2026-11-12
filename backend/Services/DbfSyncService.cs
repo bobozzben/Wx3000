@@ -23,6 +23,7 @@ namespace Wx3000.Backend.Services
         private readonly AppDbContext _dbContext;
         private readonly ILogger<DbfSyncService> _logger;
         private readonly string _localAgentUrl;
+        private static volatile bool _dictionaryTablesEnsured;
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
@@ -81,7 +82,8 @@ namespace Wx3000.Backend.Services
                 if (!fullPath.EndsWith(".dbf", StringComparison.OrdinalIgnoreCase)) fullPath += ".dbf";
                 var payload = new { filePath = fullPath, dbfPath, dbfName };
                 var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                var resp = await _http.PostAsync("/api/dbf/checksum", content);
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromMilliseconds(1500));
+                var resp = await _http.PostAsync("/api/dbf/checksum", content, cts.Token);
                 if (!resp.IsSuccessStatusCode) return null;
 
                 var json = await resp.Content.ReadAsStringAsync();
@@ -658,6 +660,7 @@ namespace Wx3000.Backend.Services
 
         private async Task EnsureDictionaryTableExistsAsync()
         {
+            if (_dictionaryTablesEnsured) return;
             await _dbContext.Database.ExecuteSqlRawAsync(@"
                 CREATE SCHEMA IF NOT EXISTS ""dictionary"";
                 CREATE TABLE IF NOT EXISTS ""dictionary"".""w3000_dbf"" (
@@ -673,6 +676,7 @@ namespace Wx3000.Backend.Services
                     PRIMARY KEY (path, dbf)
                 );
             ");
+            _dictionaryTablesEnsured = true;
         }
 
         private static string NormalizePath(string path)

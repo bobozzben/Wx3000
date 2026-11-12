@@ -206,6 +206,27 @@ function dbfChecksum(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex') + ':' + buf.length;
 }
 
+/**
+ * 優先直接在 Node.js 讀取 DBF 計算 SHA-256 Checksum (~1ms)，避免每次進畫面都 spawn 32-bit DBFBridge.exe (~600ms)；
+ * 僅當檔案無法直接讀取（例如被 VFP 獨佔開啟）時才退回 DBFBridge。
+ */
+async function executeDbfChecksum(payload = {}) {
+  let targetPath = String(payload.filePath || payload.path || '').trim();
+  if (!targetPath && payload.dbfPath && payload.dbfName) {
+    targetPath = path.join(String(payload.dbfPath), String(payload.dbfName));
+  }
+  if (targetPath && !targetPath.toLowerCase().endsWith('.dbf')) {
+    targetPath += '.dbf';
+  }
+  if (targetPath) {
+    const buf = await enqueueDbf(() => readFileOrNull(targetPath));
+    if (buf !== null) {
+      return { success: true, filePath: targetPath, checksum: dbfChecksum(buf) };
+    }
+  }
+  return callDbfBridge(buildDbfBridgeRequest('CHECKSUM', payload));
+}
+
 async function readFileOrNull(filePath) {
   try {
     return await fs.promises.readFile(filePath);
@@ -1282,6 +1303,128 @@ async function mergeWordTemplate(payload, options = {}) {
   });
 }
 
+// ========== 本機印表機列舉與靜默直接列印 (供網頁版 /api/printers 與 /api/print/direct 使用) ==========
+const LIST_PRINTERS_SCRIPT = `
+$r = $null
+try {
+  Add-Type -AssemblyName System.Drawing
+  $pd = New-Object System.Drawing.Printing.PrintDocument
+  $defName = $pd.PrinterSettings.PrinterName
+  $pd.Dispose()
+  $list = @()
+  foreach ($p in [System.Drawing.Printing.PrinterSettings]::InstalledPrinters) {
+    $list += @{ name = [string]$p; displayName = [string]$p; isDefault = ([string]$p -eq [string]$defName) }
+  }
+  $r = @{ success = $true; printers = $list }
+} catch {
+  $r = @{ success = $false; errorType = 'PRINTER_ERROR'; error = $_.Exception.Message; printers = @() }
+}
+[IO.File]::WriteAllText($env:WX3000_OFFICE_RESULT, (ConvertTo-Json $r -Depth 4 -Compress), (New-Object Text.UTF8Encoding $false))
+`;
+
+const DIRECT_PRINT_SCRIPT = `
+$r = $null
+try {
+  Add-Type -AssemblyName System.Drawing
+  $job = Get-Content -Raw -Encoding UTF8 $env:WX3000_PRINT_JOB | ConvertFrom-Json
+  $doc = New-Object System.Drawing.Printing.PrintDocument
+  if ($job.jobName) { $doc.DocumentName = [string]$job.jobName }
+  if ($job.deviceName) { $doc.PrinterSettings.PrinterName = [string]$job.deviceName }
+  if (-not $doc.PrinterSettings.IsValid) {
+    throw "無效的印表機名稱: $($job.deviceName)"
+  }
+  $doc.DefaultPageSettings.Landscape = [bool]$job.landscape
+  $doc.DefaultPageSettings.Color = [bool]$job.color
+  if ($job.paperSize) {
+    $targetKind = switch ([string]$job.paperSize) {
+      'A4' { 'A4' }
+      'Letter' { 'Letter' }
+      'B4' { 'B4' }
+      default { '' }
+    }
+    if ($targetKind) {
+      foreach ($ps in $doc.PrinterSettings.PaperSizes) {
+        if ([string]$ps.Kind -eq $targetKind -or $ps.PaperName -like "*$targetKind*") {
+          $doc.DefaultPageSettings.PaperSize = $ps
+          break
+        }
+      }
+    }
+  }
+  $doc.OriginAtMargins = $false
+  $doc.PrintController = New-Object System.Drawing.Printing.StandardPrintController
+  $files = @($job.imageFiles)
+  $script:pageIdx = 0
+  $handler = [System.Drawing.Printing.PrintPageEventHandler]{
+    param($sender, $e)
+    $img = [System.Drawing.Image]::FromFile($files[$script:pageIdx])
+    try {
+      $e.Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+      $e.Graphics.DrawImage($img, $e.PageBounds)
+    } finally {
+      $img.Dispose()
+    }
+    $script:pageIdx++
+    $e.HasMorePages = ($script:pageIdx -lt $files.Count)
+  }
+  $doc.add_PrintPage($handler)
+  $doc.Print()
+  $printerUsed = $doc.PrinterSettings.PrinterName
+  $doc.Dispose()
+  $r = @{ success = $true; printedPages = $files.Count; printer = $printerUsed }
+} catch {
+  $r = @{ success = $false; errorType = 'PRINT_ERROR'; error = $_.Exception.Message }
+}
+[IO.File]::WriteAllText($env:WX3000_OFFICE_RESULT, (ConvertTo-Json $r -Compress), (New-Object Text.UTF8Encoding $false))
+`;
+
+async function listSystemPrinters() {
+  return runOfficeScript(LIST_PRINTERS_SCRIPT, {}, 15 * 1000);
+}
+
+async function directPrintImages(payload) {
+  const pages = payload?.pages;
+  if (!Array.isArray(pages) || pages.length === 0) {
+    return { success: false, errorType: 'INVALID_REQUEST', error: '缺少要列印的頁面影像資料 (pages)' };
+  }
+  if (pages.length > 500) {
+    return { success: false, errorType: 'INVALID_REQUEST', error: '單次列印頁數不可超過 500 頁' };
+  }
+
+  const tempFiles = [];
+  const jobPath = officeTempFile('print_job', '.json');
+  try {
+    for (let i = 0; i < pages.length; i++) {
+      const raw = String(pages[i] || '');
+      const base64 = raw.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
+      if (!base64) {
+        return { success: false, errorType: 'INVALID_REQUEST', error: `第 ${i + 1} 頁影像資料為空` };
+      }
+      const imgFile = officeTempFile(`print_page_${i + 1}`, '.jpg');
+      fs.writeFileSync(imgFile, Buffer.from(base64, 'base64'));
+      tempFiles.push(imgFile);
+    }
+
+    const job = {
+      deviceName: typeof payload.deviceName === 'string' ? payload.deviceName : '',
+      landscape: Boolean(payload.landscape),
+      color: payload.color !== false,
+      paperSize: typeof payload.paperSize === 'string' ? payload.paperSize : 'A4',
+      jobName: typeof payload.jobName === 'string' ? payload.jobName : 'Wx3000 報表列印',
+      imageFiles: tempFiles
+    };
+    fs.writeFileSync(jobPath, JSON.stringify(job), 'utf8');
+    return await runOfficeScript(DIRECT_PRINT_SCRIPT, { WX3000_PRINT_JOB: jobPath }, 120 * 1000);
+  } catch (e) {
+    return { success: false, errorType: 'PRINT_ERROR', error: e.message };
+  } finally {
+    fs.rm(jobPath, { force: true }, () => {});
+    for (const f of tempFiles) {
+      fs.rm(f, { force: true }, () => {});
+    }
+  }
+}
+
 // ========== 存取控制 ==========
 // 正式環境的前端由 http://<主機>:5007 提供，主機位址無法事先得知，因此放行內網位址與單段主機名；
 // 其他網域 (如 ngrok、企業內網 FQDN) 請以逗號分隔設定於環境變數 WX3000_AGENT_ALLOWED_ORIGINS
@@ -1306,7 +1449,7 @@ function isLoopbackHost(hostHeader) {
 }
 
 // 無副作用且瀏覽器跨站也讀不到回應的端點 (Electron file:// 頁面的 GET 不帶 Origin，需要放行)
-const READ_ONLY_PATHS = new Set(['/', '/test.html', '/mac', '/config', '/dllList', '/api/check-drive', '/api/dbf/check_drive', '/api/office/status']);
+const READ_ONLY_PATHS = new Set(['/', '/test.html', '/mac', '/config', '/dllList', '/api/check-drive', '/api/dbf/check_drive', '/api/office/status', '/api/printers']);
 
 // 回傳拒絕原因；可放行時回傳 null
 function authorizeRequest(req, pathname) {
@@ -1410,7 +1553,7 @@ const handleRequest = async (req, res) => {
         const filePath = url.searchParams.get('path') || url.searchParams.get('filePath') || '';
         const dbfPath = url.searchParams.get('dbfPath') || '';
         const dbfName = url.searchParams.get('dbfName') || '';
-        const result = await callDbfBridge({ action: 'CHECKSUM', filePath, dbfPath, dbfName });
+        const result = await executeDbfChecksum({ filePath, dbfPath, dbfName });
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify(result));
         return;
@@ -1435,6 +1578,13 @@ const handleRequest = async (req, res) => {
 
           if (dbfAction === 'EXPORT_CUSTBAK' || dbfAction === 'IMPORT_CUSTBAK') {
             const result = dbfAction === 'EXPORT_CUSTBAK' ? await executeCustbakExport(payload) : await executeCustbakImport(payload);
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify(result));
+            return;
+          }
+
+          if (dbfAction === 'CHECKSUM') {
+            const result = await executeDbfChecksum(payload);
             res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify(result));
             return;
@@ -1484,6 +1634,31 @@ const handleRequest = async (req, res) => {
         res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: false, errorType: 'WORD_ERROR', error: e.message }));
       }
+    });
+    return;
+  }
+
+  // ========== 本機印表機列舉與靜默列印 API (/api/printers, /api/print/direct) ==========
+  if (url.pathname === '/api/printers' && req.method === 'GET') {
+    const result = await listSystemPrinters();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(result));
+    return;
+  }
+  if (url.pathname === '/api/print/direct' && req.method === 'POST') {
+    const getBody = collectUtf8(req);
+    req.on('end', async () => {
+      let payload;
+      try {
+        payload = JSON.parse(getBody() || '{}');
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, errorType: 'INVALID_REQUEST', error: e.message }));
+        return;
+      }
+      const result = await directPrintImages(payload);
+      res.writeHead(result.success ? 200 : 400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(result));
     });
     return;
   }
@@ -1698,6 +1873,7 @@ module.exports = {
   enqueueDbf,
   enqueueDbfWithin,
   executeDbfWrite,
+  executeDbfChecksum,
   dbfChecksum,
   onlyExpectedChanges,
   validateCustbakRequest,
@@ -1716,6 +1892,10 @@ module.exports = {
   detectWord,
   openWordTemplate,
   mergeWordTemplate,
+  listSystemPrinters,
+  directPrintImages,
+  LIST_PRINTERS_SCRIPT,
+  DIRECT_PRINT_SCRIPT,
   isAllowedOrigin,
   authorizeRequest,
   buildDbfBridgeRequest,

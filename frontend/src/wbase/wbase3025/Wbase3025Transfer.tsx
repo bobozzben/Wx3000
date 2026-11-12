@@ -7,11 +7,9 @@ import {
   type PrintConditionStatus,
   type PrintConditionValues,
 } from '../../components/FoxProGrid/FoxProPrintModalv2';
-import { FoxProPrintModal, type FoxProPrintColumn } from '../../components/FoxProGrid/FoxProPrintModal';
+import { ReportPreviewModal, type ReportPreviewColumn } from '../../components/ReportPreview';
 import { SearchModal, type SearchItem } from '../../components/FoxProGrid/SearchModal';
-import { exportFieldsToXlsx } from '../../components/FoxProGrid/useFoxProPrintXlsxExport';
 import { oddStartMonth, validEndMonth, validRocYear } from '../../components/FoxProGrid/foxProPrintValidators';
-import type { XlsxFieldItem } from '../../components/SelectXlsxField';
 import { MessageDialog, type MessageState } from '../wbase2030/Wbase2030Dialogs';
 import { useTheme } from '../menu/ThemeContext';
 import { fetchTicketPlaceByCode, fetchTicketPlaces } from '../../services/wbase3010';
@@ -50,38 +48,21 @@ const PARAM_MEDIA_FORMAT = '原媒體轉檔格式';
 const PARAM_MEDIA_OFFICE = '原媒體轉檔事務所資料';
 const PARAM_NET_FORMAT = '網路申購轉檔格式';
 
-const XLSX_FIELDS: XlsxFieldItem[] = [
-  { key: 'no', label: '客戶代號', customTitle: '代號', selected: true },
-  { key: 'name', label: '公司名稱', customTitle: '公司名稱', selected: true },
-  { key: 'unino', label: '統一編號', customTitle: '統一編號', selected: true },
-  { key: 'taxno', label: '稅籍編號', customTitle: '稅籍編號', selected: true },
-  { key: 'times', label: '購買次數', customTitle: '次數', selected: true },
-  { key: 'a02', label: '二聯', customTitle: '二聯', selected: true },
-  { key: 'a02b', label: '二聯副', customTitle: '二聯副', selected: true },
-  { key: 'a03', label: '三聯', customTitle: '三聯', selected: true },
-  { key: 'a03b', label: '三聯副', customTitle: '三聯副', selected: true },
-  { key: 'spec', label: '特種', customTitle: '特種', selected: true },
-  { key: 'c02', label: '二收銀', customTitle: '二收銀', selected: true },
-  { key: 'c03', label: '三收銀', customTitle: '三收銀', selected: true },
-  { key: 'c03b', label: '三收副', customTitle: '三收副', selected: true },
-  { key: 'addr', label: '地址', customTitle: '地址', selected: false },
-  { key: 'error', label: '錯誤', customTitle: '錯誤', selected: true },
-];
-
-const qtyCol = (key: keyof MediaTransferRow, label: string): FoxProPrintColumn<MediaTransferRow> => ({
+const qtyCol = (key: keyof MediaTransferRow, label: string): ReportPreviewColumn<MediaTransferRow> => ({
   key,
   label,
-  width: '58px',
+  width: 58,
   align: 'right',
   render: (val) => (Number(val) ? String(val) : ''),
+  formatText: (val) => (Number(val) ? String(val) : ''),
 });
 
-const PREVIEW_COLUMNS: FoxProPrintColumn<MediaTransferRow>[] = [
-  { key: 'no', label: '代號', width: '80px', align: 'center' },
-  { key: 'name', label: '公司名稱', width: '170px' },
-  { key: 'unino', label: '統一編號', width: '90px', align: 'center' },
-  { key: 'taxno', label: '稅籍編號', width: '95px', align: 'center' },
-  { key: 'times', label: '次', width: '36px', align: 'center' },
+const PREVIEW_COLUMNS: ReportPreviewColumn<MediaTransferRow>[] = [
+  { key: 'no', label: '代號', width: 80, align: 'center' },
+  { key: 'name', label: '公司名稱', width: 170 },
+  { key: 'unino', label: '統一編號', width: 90, align: 'center' },
+  { key: 'taxno', label: '稅籍編號', width: 95, align: 'center' },
+  { key: 'times', label: '次', width: 36, align: 'center' },
   qtyCol('a02', '二聯'),
   qtyCol('a02b', '二副'),
   qtyCol('a03', '三聯'),
@@ -90,7 +71,7 @@ const PREVIEW_COLUMNS: FoxProPrintColumn<MediaTransferRow>[] = [
   qtyCol('c02', '二收'),
   qtyCol('c03', '三收'),
   qtyCol('c03b', '三收副'),
-  { key: 'error', label: '錯誤', width: '200px' },
+  { key: 'error', label: '錯誤', width: 200 },
 ];
 
 const isTaipei = (city: string) => city.startsWith('台北市') || city.startsWith('臺北市');
@@ -519,32 +500,30 @@ export const Wbase3025Transfer: React.FC<Wbase3025TransferProps> = ({ mode, onCl
         onClose={closePlaceSearch}
       />
 
-      {preview && (
-        <FoxProPrintModal
-          isOpen={true}
-          onClose={() => setPreview(null)}
-          title={`${screen.menu} 預覽`}
-          subtitle={`${preview.regionName}格式 ‧ ${preview.fileName} ‧ ${preview.lineCount} 列`}
-          reportTitle={`${screen.title} (期別 ${period})`}
-          reportSubtitle={`${preview.message}${preview.errors.length > 0 ? `　⚠ 錯誤清單 ${preview.errors.length} 筆 (見「錯誤」欄，這些列仍會轉出)` : ''}`}
-          showFilter={false}
-          startCodeValue=""
-          onStartCodeChange={() => {}}
-          endCodeValue=""
-          onEndCodeChange={() => {}}
-          onSearch={async () => {}}
-          data={preview.rows}
-          columns={PREVIEW_COLUMNS}
-          loading={false}
-          hasSearched={true}
-          emptyText={`⚠️ ${preview.message}`}
-          enableXlsxExport={true}
-          xlsxFields={XLSX_FIELDS}
-          xlsxStorageKey={`${screen.code}_xlsx_export_config`}
-          xlsxFileName={`${screen.menu}_${period}`}
-          onExportXlsx={async (data, selectedFields) => exportFieldsToXlsx(data, selectedFields, `${screen.menu}_${period}`)}
-        />
-      )}
+      <ReportPreviewModal<MediaTransferRow>
+        isOpen={preview !== null}
+        onClose={() => setPreview(null)}
+        reportId={screen.code}
+        companyName="奇勝資訊 Wx3000"
+        reportTitle={`${screen.title} (期別 ${period})`}
+        subHeaderLeft={preview ? `${preview.regionName}格式 ‧ ${preview.fileName} ‧ ${preview.lineCount} 列` : ''}
+        subHeaderCenter={
+          preview
+            ? `${preview.message}${preview.errors.length > 0 ? `　⚠ 錯誤清單 ${preview.errors.length} 筆 (見「錯誤」欄，這些列仍會轉出)` : ''}`
+            : ''
+        }
+        data={preview?.rows ?? []}
+        columns={PREVIEW_COLUMNS}
+        getRowKey={(row, idx) => `${row.no}-${row.times}-${idx}`}
+        loading={busy}
+        emptyText={preview ? `⚠️ ${preview.message}` : '⚠️ 查無符合資料'}
+        defaultOrientation="landscape"
+        enableEdit={true}
+        onRefresh={handlePreview}
+        showExport={true}
+        exportOptions={['pdf', 'jpg', 'word']}
+        exportFileName={`${screen.menu}_${period}`}
+      />
 
       {message && (
         <MessageDialog
