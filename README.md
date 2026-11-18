@@ -9,10 +9,10 @@
 
 | 層級 | 選用技術與規格說明 |
 | :--- | :--- |
-| **Frontend (Web & Desktop)** | React 19 + TypeScript + Vite + Tailwind CSS (v4) + AG Grid Community + Zustand + Axios + SheetJS (`xlsx`)，靜態檢查使用 `oxlint`<br>- 支援瀏覽器區網連線與 **Electron 桌面端封裝**（功能鍵保留給盲打：DevTools 改用 `Ctrl+Shift+I`、單按 `F5` 不會重新整理；桌面端更新由安裝精靈維護選單 `[4]` 重新安裝） |
-| **Backend (API & Service)** | **C# .NET 8 (ASP.NET Core Web API / Windows Service `Wx3000Api`)**<br>- 預設監聽：`http://0.0.0.0:5007`（內建 Swagger UI 與 `wwwroot` 靜態 SPA 託管）<br>- 內建 `DbfSyncService`（VFP DBF 雙向同步）、`SystemConfigService`（動態磁碟機 `C:`/`F:` 與 Schema 切換）、`SystemParamService` 與 `TransferPasswordService`（轉檔列印密碼，只在後端比對） |
+| **Frontend (Web & Desktop)** | React 19 + TypeScript + Vite + Tailwind CSS (v4) + AG Grid Community + Zustand + Axios + SheetJS (`xlsx`)，靜態檢查使用 `oxlint`<br>- 支援瀏覽器區網連線與 **Electron 桌面端封裝**（功能鍵保留給盲打：DevTools 改用 `Ctrl+Shift+I`、單按 `F5` 不會重新整理；桌面端更新由安裝精靈維護選單 `[4]` 重新安裝）<br>- 內建現代化 **`ReportPreview` 報表預覽系統**（支援 A4/Letter/HalfLetter、直橫向、多頁排版、列印設定側邊欄、即時儲存格編修、報表追追追雙擊穿透鑽取，以及 PDF / JPG / Word / Excel 動態匯出） |
+| **Backend (API & Service)** | **C# .NET 8 (ASP.NET Core Web API / Windows Service `Wx3000Api`)**<br>- 預設監聽：`http://0.0.0.0:5007`（內建 Swagger UI 與 `wwwroot` 靜態 SPA 託管）<br>- 內建 `DbfSyncService`（VFP DBF 雙向同步、DBF 檔頭鎖查重防重、VFP 併發取號、條件式 Checksum 更新）、`SystemConfigService`（動態磁碟機 `C:`/`F:` 與 Schema 切換）、`SystemParamService` 與 `TransferPasswordService`（轉檔列印密碼，只在後端比對） |
 | **Database (Hybrid Sync)** | 1. **PostgreSQL 16** (`localhost:54320`, DB: `w3000`, 動態 Schema: `c:/w3000/comm` 或 `f:/w3000/comm` & `public`)<br>2. **Visual FoxPro DBF** (`<Drive>:\w3000\comm\*.dbf`) — 採用 **DBF 絕對權威雙向同步機制**（DBF 是權威資料，PostgreSQL 只是快照；Checksum 不符時在單一交易內清空舊快照、移除舊唯一索引後整表重灌） |
-| **LocalAgent (地端橋接服務)** | **Node.js (`localagent/agent.js`, Port `5009`, 只監聽 `127.0.0.1` 與 `::1`)**，安裝後於使用者登入時在背景自動啟動 (`Wx3000Agent.exe`)<br>- **DBF 橋接**：透過 **32-bit `DBFBridge.exe`** 呼叫 32-bit `w3000_dbf.dll` (VFP COM) 執行 SHA256 Checksum、快照腳本產生與 DBF 寫入（記錄被鎖定時回 `LOCK_TIMEOUT`）；`/api/dbf/*` 只供後端呼叫，不接受瀏覽器請求<br>- **報表橋接**：透過 **64-bit `WbaseBridge.exe`** / `Koffi` 呼叫 64-bit Lazarus `wbaseRP.dll` 產生傳統 FastReport 預覽與中一刀列印；只能呼叫 `localagent/dlls.json` 登記的函數 |
+| **LocalAgent (地端橋接服務)** | **Node.js (`localagent/agent.js`, Port `5009`, 只監聽 `127.0.0.1` 與 `::1`)**，安裝後於使用者登入時在背景自動啟動 (`Wx3000Agent.exe`)<br>- **DBF 橋接**：透過 **32-bit `DBFBridge.exe`** 呼叫 32-bit `w3000_dbf.dll` (VFP COM) 執行 SHA256 Checksum、快照腳本產生與 DBF 寫入（記錄被鎖定時回 `LOCK_TIMEOUT`，檔頭鎖查重回 `DUPLICATE_KEY`，排隊逾時回 `AGENT_BUSY`）；`/api/dbf/*` 只供後端呼叫，不接受瀏覽器請求<br>- **報表橋接**：透過 **64-bit `WbaseBridge.exe`** / `Koffi` 呼叫 64-bit Lazarus `wbaseRP.dll` 產生傳統 FastReport 預覽與中一刀列印；只能呼叫 `localagent/dlls.json` 登記的 11 個白名單函數 |
 | **DevOps & Deployment** | `pnpm` Workspace + `Wx3000-Manager.bat` 互動式管理選單（含報表元件編譯 `[13]` 與 GitHub 發版 `[14]`）+ `publish/` 客戶端一鍵安裝/更新/DBF 同步診斷腳本 + GitHub Actions CI（前端、Electron、後端建置）與 Release（推送 tag 建立草稿） |
 
 ---
@@ -31,23 +31,25 @@ Wx3000/
 │   ├── backend/backend_SPEC.md     # 後端 API、動態磁碟機、DBF 同步與資料庫規格
 │   └── frontend/                   # 前端共用組件、wbase 主檔/客戶/發票統購/會計科目/管理報表、wtaxop 單據規格書
 ├── backend/                        # C# .NET 8 Web API & Windows Service (Port: 5007)
-│   ├── Controllers/                # SystemConfig, SystemParam, Wbase1020~5010, Products, Vendors, Purchase
-│   ├── Services/                   # DbfSyncService, SystemConfigService (動態磁碟機), SystemParamService, TransferPasswordService
+│   ├── Controllers/                # SystemConfig, SystemParam, Wbase1010~1080, Wbase2010~2050, Wbase3010~3060, Wbase4010, Wbase4020, Wbase5010, Wbase5070, Products, Vendors, Purchase
+│   ├── Services/                   # DbfSyncService (含檔頭鎖查重與取號), SystemConfigService (動態磁碟機), SystemParamService, TransferPasswordService
 │   ├── Data/                       # AppDbContext, DynamicModelCacheKeyFactory, DbInitializer
-│   └── Models/                     # 映射 <drive>:/w3000/comm (cpa, keyin, taxno, customer, buyinv...)
+│   └── Models/                     # 映射 <drive>:/w3000/comm (cpa, keyin, taxno, customer, buyinv, base, cstore...)
 ├── frontend/                       # React 19 + Vite + Electron 前端專案
 │   ├── electron/                   # Electron 主程序 (main.cjs, preload.cjs)
 │   └── src/
 │       ├── mainmenu/               # 奇勝資訊 Wx3000 系統總入口 (四大系統分區、快捷鍵啟動、線上客服)
 │       ├── components/
-│       │   ├── FoxProGrid/         # FoxProGridV2 (多列盲打表格) + SearchModal + FoxProPrintModal + AddressSelectModal
+│       │   ├── FoxProGrid/         # FoxProGridV2 (多列盲打表格) + FoxProPrintModal + FoxProPrintModalv2 + SearchModal + AddressSelectModal
 │       │   ├── FoxProGridCard/     # FoxProGridCard (主檔瀏覽卡片) + useFoxProCardNavigation (母版表單導覽 Hook)
 │       │   ├── FoxProGridBill/     # FoxProGridBill (單據 Header+Detail 盲打表格)
+│       │   ├── ReportPreview/      # ReportPreviewModal (現代化報表預覽系統：直橫向、邊距縮放、儲存格編修、穿透鑽取、PDF/JPG/Word 匯出)
 │       │   ├── SelectXlsxField/    # FormUtilSelectXlsxFieldsList (Excel 動態欄位匯出設定器)
 │       │   ├── WbasePageHeader.tsx # 統一模組頂部標題列與模式徽章
 │       │   └── ServerConfigModal.tsx # 伺服器連線與資料來源磁碟機 (C:/F:) 設定視窗 (Ctrl+Shift+S)
 │       ├── wbase/                  # 事務所、客戶、發票統購、操作設定與管理報表 (Z-基本資料系統)
 │       │   ├── menu/               # 三階手風琴鍵盤盲打主選單 + 深淺雙色主題 (ThemeContext)
+│       │   ├── wbase1010/          # 事務所基本資料與 cstore 多資料維護 (base/cstore ⇄ FoxProGridV2 + FastReport DLL)
 │       │   ├── wbase1020/          # 會計師/記帳士資料維護 (FoxProGridCard + Wbase1020Form)
 │       │   ├── wbase1030/          # 員工/建檔人員資料維護 (12 欄 FoxProGridV2 + w3000 密碼加解密)
 │       │   ├── wbase1050/          # 稅務人員資料維護 (7 欄 FoxProGridV2 + F2 地址快選)
@@ -60,11 +62,13 @@ Wx3000/
 │       │   ├── wbase2050/          # 總分支機構設定 (總機構清單 + F8 分公司資料維護)
 │       │   ├── wbase3010/          # 發票購買地點維護 (FoxProGridV2 + F2 地址快選)
 │       │   ├── wbase3020/          # 發票預購輸入 (wbase3020_01/02) & 預購列印 (wbase3020_buyinv_print，選單 3-3)
+│       │   ├── wbase3025/          # 3-4 原媒體轉檔 (3025) / 網路申購轉檔 (3025n)：北高省三格式 Big5 轉檔
 │       │   ├── wbase3050/          # 統購發票清單列印 (A4/中一刀簽收單) & 單價設定
-│       │   ├── wbase3060/          # 統購發票字軌輸入與國稅局/代售點 Excel 匯入
+│       │   ├── wbase3060/          # 統購發票字軌輸入與國稅局/代售點 Excel 匯入 (依 VFP wbase3022 欄位防重)
 │       │   ├── wbase4010/          # 4-1 標準會計科目維護 (標準/營造業/建設業/文教/社會/衛福團體 6 種科目表 xmaster~xmaster6)
-│       │   ├── wbase4020/          # 4-2~4-6 營業稅設定、傳票轉檔、進銷存方式、共用科目摘要、共用參數 (頁籤切換)
-│       │   └── wbase5010/          # 5-1~5-6 客戶資料列印、郵寄標籤、登打統計、營業狀況、財務狀況參考表、委任書 (頁籤切換)
+│       │   ├── wbase4020/          # 4-2~4-6 營業稅設定、傳票轉檔、進銷存方式、共用科目摘要、共用參數 (獨立模式無多餘頁籤)
+│       │   ├── wbase5010/          # 5-1~5-6 客戶資料列印、郵寄標籤、登打統計、營業狀況、財務狀況參考表、委任書輸入列印 (先選客戶再設條件)
+│       │   └── wbase5070/          # 5-7 碳健檢企業名單匯出 (客戶勾選清單 + 轉檔列印密碼 + t403 營業額統計 Excel)
 │       ├── wtaxop/PurchaseOrder/   # 進貨單盲打作業 (Header + Detail)
 │       └── services/               # Axios API、apiConfig (X-Data-Drive)、addressService、localagent、validation.ts
 ├── localagent/                     # 本機代理服務 (Port: 5009，只監聽 127.0.0.1 / ::1)
@@ -136,7 +140,7 @@ pnpm build:electron       # 產出正式 Windows 安裝包與綠色版 EXE (publ
 | **F2 / F4** | 在具備輔助按鈕欄位開啟快選視窗（如台灣地址快選 `AddressSelectModal`） | 瀏覽時 `F2` 開啟搜尋彈窗；編修時於地址/字軌欄開啟輔助快選視窗 | 開立新單據 / 開窗快查 |
 | **F3** | 開啟大型快查彈窗 (`SearchModal`) | 於 `wbase2010` 切換頁籤 (`F3`~`F8`) 或查詢 | 開啟產品/廠商快查彈窗 |
 | **F6** | 重新整理資料 (`onRefreshData`) | 進入編修模式 (`startEdit`) | - |
-| **F7 / F9** | `F7` 開啟區間列印與 Excel 匯出 (`FoxProPrintModal`) | `F7` 開啟報表列印視窗、`F9`/`Ctrl+S` 儲存表單 | 查詢單據 / 儲存 |
-| **Del / F8** | 刪除目前選取列（`SUPERVISOR` 保留帳號自動防刪） | 彈出刪除確認對話框 | 刪除當前明細列 |
+| **F7 / F9** | `F7` 開啟條件預覽列印 (`FoxProPrintModal` / `FoxProPrintModalv2` / `ReportPreviewModal`) | `F7` 開啟報表列印視窗、`F9`/`Ctrl+S` 儲存表單 | 查詢單據 / 儲存 |
+| **Del / F8** | 刪除目前選取列（`SUPERVISOR` 保留帳號自動防刪）；條件視窗下 `F8` 直接匯出 Excel | 彈出刪除確認對話框 | 刪除當前明細列 |
 | **Esc** | 結束編輯、儲存結算並退回主選單 | 取消編修退回瀏覽模式，或退回系統主選單 | 退回上一層 |
 | **直接打字** | 無須先按 F2，直接鍵入字元即時覆蓋儲存格內容 | 表單欄位聚焦時自動全選 (`foxProFocusAndSelect`)，打字直接覆蓋 | 直接鍵入字元即時覆蓋 |

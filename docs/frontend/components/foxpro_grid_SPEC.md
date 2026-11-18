@@ -1,7 +1,7 @@
-# 規格書：FoxPro 鍵盤盲打前端共用組件庫規格
+# 規格書：FoxPro 鍵盤盲打前端共用組件庫與報表預覽系統規格
 
-> **組件名稱**：`FoxProGridV2`, `FoxProGridCard` (`useFoxProCardNavigation`), `FoxProGridBill`, `FoxProPrintModal`, `FoxProPrintModalv2` (`useFoxProPrintXlsxExport`), `AddressSelectModal`, `SearchModal`, `FormUtilSelectXlsxFieldsList`, `WbasePageHeader`  
-> **技術核心**：React 19 + TypeScript + Tailwind CSS (v4) + 自訂 Keyboard Traversal Hooks；AG Grid Community 只用於 `FoxProGridBill`，`FoxProGridV2` 與 `FoxProGridCard` 為自繪表格  
+> **組件名稱**：`FoxProGridV2`, `FoxProGridCard` (`useFoxProCardNavigation`), `FoxProGridBill`, `ReportPreviewModal` (`PrintSettingsSidebar`, `exportUtils`), `FoxProPrintModal`, `FoxProPrintModalv2` (`useFoxProPrintXlsxExport`), `AddressSelectModal`, `SearchModal`, `FormUtilSelectXlsxFieldsList`, `WbasePageHeader`  
+> **技術核心**：React 19 + TypeScript + Tailwind CSS (v4) + 自訂 Keyboard Traversal Hooks；AG Grid Community 只用於 `FoxProGridBill`，`FoxProGridV2`、`FoxProGridCard` 與 `ReportPreviewModal` 為自繪組件  
 > **檔案目錄**：`frontend/src/components/`
 
 ---
@@ -9,7 +9,7 @@
 ## 1. 組件設計哲學與目錄結構
 
 傳統 Visual FoxPro / Delphi / Lazarus 系統操作員習慣於 **100% 不碰滑鼠、純靠鍵盤熱鍵與 `Enter` / `Tab` / 方向鍵高速盲打**。
-本專案於 `frontend/src/components/` 提供完整母版級可複用組件庫，涵蓋所有單檔維護、卡片表單聯動、台灣地址智慧快選、單據明細、報表列印與 Excel 動態匯出情境：
+本專案於 `frontend/src/components/` 提供完整母版級可複用組件庫，涵蓋所有單檔維護、卡片表單聯動、台灣地址智慧快選、單據明細、報表預覽、列印與 Excel 動態匯出情境：
 
 ```text
 frontend/src/components/
@@ -19,20 +19,26 @@ frontend/src/components/
 │   ├── FoxProPrintModalv2.tsx            # 列印條件視窗母版 (VFP _form_print 條件表單：條件卡片、F7 列印、F8 匯出、Esc 離開)
 │   ├── useFoxProPrintXlsxExport.ts       # FoxProPrintModalv2 的 F8 匯出 Hook (查詢 → 欄位設定 → xlsx) 與 exportFieldsToXlsx
 │   ├── foxProPrintValidators.ts          # 列印條件常用檢核 (民國年、月份、起訖代號)
-│   ├── AddressSelectModal.tsx            # [核心 3] 台灣地址智慧快選視窗 (縣市/鄉鎮郵遞區號/路名資料庫 + 門牌速選鈕 + 半形轉全形)；未列入 index.ts，需直接 import
+│   ├── AddressSelectModal.tsx            # [核心 3] 台灣地址智慧快選視窗 (縣市/鄉鎮郵遞區號/路名資料庫 + 門牌速選鈕 + 半形轉全形)
 │   ├── SearchModal.tsx                   # [共用] F2/F3 大型開窗模糊快查對話框
 │   ├── useFoxProKeyboard.ts              # AG Grid 鍵盤導覽 Hook (僅供 FoxProGridBill 使用)
 │   └── index.ts
+├── ReportPreview/                        # [核心 4] 現代化共用報表預覽列印系統
+│   ├── ReportPreviewModal.tsx            # 報表預覽主對話框 (支援 A4/Letter/HalfLetter/B4、直橫向、多頁排版、即時編修、穿透鑽取)
+│   ├── PrintSettingsSidebar.tsx          # 列印設定側邊欄 (目標印表機、色彩模式、邊距自訂、每張頁數、縮放模式)
+│   ├── exportUtils.ts                    # 報表匯出工具 (PDF、JPG、Word、純文字格式轉換與下載)
+│   ├── types.ts                          # 欄位定義、鑽取上下文、列印設定狀態型別
+│   └── index.ts
 ├── FoxProGridCard/
-│   ├── FoxProGridCard.tsx                # [核心 4] 主檔清單瀏覽卡片 + useFoxProCardNavigation (母版表單鍵盤導覽 Hook)
+│   ├── FoxProGridCard.tsx                # [核心 5] 主檔清單瀏覽卡片 + useFoxProCardNavigation (母版表單鍵盤導覽 Hook)
 │   └── index.ts
 ├── FoxProGridBill/
-│   ├── FoxProGridBill.tsx                # [核心 5] 單據明細專用 AG Grid 盲打表格 (目前只有進貨單 PurchaseOrderPage 使用)
+│   ├── FoxProGridBill.tsx                # [核心 6] 單據明細專用 AG Grid 盲打表格 (目前只有進貨單 PurchaseOrderPage 使用)
 │   └── index.ts
 ├── SelectXlsxField/
-│   ├── FormUtilSelectXlsxFieldsList.tsx  # [核心 6] Excel 匯出欄位勾選、標題與順序自訂器
+│   ├── FormUtilSelectXlsxFieldsList.tsx  # [核心 7] Excel 匯出欄位勾選、標題與順序自訂器
 │   └── index.ts                          # 另提供 useSelectXlsxExport Hook
-├── WbasePageHeader.tsx                   # [核心 7] 統一模組頂部導覽列 (返回鈕、麵包屑、程式代號、GRID/EDIT/ADD 模式徽章)
+├── WbasePageHeader.tsx                   # [核心 8] 統一模組頂部導覽列 (返回鈕、麵包屑、程式代號、GRID/EDIT/ADD 模式徽章)
 └── ServerConfigModal.tsx                 # 後端 API Server 位址與資料磁碟機代號 (A~Z) 動態設定彈窗 (Ctrl+Shift+S)
 ```
 
@@ -138,3 +144,34 @@ frontend/src/components/
 - 目前只有 `wtaxop` 進貨單 (`PurchaseOrderPage`) 使用，欄位固定為 `PurchaseLineItem` (項次、產品代號、品名、數量、單價、小計金額、備註)，詳見 `docs/frontend/wtaxop/purchase_order_SPEC.md`。
 - 按鍵由 `useFoxProKeyboard` 在容器的 capture 階段處理：`F2` 編輯儲存格、`F4` 在產品代號/品名欄開啟產品 `SearchModal`、`F9` 呼叫 `onF9Query`、`F12` 結束編輯並呼叫 `onF12Save`、`Enter`/`Tab` 移到下一個可編輯欄 (列末換下一列，最後一列再追加新列)、最後一列按 `↓` 追加新列。
 - 產品代號輸入後以 `searchProducts` 比對；找不到時清空該列並跳出提示。數量或單價變更時重算小計，底部顯示合計數量與金額。
+
+---
+
+## 8. `<ReportPreviewModal />` 規格（現代化報表預覽列印系統）
+
+位於 `frontend/src/components/ReportPreview/`，為全系統提供現代化、所見即所得（WYSIWYG）的報表預覽、列印與多格式匯出容器。
+
+### 8.1 核心功能與設計特色
+1. **紙張與排版規格**：
+   - 支援 `A4` (預設 210×297mm)、`Letter`、`HalfLetter`、`B4` 等常見紙張規格。
+   - 支援直印 (`portrait`) 與橫印 (`landscape`) 即時切換。
+   - 顯示比例縮放：整頁適應 (`wholePage`)、頁寬適應 (`pageWidth`)、以及 50% ~ 200% 任意級距縮放。
+   - 邊距模式：預設 (`default` 15mm)、無邊距 (`none`)、最小邊距 (`minimum` 5mm)、自訂邊距 (`custom` 可獨立微調上下左右 mm)。
+2. **列印設定側邊欄 (`PrintSettingsSidebar.tsx`)**：
+   - 支援選擇目的地印表機（自動讀取系統可用印表機清單）、頁面範圍（全部、目前頁、自訂頁碼如 `1-3, 5`）。
+   - 色彩模式：彩色 / 黑白。
+   - 每張紙列印頁數：1 頁、2 頁、4 頁。
+   - 頁首與頁尾開關、背景圖形列印開關。
+3. **報表線上編修 (`enableEdit`)**：
+   - 點擊工具列「編修」進入編輯模式，儲存格切換為輸入框，支援即時修改文字並更新報表總計。
+   - 編修完成後點擊「鎖定」，觸發 `onDataEdited(editedData, headerMeta)` 通知呼叫端更新或保存。
+4. **報表追追追穿透鑽取 (`onRowDrillDown`)**：
+   - 使用者雙擊預覽畫面中的任何資料列時觸發，傳遞 `ReportDrillDownContext`（包含該筆來源資料物件、列索引、頁碼、欄位 key、儲存格值）。
+   - 呼叫端可依來源單據代號直接開啟傳票、請款單、收據等底層登打畫面。
+5. **多格式動態匯出 (`exportUtils.ts`)**：
+   - **PDF 匯出**：生成結構化直印/橫印 PDF 文件。
+   - **JPG 匯出**：將報表頁面渲染為高解析度圖檔。
+   - **Word 匯出**：將報表表格轉為可於 Microsoft Word 內自由調整編輯的 `.docx` 文件。
+   - **Excel 匯出**：透過 SheetJS 匯出結構化表格資料。
+6. **個人化偏好持久化 (`reportId`)**：
+   - 有傳入 `reportId` 時，自動將使用者的自訂欄寬、列高、顯示比例、邊距偏好記錄至 `localStorage`。

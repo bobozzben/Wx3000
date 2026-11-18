@@ -34,23 +34,24 @@ Wx3000/
 │   ├── backend/backend_SPEC.md        # 後端 API、動態磁碟機、DBF 同步與 DB 規格
 │   └── frontend/                      # 各前端模組規格 (wbase 1020~5010, wtaxop, components)
 ├── backend/                           # C# .NET 8 Web API & Windows Service (Port 5007)
-│   ├── Controllers/                   # SystemConfig, SystemParam, Wbase1020~5010, Products, Vendors, Purchase
+│   ├── Controllers/                   # SystemConfig, SystemParam, Wbase1010~1080, Wbase2010~2050, Wbase3010~3060, Wbase4010, Wbase4020, Wbase5010, Wbase5070, Products, Vendors, Purchase
 │   ├── Data/                          # AppDbContext, DynamicModelCacheKeyFactory, DbInitializer
-│   ├── Models/                        # Entity 資料模型 (動態映射 <drive>:/w3000/comm 與 public) 與各模組 DTO (Wbase20x0/4020/5010Models)
+│   ├── Models/                        # Entity 資料模型 (動態映射 <drive>:/w3000/comm 與 public) 與各模組 DTO (Wbase1010/20x0/3025/4020/5010/5070Models)
 │   ├── DTOs/                          # Data Transfer Objects
-│   └── Services/                      # DbfSyncService, SystemConfigService, SystemParamService, TransferPasswordService
+│   └── Services/                      # DbfSyncService (含檔頭鎖查重與取號), SystemConfigService, SystemParamService, TransferPasswordService
 ├── frontend/                          # React 19 + Vite + Electron 前端專案
 │   ├── electron/                      # Electron 桌面端主程序與 Preload 腳本
 │   └── src/
 │       ├── mainmenu/                  # 奇勝資訊 Wx3000 系統總入口 (四大系統分區、快捷鍵啟動)
 │       ├── components/
-│       │   ├── FoxProGrid/            # FoxProGridV2 + SearchModal + FoxProPrintModal + AddressSelectModal
+│       │   ├── FoxProGrid/            # FoxProGridV2 + SearchModal + FoxProPrintModal + FoxProPrintModalv2 + AddressSelectModal
 │       │   ├── FoxProGridCard/        # FoxProGridCard + useFoxProCardNavigation (表單盲打導覽 Hook)
 │       │   ├── FoxProGridBill/        # FoxProGridBill (單據 Header+Detail 盲打表格)
+│       │   ├── ReportPreview/         # ReportPreviewModal (現代化報表預覽系統：直橫向、邊距縮放、即時編修、穿透鑽取、PDF/JPG/Word 匯出)
 │       │   ├── SelectXlsxField/       # FormUtilSelectXlsxFieldsList (Excel 欄位自訂匯出器)
 │       │   ├── WbasePageHeader.tsx    # 統一模組頂部標題列與模式徽章
 │       │   └── ServerConfigModal.tsx  # 伺服器連線與資料來源磁碟機 (C:/F:) 設定視窗
-│       ├── wbase/                     # 基本資料、客戶、發票統購、操作設定與管理報表模組 (menu, 1020~1080, 2010~2050, 3010~3060, 4010, 4020, 5010)
+│       ├── wbase/                     # 基本資料、客戶、發票統購、操作設定與管理報表模組 (menu, 1010~1080, 2010~2050, 3010~3060, 4010, 4020, 5010, 5070)
 │       ├── wtaxop/                    # 單據作業模組 (PurchaseOrder 進貨單)
 │       ├── store/                     # Zustand 狀態管理
 │       └── services/                  # Axios API、apiConfig、addressService、localagent、validation.ts
