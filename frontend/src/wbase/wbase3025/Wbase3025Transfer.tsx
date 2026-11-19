@@ -255,9 +255,14 @@ export const Wbase3025Transfer: React.FC<Wbase3025TransferProps> = ({ mode, onCl
     return null;
   };
 
+  // transfer() 失敗時的訊息 (顯示在條件畫面的訊息列；預覽「更新」失敗時改由預覽顯示)
+  const transferErrorRef = useRef('');
+
   const transfer = async (): Promise<MediaTransferResult | null> => {
+    transferErrorRef.current = '';
     const err = precheck();
     if (err) {
+      transferErrorRef.current = err;
       setStatus({ type: 'error', text: err });
       return null;
     }
@@ -268,7 +273,8 @@ export const Wbase3025Transfer: React.FC<Wbase3025TransferProps> = ({ mode, onCl
       setStatus({ type: result.errors.length > 0 ? 'warning' : result.rows.length > 0 ? 'success' : 'warning', text: result.message });
       return result;
     } catch (e) {
-      setStatus({ type: 'error', text: describeMediaTransferError(e) });
+      transferErrorRef.current = describeMediaTransferError(e);
+      setStatus({ type: 'error', text: transferErrorRef.current });
       return null;
     } finally {
       setBusy(false);
@@ -279,6 +285,13 @@ export const Wbase3025Transfer: React.FC<Wbase3025TransferProps> = ({ mode, onCl
   const handlePreview = async () => {
     const result = await transfer();
     if (result) setPreview(result);
+  };
+
+  // 預覽的「更新」：失敗時 throw，由預覽顯示「更新失敗」並保留原本的清單
+  const refreshPreview = async () => {
+    const result = await transfer();
+    if (!result) throw new Error(transferErrorRef.current || '重新產生轉檔資料失敗');
+    setPreview(result);
   };
 
   // F8：產生檔案並下載 (VFP F8.確定 → 轉檔完成!!)
@@ -519,7 +532,7 @@ export const Wbase3025Transfer: React.FC<Wbase3025TransferProps> = ({ mode, onCl
         emptyText={preview ? `⚠️ ${preview.message}` : '⚠️ 查無符合資料'}
         defaultOrientation="landscape"
         enableEdit={true}
-        onRefresh={handlePreview}
+        onRefresh={refreshPreview}
         showExport={true}
         exportOptions={['pdf', 'jpg', 'word']}
         exportFileName={`${screen.menu}_${period}`}

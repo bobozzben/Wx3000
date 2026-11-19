@@ -76,6 +76,11 @@ export const Wbase4010Page: React.FC<Wbase4010PageProps> = ({
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
+      // 列印 (條件畫面、F2 選單、報表預覽、Excel 欄位設定) 自己處理按鍵與 Esc，頁面完全不介入，
+      // 否則 F3 會在列印上面開複製視窗、預覽內的 F8 會開尋找、Excel 欄位設定的 Esc 會關掉整個列印
+      if (isPrintOpen) return;
+      // 其他視窗開著時只處理下面的 Esc，不再開新的視窗
+      if ((isCopyOpen || isSearchModalOpen || isDeleteConfirmOpen) && e.key !== 'Escape') return;
 
       if (e.key === 'F3') {
         e.preventDefault();
@@ -110,11 +115,6 @@ export const Wbase4010Page: React.FC<Wbase4010PageProps> = ({
           closeCopy();
           return;
         }
-        if (isPrintOpen) {
-          e.preventDefault();
-          closePrint();
-          return;
-        }
         if (isSearchModalOpen) {
           e.preventDefault();
           setIsSearchModalOpen(false);
@@ -145,7 +145,6 @@ export const Wbase4010Page: React.FC<Wbase4010PageProps> = ({
     jumpDirection,
     setIsDeleteConfirmOpen,
     closeCopy,
-    closePrint,
     showAutoCloseToast,
     onBackToMenu,
   ]);
@@ -320,6 +319,7 @@ export const Wbase4010Page: React.FC<Wbase4010PageProps> = ({
           onRefreshData={() => refreshData()}
           onExit={onBackToMenu}
           enterDirection={jumpDirection}
+          keyboardDisabled={isPrintOpen || isCopyOpen || isSearchModalOpen || isDeleteConfirmOpen}
           statusBarInfo={
             selectedRow ? (
               <div className="flex items-center gap-3 text-xs font-mono">

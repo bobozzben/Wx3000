@@ -34,23 +34,24 @@ Wx3000/
 │   ├── backend/backend_SPEC.md        # 後端 API、動態磁碟機、DBF 同步與 DB 規格
 │   └── frontend/                      # 各前端模組規格 (wbase 1020~5010, wtaxop, components)
 ├── backend/                           # C# .NET 8 Web API & Windows Service (Port 5007)
-│   ├── Controllers/                   # SystemConfig, SystemParam, Wbase1020~5010, Products, Vendors, Purchase
+│   ├── Controllers/                   # SystemConfig, SystemParam, Wbase1010~1080, Wbase2010~2050, Wbase3010~3060, Wbase4010, Wbase4020, Wbase5010, Wbase5070, Products, Vendors, Purchase
 │   ├── Data/                          # AppDbContext, DynamicModelCacheKeyFactory, DbInitializer
-│   ├── Models/                        # Entity 資料模型 (動態映射 <drive>:/w3000/comm 與 public) 與各模組 DTO (Wbase20x0/4020/5010Models)
+│   ├── Models/                        # Entity 資料模型 (動態映射 <drive>:/w3000/comm 與 public) 與各模組 DTO (Wbase1010/20x0/3025/4020/5010/5070Models)
 │   ├── DTOs/                          # Data Transfer Objects
-│   └── Services/                      # DbfSyncService, SystemConfigService, SystemParamService, TransferPasswordService
+│   └── Services/                      # DbfSyncService (含檔頭鎖查重與取號), SystemConfigService, SystemParamService, TransferPasswordService
 ├── frontend/                          # React 19 + Vite + Electron 前端專案
 │   ├── electron/                      # Electron 桌面端主程序與 Preload 腳本
 │   └── src/
 │       ├── mainmenu/                  # 奇勝資訊 Wx3000 系統總入口 (四大系統分區、快捷鍵啟動)
 │       ├── components/
-│       │   ├── FoxProGrid/            # FoxProGridV2 + SearchModal + FoxProPrintModal + AddressSelectModal
+│       │   ├── FoxProGrid/            # FoxProGridV2 + SearchModal + FoxProPrintModal + FoxProPrintModalv2 + FoxProRangePrintConditionModal + AddressSelectModal
 │       │   ├── FoxProGridCard/        # FoxProGridCard + useFoxProCardNavigation (表單盲打導覽 Hook)
 │       │   ├── FoxProGridBill/        # FoxProGridBill (單據 Header+Detail 盲打表格)
+│       │   ├── ReportPreview/         # ReportPreviewModal (共用報表預覽：直橫向、邊界與縮放、預覽編修、雙擊報表追追追、直接送印、PDF/JPG/Word 匯出)
 │       │   ├── SelectXlsxField/       # FormUtilSelectXlsxFieldsList (Excel 欄位自訂匯出器)
 │       │   ├── WbasePageHeader.tsx    # 統一模組頂部標題列與模式徽章
 │       │   └── ServerConfigModal.tsx  # 伺服器連線與資料來源磁碟機 (C:/F:) 設定視窗
-│       ├── wbase/                     # 基本資料、客戶、發票統購、操作設定與管理報表模組 (menu, 1020~1080, 2010~2050, 3010~3060, 4010, 4020, 5010)
+│       ├── wbase/                     # 基本資料、客戶、發票統購、操作設定與管理報表模組 (menu, 1010~1080, 2010~2050, 3010~3060, 4010, 4020, 5010, 5070)
 │       ├── wtaxop/                    # 單據作業模組 (PurchaseOrder 進貨單)
 │       ├── store/                     # Zustand 狀態管理
 │       └── services/                  # Axios API、apiConfig、addressService、localagent、validation.ts
@@ -78,7 +79,7 @@ Wx3000/
 | **F2 / F4** | 在瀏覽模式按 `F2` 開啟快速查詢彈窗；在地址或字軌欄位按 `F2`/`F4` 開啟 `AddressSelectModal` 台灣地址智慧快選視窗或字軌選單。 |
 | **F3** | 觸發大型開窗搜尋對話框 (`SearchModal`)，或於 `wbase2010` 切換頁籤 (`F3`~`F8`)。 |
 | **F6** | 於卡片+表單模式進入編修狀態 (`startEdit`)，或於表格模式重新整理資料 (`onRefreshData`)。 |
-| **F7 / F9** | `F7` 開啟區間報表列印與 Excel 匯出視窗 (`FoxProPrintModal`)；`F9` 或 `Ctrl+S` 執行表單/批次存檔。 |
+| **F7 / F9** | `F7` 開啟列印：區間列印與 Excel 匯出視窗 (`FoxProPrintModal`)，或列印條件視窗 (`FoxProPrintModalv2` / `FoxProRangePrintConditionModal`，`F7` 確定、`F8` 匯出 Excel) 接 `ReportPreviewModal` 預覽 (預覽中 `F7` / `Ctrl+P` 直接送印)；`F9` 或 `Ctrl+S` 執行表單/批次存檔。 |
 | **Del / F8** | 刪除目前選取之資料列（附帶鍵盤可控之確認對話框，並保護 `SUPERVISOR` 保留帳號）。 |
 | **Esc** | 取消當前編輯、觸發批次結算存檔，或退回上一層/系統主選單。 |
 | **直接打字 (Direct Typing)** | **無須先按 F2**，直接鍵入字元即可即時覆蓋當前單元格或已全選之表單輸入框內容 (`foxProFocusAndSelect`)。 |

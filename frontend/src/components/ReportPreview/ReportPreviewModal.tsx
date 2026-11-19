@@ -21,6 +21,7 @@ import {
   renderSheetsToJpegDataUrls,
 } from './exportUtils';
 import { localagentApi } from '../../services/localagent';
+import { localDateStamp } from '../../utils/dateUtil';
 import { PrintSettingsSidebar } from './PrintSettingsSidebar';
 import type {
   PrintSettingsState,
@@ -474,6 +475,11 @@ export function ReportPreviewModal<T extends Record<string, any> = Record<string
     try {
       await onRefresh();
       showTemporaryNotice('✅ 已重新載入最新報表資料');
+    } catch (err: any) {
+      // 呼叫端查詢失敗時 throw；畫面保留原本的資料，並說明這次沒有更新
+      console.error('Report refresh failed:', err);
+      const reason = err?.response?.data?.message || err?.message || '請檢查後端連線';
+      showTemporaryNotice(`❌ 更新失敗，畫面仍是之前的資料：${reason}`);
     } finally {
       setRefreshing(false);
     }
@@ -520,9 +526,7 @@ export function ReportPreviewModal<T extends Record<string, any> = Record<string
 
   // 執行匯出
   const allowedExportOptions = showExport ? exportOptions : [];
-  const fileNameBase = `${exportFileName || headerMeta.reportTitle || 'report'}_${new Date()
-    .toISOString()
-    .slice(0, 10)}`;
+  const fileNameBase = `${exportFileName || headerMeta.reportTitle || 'report'}_${localDateStamp()}`;
 
   const handleExportAction = useCallback(
     async (type: ReportExportType) => {

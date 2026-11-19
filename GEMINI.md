@@ -10,7 +10,8 @@
      - `<FoxProGridV2 />`：整頁多列行內盲打維護（預設 `minRows=0` 對齊原生 FoxPro GRID 實際筆數、支援欄位拖曳寬度記憶 `gridId`、直接打字覆蓋、`uppercase`/`digitOnly`/`maxBytes` Big5 截斷、`validate` 即時檢核、`hasEllipsis` 儲存格內 `F2` 輔助開窗按鈕、最後一欄 `Enter` 自動換列/新增列、`F3` 觸發 `SearchModal`、`F7` 觸發列印、`Esc` 儲存/離開）。
      - `<FoxProGridCard />` + `useFoxProCardNavigation`：主檔清單瀏覽卡片與下方/右側即時聯動編輯表單母版（如 `wbase1020`、`wbase2010`），支援滾輪/方向鍵同步游標、`Enter`/`↓`/`↑` 跨欄或跨 Tab 導覽、聚焦自動全選打字覆蓋 (`foxProFocusAndSelect`)、自動跳過停用欄位。
      - `<FoxProGridBill />`：單據 Header + Detail 連續盲打表格。
-     - `<FoxProPrintModal />`：全系統標準化 `F7` 區間列印預覽、純淨紙張直印 (`printUtil.ts`) 與 `<FormUtilSelectXlsxFieldsList />` Excel 動態欄位自訂匯出母版。
+     - `<FoxProPrintModal />`：`F7` 區間列印預覽、純淨紙張直印 (`printUtil.ts`) 與 `<FormUtilSelectXlsxFieldsList />` Excel 動態欄位自訂匯出母版。
+     - `<FoxProPrintModalv2 />` / `<FoxProRangePrintConditionModal />` + `<ReportPreviewModal />`：列印條件視窗 (`F7` 確定、`F8` 匯出 Excel) 接共用報表預覽 (瀏覽器內排版、`F7` 直接送印、匯出 PDF / JPG / Word)；1020、3025、4010、5-1、5-3 ~ 5-5 採用此組合，規格見 `docs/frontend/components/foxpro_grid_SPEC.md` 第 5.1、5.2、8 節。
      - `<AddressSelectModal />`：台灣地址智慧快選視窗（對齊 `util_hi_addr_form.pas`，內建全台縣市/鄉鎮郵遞區號/路名資料庫、門牌樓層速選鈕與半形轉全形），於地址欄位按 `F2`/`F4` 或點擊按鈕觸發。
      - `<WbasePageHeader />`：統一模組頂部導覽與模式狀態列（`GRID 瀏覽模式 / EDIT 編修中 / ADD 新增中`）。
    - 禁用傳統網頁 Dropdown 下拉選單搜尋，代號/條件/地址查詢一律使用 `SearchModal` 或 `AddressSelectModal` 開窗。

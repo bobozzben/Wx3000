@@ -153,7 +153,7 @@ Electron 封裝於 `frontend` 專案內，負責將前端打包為獨立的 Wind
 
 ### 📁 源碼位置
 - **主程序與頂部選單設定**：`frontend/electron/main.cjs`
-- **Preload 通訊橋接腳本**：`frontend/electron/preload.cjs`
+- **Preload 通訊橋接腳本**：`frontend/electron/preload.cjs`（`window.electronAPI`：`print`、`getPrinters`、`printHtml` 與 `printToPDF`；後三者給共用報表預覽 `ReportPreviewModal` 列出印表機、以隱藏視窗載入暫存 HTML 後靜默送印或轉成 PDF）
 - **Electron 打包組態**：`frontend/package.json` 內的 `"build"` 區塊
 
 ### 💻 開發熱重載模式 (Dev)

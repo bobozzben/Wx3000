@@ -30,7 +30,7 @@
 - 頂部 `WbasePageHeader` (`3-4-1 原媒體轉檔` / `3-4-2 網路申購轉檔`)，下方整個畫面是 `<FoxProPrintModalv2 />` (非 overlay)。
 - 摘要卡片「轉出檔案」：`<區域>格式 ‧ <預計檔名>`，註記期別與事務所名稱。
 - 條件卡片依序：發票購買期別 (年 `validRocYear`、起月 `oddStartMonth`、迄月 `validEndMonth`) → 轉檔依據 (選項) → 轉檔縣市 **或** 購買地點代號 (依選項只顯示一張；代號欄 `F2` 開 `SearchModal` 查 `/api/wbase3010`，右側顯示地點名稱，輸入代號時也會自動帶出名稱) → 記帳業者ＩＤ → `media`：排序方式、轉出事務所資料、轉檔格式 (DAT / TXT，只在台灣省時顯示)；`net`：轉檔格式 (台北市 / 高雄市 / 台灣省)。
-- **F7 預覽轉檔資料**：呼叫 `POST /api/wbase3025/transfer`，以 `<FoxProPrintModal showFilter={false} />` 列出轉出的公司 (代號、名稱、統編、稅籍、次數、8 種本數、錯誤)，可 `F8` 匯出 xlsx、`F7` 列印。
+- **F7 預覽轉檔資料**：呼叫 `POST /api/wbase3025/transfer`，以共用的 `<ReportPreviewModal />` (預設橫向) 列出轉出的公司 (代號、名稱、統編、稅籍、次數、8 種本數、錯誤)；表頭下方是 `<區域>格式 ‧ <檔名> ‧ <列數> 列` 與後端訊息 (有錯誤時註記錯誤筆數)。預覽工具列：「更新」以目前條件重新呼叫 API (失敗時預覽顯示「更新失敗」與原因，保留原本的清單)；「編修」可直接改預覽內容，只影響這次的列印與匯出，不影響 F8 轉出的檔案；「匯出」只有 PDF / JPG / Word (`.doc`)，預覽沒有 xlsx 匯出。`F7` / `Ctrl+P` 依右側列印設定所選的印表機直接送印 (選「Microsoft Print to PDF」時改為匯出 PDF)，`Ctrl+Shift+P` 開系統列印對話框。
 - **F8 轉檔下載** (VFP `F8.確定`)：同一個 API 取得檔案內容，瀏覽器下載 (`saveMediaTransferFile`)，完成後 `MessageDialog`「轉檔完成!!」列出檔名、筆數、位元組數與錯誤清單 (最多 12 筆)，並把條件記到 `參數設定`。沒有資料時不產生檔案。
 - `Esc` 回主選單。
 
@@ -41,10 +41,10 @@
 ```text
 frontend/src/wbase/wbase3025/
 ├── index.tsx                 # Wbase3025_Media (mode media)、Wbase3025_Net (mode net)
-└── Wbase3025Transfer.tsx     # 條件畫面 (FoxProPrintModalv2)、F7 預覽 (FoxProPrintModal)、F8 下載、F2 購買地點選單
+└── Wbase3025Transfer.tsx     # 條件畫面 (FoxProPrintModalv2)、F7 預覽 (ReportPreviewModal)、F8 下載、F2 購買地點選單
 
 frontend/src/services/
-└── wbase3025.ts              # fetchMediaTransferDefaults、runMediaTransfer、saveMediaTransferFile、decodeMediaTransferText
+└── wbase3025.ts              # fetchMediaTransferDefaults、runMediaTransfer、saveMediaTransferFile、decodeMediaTransferText、describeMediaTransferError
 
 backend/
 ├── Controllers/Wbase3025Controller.cs   # defaults、transfer (三種縣市格式、Big5 輸出)
@@ -87,6 +87,6 @@ backend/
 
 - `Enter` / `↓` / `↑`：欄位間移動 (`FoxProPrintModalv2`)；選項卡片 `←` `→` `Space` 或數字鍵換選項
 - `F2`：購買地點代號欄開 `SearchModal` (`↑` `↓` 選擇、`Enter` 帶回、`Esc` 關閉)
-- `F7`：預覽轉檔資料 (預覽視窗內 `F7` 列印、`F8` 匯出 xlsx、`Esc` 關閉)
+- `F7`：預覽轉檔資料 (預覽視窗內 `F7` / `Ctrl+P` 直接列印、`Ctrl+Shift+P` 系統列印對話框、`PgUp` / `PgDn` / `Home` / `End` 換頁、`Ctrl` `+` / `-` 縮放、`Esc` 關閉 (編修中先結束編修)；PDF / JPG / Word 匯出用工具列「匯出」)
 - `F8`：轉檔並下載；完成訊息 `Enter` / `Esc` 關閉
 - `Esc`：回主選單

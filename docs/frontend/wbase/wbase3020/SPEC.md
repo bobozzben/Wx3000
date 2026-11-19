@@ -37,7 +37,6 @@ frontend/src/wbase/wbase3020/
 ├── wbase3020_01.tsx             # 階段 1：期別/次數/輸入方式設定對話框
 ├── wbase3020_02.tsx             # 階段 2：8 種發票本數 FoxProGridV2 盲打明細表格
 ├── wbase3020_buyinv_print.tsx   # 發票預購表列印、原生報表預覽與 Excel 動態欄位匯出視窗
-├── wbase3020Print.tsx           # FoxProPrintModal 起訖公司編號區間清冊 (呼叫 /print；目前沒有畫面引用)
 └── useWbase3020.ts              # 狀態管理 Hook (Zustand)
 
 frontend/src/services/
@@ -86,7 +85,7 @@ backend/
 - `POST /api/wbase3020/batch-save`：批次儲存發票申購本數變更
 - `POST /api/wbase3020/transfer-company-data`：F3 轉檔，將客戶主檔中本期尚無紀錄的公司新增至 `buyinv`
 - `POST /api/wbase3020/buyinv-print-query`：查詢發票預購表列印與 Excel 匯出資料（自動關聯 `customer` 公司主檔地址與電話）
-- `POST /api/wbase3020/print`：依期別、次數與起訖公司編號查詢清冊資料
+- `POST /api/wbase3020/print`：依期別、次數與起訖公司編號查詢清冊資料。**目前沒有畫面使用**：原呼叫端 `wbase3020Print.tsx` 已刪除，`services/wbase3020.ts` 的 `fetchPrintInvoicePurchaseList` 與 `useWbase3020` 的 `fetchPrintDataList` 仍保留但沒有呼叫者。此端點同步時傳 `keyFields: "yymm,times,no"` (其他端點為 `_record_number`)，由它觸發重灌時快照以這三欄為唯一鍵，重複鍵只留 RECNO 最小的一筆。
 
 ### LocalAgent 報表
 - `POST http://localhost:5009/api/call`，`{ dll: "wbaseRP", func: "wbase320_buyinv", args: [1, 10, 10, 0, 0, <path>], jsonData }`；LocalAgent 將 `jsonData` 寫成 `%TEMP%\Wx3000\` 暫存 JSON 並以其路徑取代 `args` 最後一個參數。`wbase320_buyinv` 已登記於 `localagent/dlls.json`。
@@ -107,11 +106,13 @@ backend/
 - `Del`：刪除確認對話框
 - `F3`：轉檔（自客戶資料轉入基本發票購買）
 - `F7`：開啟 `wbase3020_buyinv_print` 列印視窗
-- `Esc`：關閉列印/刪除對話框，或回到階段 1 重新選擇期別
+- `Esc`：關閉刪除對話框，或回到階段 1 重新選擇期別
+- 列印視窗開著時，頁面不處理任何按鍵，表格傳 `keyboardDisabled` (刪除確認開著時也停用表格，頁面只處理 `Esc`)。列印視窗與其中的 F4 資料預覽、F2 選單、Excel 欄位設定自行處理按鍵；以前頁面會接手，F4 預覽中的 `F3` 會在背景執行轉檔 (寫入 `buyinv.dbf`)，`Esc` 會關掉整個列印視窗。
 
 ### 預購表列印 (`wbase3020_buyinv_print.tsx`)
-- `F2`：分區為購買地點時開窗選擇
-- `F4`：預覽查詢資料
+- `Enter`：依序於年、起月、迄月、分區方式、縣市 / 購買地點、排序方式、匯出 xlsx 設定之間移動，最後到「F7. 列印」鈕；在按鈕上按 `Enter` 執行該按鈕 (分區方式、排序方式欄可直接按 `1` / `2`)
+- `F2`：分區為購買地點時開窗選擇 (`services/wbase3010.ts` 的 `fetchTicketPlaces`；查詢失敗時視窗顯示「查詢失敗：…」，不再改用寫死的四個假地點)。選單內的 `Esc` 只關選單 (列印視窗略過已 `preventDefault` 的按鍵)
+- `F4`：預覽查詢資料；預覽開著時只有 `Esc` 有作用 (關閉預覽，回到列印條件)
 - `F7`：呼叫 LocalAgent `wbase320_buyinv` 報表預覽
 - `F8`：匯出 Excel（勾選「匯出 xlsx 設定」時先開欄位選擇器）
 - `Esc`：離開

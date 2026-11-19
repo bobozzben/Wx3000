@@ -106,6 +106,11 @@ export interface FoxProGridV2Props<T extends Record<string, any>> {
   allowInsert?: boolean;
   /** 目前儲存格 (列或欄) 改變時觸發，用於依目前欄位切換的說明列 (VFP AfterRowColChange) */
   onActiveCellChange?: (row: T | undefined, rowIndex: number, colKey: keyof T & string) => void;
+  /**
+   * 為 true 時表格完全不處理按鍵 (default false)。表格在 window 上監聽按鍵，焦點不在輸入框時
+   * (例如報表預覽的按鈕) 會把 Ins / Del / Enter / 方向鍵當成表格操作；頁面開了蓋住表格的視窗時要設為 true。
+   */
+  keyboardDisabled?: boolean;
 }
 
 const parseColWidth = (w?: string): number | undefined => {
@@ -146,6 +151,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
   editOnInsert = true,
   allowInsert = true,
   onActiveCellChange,
+  keyboardDisabled = false,
 }: FoxProGridV2Props<T>) {
   const { isDark } = useTheme();
 
@@ -687,6 +693,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
   // Keyboard navigation & shortcut event listener (FoxPro 100% style)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (keyboardDisabled) return;
       const target = e.target as HTMLElement;
       if (
         searchModalOpen ||
@@ -975,6 +982,7 @@ export function FoxProGridV2<T extends Record<string, any>>({
     onDeleteRow,
     currentSelectedRow,
     enterDirection,
+    keyboardDisabled,
   ]);
 
   const handleModalSelect = (item: SearchItem) => {

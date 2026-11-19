@@ -194,6 +194,16 @@ export const Wbase1020Page: React.FC<Wbase1020PageProps> = ({ onBackToMenu }) =>
     }
   }, [mode, focusField]);
 
+  // 關閉列印後把焦點還給清單：清單的按鍵掛在元素上，焦點停在 body 時 Esc、方向鍵都沒有作用
+  // (雙擊預覽資料列會同時進入編修，mode 已不是 grid，由上面的 effect 聚焦表單)
+  const wasPrintOpenRef = useRef(false);
+  useEffect(() => {
+    if (wasPrintOpenRef.current && !isPrintOpen && mode === 'grid') {
+      setTimeout(() => gridContainerRef.current?.focus(), 80);
+    }
+    wasPrintOpenRef.current = isPrintOpen;
+  }, [isPrintOpen, mode]);
+
   // Filtered rows for Search Modal
   const filteredSearchRows = React.useMemo(() => {
     if (!searchQuery.trim()) return rows;

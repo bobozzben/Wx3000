@@ -25,6 +25,7 @@
    - 奇勝資訊品牌標誌，以及模組切換 Tabs：`系統主選單` (`mainmenu`) / `基本資料管理` (`wbase`) / 進貨單 (`purchase`，窄螢幕顯示「進貨單」文字，寬螢幕只顯示圖示)。
    - 伺服器狀態按鈕：顯示 API Server 主機、連線燈號 (`checkServerConnection` 載入時檢查，之後每 30 秒檢查一次) 與目前資料磁碟機 `<Drive>:\w3000`；滑鼠提示列出伺服器、資料來源與 PostgreSQL Schema (`getPgSchema()`，如 `c:/w3000/comm`)。點擊或按 `Ctrl+Shift+S` 開啟 `ServerConfigModal`。
    - `ServerConfigModal` 可設定 API Server 位址 (預設 `http://localhost:5007`) 與資料磁碟機代號 (任一英文字母 `A`~`Z`，經 `normalizeDrive` 正規化)。儲存前呼叫 `GET /api/systemconfig/check-drive` 確認 `<Drive>:\W3000` 存在，再以 `POST /api/systemconfig` 套用；設定值存於 `localStorage` (`wx3000_api_server_url`、`wx3000_data_drive`、`wx3000_data_drive_configured`)。
+   - API Server 可以是 ngrok 網址 (例如靜態頁放在 Cloudflare Pages、後端 5007 經 ngrok 對外)，須填完整的 `https://...`，只填主機名會被補成 `http://`，HTTPS 頁面會把它當混合內容擋掉。請求目標是 ngrok 網域 (`*.ngrok-free.app`、`*.ngrok-free.dev`、`*.ngrok.app` 等) 時，`services/apiConfig.ts` 的 Axios 攔截器與 `fetch` 補丁會帶 `ngrok-skip-browser-warning: 1`，略過免費方案的警告頁；依請求目標判斷，所以儲存前用新網址測試連線也會帶。內網後端與 LocalAgent 不帶。LocalAgent (5009) 不可經 ngrok：它只接受 Host 為 localhost 的請求，報表預覽與列印也必須在使用者自己的電腦上執行。
    - 進入系統主選單時若尚未設定過資料磁碟機，會先預設 `C` 並自動開啟 `ServerConfigModal`。
    - 深色/淺色主題切換鈕 (`ThemeContext`，預設深色，存於 `localStorage` `wx3000-theme`)。
 3. **第二層：`wbase` 三階樹狀/手風琴選單 (`frontend/src/wbase/menu/`)**：

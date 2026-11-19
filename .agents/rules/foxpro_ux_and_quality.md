@@ -14,7 +14,8 @@
      - **`FoxProGridV2` (`frontend/src/components/FoxProGrid/FoxProGridV2.tsx`)**：適用於整頁多列行內盲打維護（如 `wbase1030`, `1050`, `1060`, `1070`, `1080`, `3010`, `3020_02`, `3060_02`）。預設 `minRows=0`（只顯示實際資料筆數，對齊原生 FoxPro GRID），支援欄寬拖曳與 `localStorage` 持久化 (`gridId`)、`uppercase`/`digitOnly`/`maxBytes` (Big5 位元組限制)、`validate` 欄位檢核、`hasEllipsis` 儲存格內 `F2` 開窗按鈕、`Enter`/`Tab` 右移、列末換行、底端自動 Append 空白列並觸發 `onSaveRow`、`F3` 開窗搜尋、`F7` 報表列印、`Ins` 新增、`Del` 刪除、`Esc` 儲存/離開。
      - **`FoxProGridCard` + `useFoxProCardNavigation` (`frontend/src/components/FoxProGridCard/FoxProGridCard.tsx`)**：適用於主檔上方/左側清單瀏覽搭配下方/右側詳細表單即時聯動（如 `wbase1020`, `wbase2010`）。內建防抖滾動同步游標 (`enableScrollSync`)、單一整合標題列 (`mergeHeader`)、`foxProFocusAndSelect`（聚焦自動全選並支援打字直接覆蓋 Type-over）、`Enter`/`↓` 下一欄、`↑` 上一欄、跨 Tab 自動切換、自動跳過 `disabled` 欄位。
      - **`FoxProGridBill` (`frontend/src/components/FoxProGridBill/FoxProGridBill.tsx`)**：適用於進銷存單據 Header + Detail 連續登打作業。
-     - **`FoxProPrintModal` (`frontend/src/components/FoxProGrid/FoxProPrintModal.tsx`)**：統一全系統 `F7` 區間列印預覽、純淨紙張直印 (`printUtil.ts`) 與 `<FormUtilSelectXlsxFieldsList />` Excel 動態欄位自訂匯出。
+     - **`FoxProPrintModal` (`frontend/src/components/FoxProGrid/FoxProPrintModal.tsx`)**：`F7` 區間列印預覽、純淨紙張直印 (`printUtil.ts`) 與 `<FormUtilSelectXlsxFieldsList />` Excel 動態欄位自訂匯出。
+     - **列印條件 + `ReportPreviewModal` (`frontend/src/components/FoxProGrid/FoxProPrintModalv2.tsx`、`FoxProRangePrintConditionModal.tsx`、`frontend/src/components/ReportPreview/`)**：條件視窗 `F7` 確定、`F8` 匯出 Excel、`Esc` 離開，預覽中 `F7` / `Ctrl+P` 直接送印、`Esc` 關閉；1020、3025、4010、5-1、5-3 ~ 5-5 使用。
      - **`AddressSelectModal` (`frontend/src/components/FoxProGrid/AddressSelectModal.tsx`)**：台灣地址智慧快選彈窗（對齊 `util_hi_addr_form.pas`），支援全台縣市、鄉鎮市區郵遞區號、路名街名快選與門牌樓層速選鈕，於地址欄按 `F2`/`F4` 或點擊按鈕觸發。
      - **`WbasePageHeader` (`frontend/src/components/WbasePageHeader.tsx`)**：統一模組頂部標題列與操作模式徽章。
 
