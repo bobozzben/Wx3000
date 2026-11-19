@@ -56,7 +56,7 @@ export const exportFieldsToXlsx = async <T extends Record<string, any>>(
 };
 
 export interface FoxProPrintXlsxExportOptions<T> {
-  /** 欄位設定的 localStorage key；與列印預覽 (FoxProPrintModal xlsxStorageKey) 用同一個即可共用設定 */
+  /** 欄位設定的 localStorage key；若同一畫面另有 FoxProPrintModal，用它的 xlsxStorageKey 即可共用設定 */
   storageKey: string;
   /** 候選匯出欄位 (沒有儲存設定時以各欄的 selected 為預設) */
   fields: XlsxFieldItem[];
@@ -71,7 +71,7 @@ export interface FoxProPrintXlsxExportOptions<T> {
 /**
  * FoxProPrintModalv2 的 F8 匯出 (比照 wbase3020_buyinv_print)：查詢資料 → 依已儲存的欄位設定匯出；
  * `configure` (「匯出 xlsx 設定」) 為 true 時先開 FormUtilSelectXlsxFieldsList，確定後儲存設定再匯出。
- * 設定在每次匯出時才讀 localStorage，所以在列印預覽改過的設定這裡也會用到。
+ * 設定在每次匯出時才讀 localStorage，所以在其他地方 (例如 FoxProPrintModal) 改過的同 key 設定這裡也會用到。
  *
  * 用法：把 `configure`、`setConfigure`、`status`、`run` 接到 FoxProPrintModalv2，
  * `busy || selectorOpen` 時把 `active` 設為 false，並在畫面上放 `selectorElement`。

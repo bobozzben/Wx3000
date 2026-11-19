@@ -29,6 +29,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   const [items, setItems] = useState<SearchItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -48,6 +49,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
       const res = await onSearch(q);
       setItems(res);
       setSelectedIndex(0);
+      setError(null);
+    } catch (err: any) {
+      // 查詢失敗時清空清單並顯示原因，不可讓使用者以為「查無資料」
+      console.error('SearchModal 查詢失敗:', err);
+      setItems([]);
+      setError(err?.response?.data?.message || err?.message || '查詢失敗');
     } finally {
       setLoading(false);
     }
@@ -129,6 +136,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             <div className={`p-6 text-center font-bold ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
               載入中...
             </div>
+          ) : error ? (
+            <div className="p-6 text-center text-red-500 font-bold">查詢失敗：{error}</div>
           ) : items.length === 0 ? (
             <div className="p-6 text-center text-red-500 font-bold">查無相符資料！</div>
           ) : (

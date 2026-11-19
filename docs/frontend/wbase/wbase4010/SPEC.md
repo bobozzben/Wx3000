@@ -53,9 +53,13 @@
 - 清單可用關鍵字篩選，目前科目檔已有的代號標示「已存在」。`↑`/`↓` 移動、`Space` 勾選、`Ctrl+Enter` 確定複製、`Esc` 離開；另有「全選 / 全消」按鈕。
 - 送出 `POST /api/wbase4010/batch-copy`，後端略過已存在的代號，逐筆新增 (期初金額為 0，`serial` 由 VFP 接續最大值；複製期間被其他工作站新增的代號也會略過)，回傳實際新增筆數。
 
-### 1.4 F4/F7 列印 (`wbase4010Print.tsx`)
+### 1.4 F4/F7 列印 (`wbase4010Print.tsx` + `Wbase4010PrintConditionModal.tsx`)
 
-使用 `<FoxProPrintModal />`：起訖科目代號篩選目前畫面上的資料，欄位為序號、科目代號、科目名稱、科目明細、稅額、長科目名稱；提供瀏覽器列印與 Excel 匯出。不呼叫 LocalAgent 報表 DLL。
+- **列印條件畫面 (`Wbase4010PrintConditionModal`，代號 `WBASE4010P`)**：以共用母版 `<FoxProRangePrintConditionModal />` 組成，標題「會計科目清冊列印 - {行業}」。起始 / 結束科目代號最多 12 碼、自動轉大寫，空白表示從頭 / 至尾；輸入框右側 `F2` 按鈕或按 `F2` 開 `<SearchModal />` 選科目 (比對代號、名稱、長名稱)。輸入的代號找得到時顯示科目名稱，並顯示「目前清冊符合：N 筆」。結束代號小於起始代號時擋下 `F7` / `F8`。`Enter` / `↓` 依序移到結束代號、「匯出 xlsx 設定」、「確定」按鈕，`↑` 回上一欄，`Esc` 關閉列印。
+- 區間只篩選目前畫面上的資料 (頁面的 `rows`，含「快速篩選」後的結果)，列印與匯出都不另呼叫後端。
+- **`F7` 確定 → 報表預覽**：開共用報表預覽 `<ReportPreviewModal />` (`reportId="wbase4010_account_list"`、直向、標題「{行業} - 會計科目對照表」)，欄位為序號 (`serial`，為 0 或空白時用列序)、科目代號、科目名稱、科目明細 (顯示中文說明)、稅額 (`*`)、長科目名稱。預覽可調整欄寬、列高、字型大小與縮放 (存於 `localStorage` 的 `wx3000_report_preview_wbase4010_account_list`，六個行業共用)；「編修」只改預覽內容，不回寫資料；「更新」以同一區間重新篩選畫面資料；匯出只有 PDF、JPG、Word (`.doc`)，檔名 `{行業}-會計科目對照表`。`F7` / `Ctrl+P` 直接印到右側列印設定所選的印表機 (選「Microsoft Print to PDF」時改為匯出 PDF；桌面版經 Electron `printHtml`，瀏覽器經 LocalAgent `POST /api/print/direct`)，`Ctrl+Shift+P` 開系統列印對話框，`Esc` 回到條件畫面。未設定雙擊追溯 (`onRowDrillDown`)。預覽母版規格見 `docs/frontend/components/foxpro_grid_SPEC.md` 第 8 節。
+- **`F8` 匯出 Excel (`useFoxProPrintXlsxExport`)**：依已儲存的欄位設定 (`localStorage` `wbase4010_xlsx_export_config`，六個行業共用) 直接匯出 `{行業}_會計科目對照表.xlsx`；勾選「匯出 xlsx 設定」時先開 `<FormUtilSelectXlsxFieldsList />` 挑選欄位。預設勾選序號、科目代號、科目名稱、科目明細 (輸出代碼，不是中文說明)、稅額、長科目名稱，另可選英文名稱、歸屬科目、歸屬名稱。報表預覽本身沒有 Excel 匯出。
+- 不呼叫 LocalAgent 報表 DLL (`wbaseRP.dll`)。
 
 ### 1.5 F8 尋找
 
@@ -69,12 +73,16 @@
 | `Ins` / `Del` | 新增科目列 / 刪除科目 |
 | `F2` / `F4` | 科目明細欄開「選擇科目明細類別」視窗 |
 | `F3` | 複製標準總帳科目 |
-| `F4` / `F7` | 列印 |
+| `F4` / `F7` | 開列印條件畫面 (畫面內 `F7` 預覽、`F8` 匯出 Excel；預覽內 `F7` 送印) |
 | `F8` | 尋找 |
 | `F12` | 切換 Enter 方向 (初始 → 往右) |
-| `Esc` | 編輯中取消；依序關閉複製、列印、尋找、刪除確認視窗；否則回主選單 |
+| `Esc` | 編輯中取消；依序關閉複製、尋找、刪除確認視窗；否則回主選單。列印時由條件畫面 / 預覽 / Excel 欄位設定自行處理：預覽回條件畫面，欄位設定只關自己，條件畫面關閉列印 |
 
-頁面層的 keydown 註冊在 `window` 的一般 (bubble) 階段，並略過 `defaultPrevented` 的事件；`FoxProGridV2` 本身也在 `window` 監聽 `F3`、`F7`、`Esc`。
+頁面層的 keydown 註冊在 `window` 的一般 (bubble) 階段，並略過 `defaultPrevented` 的事件；`FoxProGridV2` 本身也在 `window` 監聽 `F3`、`F7`、`Esc`。列印條件畫面在 `window` 的 capture 階段攔截 `F7`、`F8`、`Esc`，報表預覽攔截 `F7`、`Ctrl+P`、`Ctrl+Shift+P`、`Esc`，都會停止事件傳遞。
+
+- **列印開著時頁面與表格都不處理按鍵**：頁面的處理一開頭就略過 (`isPrintOpen`)，表格傳 `keyboardDisabled`。否則預覽內的 `F3` 會開複製視窗、`F8` 開尋找、`F12` 切換方向，`Ins` / `Del` / 方向鍵會作用到底下的表格，Excel 欄位設定的 `Esc` 會關掉整個列印。
+- 複製、尋找、刪除確認開著時，頁面只處理 `Esc`，表格同樣停用按鍵。
+- 表格也傳 `onShowSummary` (回主選單)：表格對 `Esc` 會 `preventDefault`，頁面的 `Esc` 處理就被略過；關閉列印等視窗後頁面重新註冊監聽，表格的監聽排在前面，沒有這個設定時 `Esc` 回不了主選單。
 
 ---
 
@@ -117,7 +125,7 @@
 | `POST` | `/api/wbase4010/batch-copy` | Body `{ mode, accnos }`，回傳 `{ success, copiedCount, totalRequested }` |
 
 - 讀取前一律 `EnsureTableSyncedAsync(DbfPath, "xmaster{n}", PgSchema, "xmaster{n}", "accno")`。
-- 寫入以 `WriteRecordAsync(..., "accno", 代號)` 先寫 DBF，成功後才寫 PostgreSQL 並更新 Checksum。`LOCK_TIMEOUT` 回 409，其他 DBF 失敗回 500。
+- 寫入以 `WriteRecordAsync(..., "accno", 代號)` 先寫 DBF，成功後才寫 PostgreSQL 並更新 Checksum。`LOCK_TIMEOUT` (新增時另含 `DUPLICATE_KEY`) 回 409，其他 DBF 失敗回 500。
 - 新增時 PostgreSQL 的 `_record_number` 使用 LocalAgent 回傳的 RECNO，並先刪除同代號或同 RECNO 的舊快照列再插入。
 - 批次複製時個別科目寫入失敗會略過，只計入成功筆數。
 - 前端 service 使用預設 `axios` (全域攔截器帶 `X-Data-Drive`)。
@@ -134,4 +142,4 @@
 | 不合法的科目明細、稅額 | 靜默不寫入 | 阻斷並提示 |
 | 刪除後的序號 | DBF 內大於該筆的 `serial` 減 1，再整批重編 | 只調整 PostgreSQL 快照的 `serial`，DBF 不重編 |
 | F3 複製 | `wbase401012`，可先修改新科目代號再複製 | 只能照參考檔代號複製，已存在者略過 |
-| F4 列印 | `wbase401011` 會計科目對照表 | `<FoxProPrintModal />` 瀏覽器列印與 Excel 匯出，`F7` 亦可開啟 |
+| F4 列印 | `wbase401011` 會計科目對照表 | 條件畫面 (`Wbase4010PrintConditionModal`) 輸入起訖科目代號，`F7` 開 `<ReportPreviewModal />` 預覽、送印或匯出 PDF / JPG / Word，`F8` 匯出 Excel；`F7` 亦可開啟列印 |

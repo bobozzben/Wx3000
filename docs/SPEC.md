@@ -11,7 +11,7 @@
 - 📌 [wbase 系統主畫面與選單模組規格 (`docs/frontend/wbase/menu/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/menu/SPEC.md)
   - 包含奇勝資訊系統總入口 (`frontend/src/mainmenu/`)、三階動態樹狀/手風琴選單 (`100` - `A00` 分類)、純鍵盤盲打導覽 (`↑↓←→`, `Enter`, `Esc`, 數字/字母鍵)、深色與淺藍色主題 (`Dark` / `Light-Blue`) 切換，以及所有已掛載子模組路由。
 - 📌 [FoxPro 鍵盤盲打共用組件庫與報表預覽規格 (`docs/frontend/components/foxpro_grid_SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/components/foxpro_grid_SPEC.md)
-  - 包含 `<FoxProGridV2 />`（多列行內盲打+欄寬記憶+欄位驗證）、`<FoxProGridCard />` + `useFoxProCardNavigation`（主檔清單卡片+母版表單導覽 Hook）、`<FoxProGridBill />`（單據明細盲打）、`<ReportPreviewModal />`（現代化報表預覽系統：直橫向、邊距縮放、儲存格編修、穿透鑽取、PDF/JPG/Word 匯出）、`<FoxProPrintModal />`（統一列印與 Excel 匯出母版）、`<FoxProPrintModalv2 />`（列印條件視窗母版，F7 列印 / F8 匯出）、`<AddressSelectModal />`（台灣地址智慧快選視窗）、`<WbasePageHeader />` 與 `<FormUtilSelectXlsxFieldsList />`。
+  - 包含 `<FoxProGridV2 />`（多列行內盲打+欄寬記憶+欄位驗證）、`<FoxProGridCard />` + `useFoxProCardNavigation`（主檔清單卡片+母版表單導覽 Hook）、`<FoxProGridBill />`（單據明細盲打）、`<ReportPreviewModal />`（共用報表預覽：瀏覽器內排版、直橫向、邊界與縮放、預覽編修、雙擊報表追追追、直接送印、PDF/JPG/Word 匯出）、`<FoxProPrintModal />`（統一列印與 Excel 匯出母版）、`<FoxProPrintModalv2 />`（列印條件視窗母版，F7 列印 / F8 匯出）、`<FoxProRangePrintConditionModal />`（起訖區間列印條件母版）、`<AddressSelectModal />`（台灣地址智慧快選視窗）、`<WbasePageHeader />` 與 `<FormUtilSelectXlsxFieldsList />`。
 
 ---
 
@@ -20,7 +20,7 @@
 - 📌 [wbase1010 事務所資料維護模組規格 (`docs/frontend/wbase/wbase1010/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase1010/SPEC.md)
   - 預設事務所資料單筆表單 (`base.dbf` 鍵值 + `pub_para.dbf` 數位憑證公用目錄，`F2` 地址選單、`F8` 確定)、`F4` 事務所資料 `<FoxProGridV2 />` (`cstore.dbf`，統編檢查碼、刪除重編序號、`F5` 轉入預設、`F8` 尋找、`F12` 方向)，以及 `F4` 列印 (`wbase1010_cstore_print`，LocalAgent → `wbaseRP.dll` 的 `wbase1010_cstore_list`、Excel 匯出)。
 - 📌 [wbase1020 會計師/記帳士資料維護模組規格 (`docs/frontend/wbase/wbase1020/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase1020/SPEC.md)
-  - 上方 `<FoxProGridCard />` 瀏覽清單 + 下方即時聯動 `<Wbase1020Form />`、`useFoxProCardNavigation` 順序跳欄、證書別連動發文字軌快選 (`F2`)、地址智慧快選 (`F2`/`F4`)、統編/申報ID/Email/Big5 檢核、`FoxProPrintModal` 列印匯出與 DBF (`cpa.dbf`) 雙向同步。
+  - 上方 `<FoxProGridCard />` 瀏覽清單 + 下方即時聯動 `<Wbase1020Form />`、`useFoxProCardNavigation` 順序跳欄、證書別連動發文字軌快選 (`F2`)、地址智慧快選 (`F2`/`F4`)、統編/申報ID/Email/Big5 檢核、`F7` 區間列印條件 (`Wbase1020PrintConditionModal`，`F8` 匯出 Excel) + `<ReportPreviewModal />` 預覽列印 (雙擊回到該筆編修) 與 DBF (`cpa.dbf`) 雙向同步。
 - 📌 [wbase1030 建檔人員(員工)基本資料維護模組規格 (`docs/frontend/wbase/wbase1030/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase1030/SPEC.md)
   - 對齊 `keyin.dbf` 完整 12 欄位 `<FoxProGridV2 />` 整頁多列行內盲打、`w3000` 位移式加解密（8 bytes 密碼 `psw`、15 bytes 一站式驗證碼 `onepassno`）、`SUPERVISOR` 保留帳號防護、民國年生日正規化、身分證與手機檢核、地址智慧快選 (`F2`) 與 DBF (`keyin.dbf`) 雙向同步。
 - 📌 [wbase1050 稅務人員資料維護模組規格 (`docs/frontend/wbase/wbase1050/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase1050/SPEC.md)
@@ -49,7 +49,7 @@
 - 📌 [wbase3020 發票購買申購維護與預購表列印規格 (`docs/frontend/wbase/wbase3020/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase3020/SPEC.md)
   - 包含期別條件開窗 (`wbase3020_01`)、8 大發票本數整頁批次盲打 (`wbase3020_02`)、國稅局申購媒體檔輸出、發票預購表列印與 Excel 動態欄位匯出 (`wbase3020_buyinv_print`)，以及 DBF (`buyinv.dbf`) 雙向同步。
 - 📌 [wbase3025 原媒體轉檔 / 網路申購轉檔規格 (`docs/frontend/wbase/wbase3025/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase3025/SPEC.md)
-  - 3-4-1 / 3-4-2：以 `FoxProPrintModalv2` 輸入期別、轉檔依據 (地址縣市 / 購買地點)、記帳業者ＩＤ等條件，後端依台北市 / 高雄市 / 台灣省格式 (VFP `basefunc.prg`) 產生 Big5 轉檔內容，`F7` 預覽轉出清單、`F8` 下載檔案。
+  - 3-4-1 / 3-4-2：以 `FoxProPrintModalv2` 輸入期別、轉檔依據 (地址縣市 / 購買地點)、記帳業者ＩＤ等條件，後端依台北市 / 高雄市 / 台灣省格式 (VFP `basefunc.prg`) 產生 Big5 轉檔內容，`F7` 以 `<ReportPreviewModal />` 預覽轉出清單、`F8` 下載檔案。
 - 📌 [wbase3050 統購發票清單列印與單價設定規格 (`docs/frontend/wbase/wbase3050/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase3050/SPEC.md)
   - 包含統購發票清單列印 (`wbase3050_buylist_print`，支援 A4 發票清單與中一刀發票領取簽收單 `wbase350_buyinv_list`)、8 種發票工本費單價設定 (`wbase3050_buyinv_setamt`) 與 Excel 動態欄位匯出。
 - 📌 [wbase3060 統購發票字軌輸入與 Excel 匯入規格 (`docs/frontend/wbase/wbase3060/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase3060/SPEC.md)
@@ -60,11 +60,11 @@
 ### 4. 前端操作設定與管理報表模組規格 (wbase Settings & Management Reports)
 
 - 📌 [wbase4010 標準會計科目維護模組規格 (`docs/frontend/wbase/wbase4010/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase4010/SPEC.md)
-  - 選單 `wbase4011`~`wbase4016` 對應標準、營造業、建設業、文教團體、社會團體、衛福團體 6 種科目表 (`xmaster.dbf`~`xmaster6.dbf`)，`<FoxProGridV2 />` 行內盲打維護、`F3` 由參考檔複製總帳科目、`F4`/`F7` 列印與 Excel、`F8` 尋找、`F12` 游標方向切換，與 DBF 雙向同步。
+  - 選單 `wbase4011`~`wbase4016` 對應標準、營造業、建設業、文教團體、社會團體、衛福團體 6 種科目表 (`xmaster.dbf`~`xmaster6.dbf`)，`<FoxProGridV2 />` 行內盲打維護、`F3` 由參考檔複製總帳科目、`F4`/`F7` 區間列印條件 (`Wbase4010PrintConditionModal`，`F8` 匯出 Excel) + `<ReportPreviewModal />` 預覽列印、`F8` 尋找、`F12` 游標方向切換，與 DBF 雙向同步。
 - 📌 [wbase4020 營業稅與共用參數設定模組規格 (`docs/frontend/wbase/wbase4020/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase4020/SPEC.md)
   - 選單 `wbase4020`~`wbase4060` 共用同一頁面，依選單顯示對應畫面 (不顯示頁籤)：4-2 營業稅設定 (`customer.dbf` + `accpara.dbf`)、4-3 傳票轉檔設定、4-4 進銷存方式設定 (`acc_st.dbf` / `customer.dbf`)、4-5 共用科目摘要 (`descrip.dbf`)、4-6 共用參數設定 (`pub_para.dbf`)。
 - 📌 [wbase5010 管理報表模組規格 (`docs/frontend/wbase/wbase5010/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase5010/SPEC.md)
-  - 選單 `wbase5010`~`wbase5060` 共用 `Wbase5010Index`，依選單顯示對應畫面 (不顯示頁籤)：5-1 客戶資料列印、5-2 郵寄標籤列印、5-3 客戶登打統計表、5-4 客戶營業狀況表、5-5 客戶財務狀況參考表、5-6 委任書輸入維護 (`bsdesc.dbf`)。5-1 ~ 5-5 與 `wbase5070` 相同分兩段：先選擇客戶 (5-2 為設定列印份數)，`Esc` 後再輸入列印條件、`F7` 預覽。
+  - 選單 `wbase5010`~`wbase5060` 共用 `Wbase5010Index`，依選單顯示對應畫面 (不顯示頁籤)：5-1 客戶資料列印、5-2 郵寄標籤列印、5-3 客戶登打統計表、5-4 客戶營業狀況表、5-5 客戶財務狀況參考表、5-6 委任書輸入維護 (`bsdesc.dbf`)。5-1 ~ 5-5 與 `wbase5070` 相同分兩段：先選擇客戶 (5-2 為設定列印份數)，`Esc` 後再輸入列印條件 (5-3 為 `FoxProRangePrintConditionModal`，其餘為 `FoxProPrintModalv2`)、`F7` 預覽 (5-1、5-3 ~ 5-5 為 `<ReportPreviewModal />`，5-2 為自訂標籤預覽)、`F8` 匯出 Excel。
 - 📌 [wbase5070 碳健檢企業名單匯出模組規格 (`docs/frontend/wbase/wbase5070/SPEC.md`)](file:///f:/ADSProject/Wx3000/docs/frontend/wbase/wbase5070/SPEC.md)
   - 選單 `wbase5070`：`<FoxProGridV2 />` 勾選客戶 (VFP `wbase4000`) → 資料年度、起訖月份 (VFP `wbase5070`) → 轉檔列印密碼 → 加總各客戶 `<drive>:\w3000\data\<客戶代號>\<年末 2 碼>\t403.dbf` 的 `t025` → 瀏覽器匯出 Excel；只讀資料，沒有列印報表。
 

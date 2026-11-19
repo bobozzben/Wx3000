@@ -28,7 +28,7 @@ import {
 } from '../../components/SelectXlsxField';
 import { SearchModal, type SearchItem } from '../../components/FoxProGrid/SearchModal';
 import { useTheme } from '../menu/ThemeContext';
-import axios from 'axios';
+import { fetchTicketPlaces } from '../../services/wbase3010';
 
 interface Wbase3020BuyinvPrintProps {
   onClose?: () => void;
@@ -298,7 +298,18 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
   // Global Hotkeys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isXlsxModalOpen || isF2ModalOpen || isPreviewModalOpen) return;
+      // 已由子視窗處理的按鍵 (例如 F2 地點選單的 Esc) 不再處理。React 18 在按鍵事件中會同步重跑 effect，
+      // 事件到達 window 時這裡已是「選單已關閉」的新版監聽，不檢查的話 Esc 會連列印視窗一起關掉
+      if (e.defaultPrevented) return;
+      // F4 資料預覽沒有自己的按鍵處理：Esc 只關預覽，其他功能鍵不作用
+      if (isPreviewModalOpen) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setIsPreviewModalOpen(false);
+        }
+        return;
+      }
+      if (isXlsxModalOpen || isF2ModalOpen) return;
 
       if (e.key === 'F4') {
         e.preventDefault();
@@ -322,7 +333,7 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isXlsxModalOpen, isF2ModalOpen, mode, handlePrint, handleExport, handleLeave]);
+  }, [isXlsxModalOpen, isF2ModalOpen, isPreviewModalOpen, mode, handlePrint, handleExport, handlePreviewData, handleLeave]);
 
   const formattedPeriodTag = `${year}${startMonth.padStart(2, '0')}-${endMonth.padStart(2, '0')}`;
 
@@ -871,22 +882,10 @@ export const Wbase3020_buyinv_print: React.FC<Wbase3020BuyinvPrintProps> = ({ on
       <SearchModal
         isOpen={isF2ModalOpen}
         title="購票地點查詢 [F2]"
-        onSearch={async (kw: string) => {
-          try {
-            const res = await axios.get('/api/wbase3010', { params: { keyword: kw } });
-            if (Array.isArray(res.data)) {
-              return res.data.map((x: any) => ({
-                code: x.placeCode || x.code || '',
-                name: x.placeName || x.name || '',
-              }));
-            }
-          } catch (e) { }
-          return [
-            { code: '01', name: '台北市分局' },
-            { code: '02', name: '新北市分局' },
-            { code: '03', name: '台中市分局' },
-            { code: '04', name: '高雄市分局' },
-          ];
+        onSearch={async (kw: string): Promise<SearchItem[]> => {
+          // 查詢失敗時由 SearchModal 顯示原因；不可改用假資料，否則會以不存在的地點代號篩選
+          const list = await fetchTicketPlaces(kw.trim() || undefined);
+          return list.map((p) => ({ code: (p.placeCode || '').trim(), name: (p.placeName || '').trim() }));
         }}
         onSelect={handleSelectPlaceItem}
         onClose={() => setIsF2ModalOpen(false)}

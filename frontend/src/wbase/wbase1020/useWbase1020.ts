@@ -285,10 +285,12 @@ export const useWbase1020 = create<Wbase1020State>((set, get) => ({
       const data = await printCpaList(filter);
       set({ printData: data, printFilter: filter, loading: false });
       return data;
-    } catch (e) {
+    } catch (e: any) {
+      // 不可回傳空陣列：條件畫面會開出空白預覽、F8 會說「查無符合資料」。由呼叫端顯示錯誤。
       console.error('Fetch print CPA data error:', e);
-      set({ errorToast: '無法取得列印預覽資料', loading: false });
-      return [];
+      set({ loading: false });
+      const reason = e?.response?.data?.message || e?.message || '請檢查後端連線';
+      throw new Error(`無法取得列印資料：${reason}`);
     }
   },
 

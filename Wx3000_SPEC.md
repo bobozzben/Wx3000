@@ -10,7 +10,7 @@
 | :--- | :--- |
 | **專案名稱** | `Wx3000` |
 | **包管理工具** | `pnpm` (Monorepo / Workspace 管理架構) |
-| **前端 (Frontend)** | React 19 + TypeScript + Vite + Tailwind CSS (v4) + AG Grid Community + Zustand + Axios + SheetJS (`xlsx`)<br>- 內建現代化 `ReportPreview` 報表預覽系統（直橫向、邊距縮放、即時編修、報表追追追雙擊鑽取、PDF/JPG/Word/Excel 匯出）與 `FoxProGridV2` 盲打表格 |
+| **前端 (Frontend)** | React 19 + TypeScript + Vite + Tailwind CSS (v4) + AG Grid Community + Zustand + Axios + SheetJS (`xlsx`)<br>- `FoxProGridV2` 盲打表格與共用 `ReportPreviewModal` 報表預覽（瀏覽器內排版、直橫向、邊界與縮放、預覽編修、雙擊報表追追追、直接送印、PDF/JPG/Word 匯出） |
 | **桌面端 (Desktop)** | **Electron** (`frontend/electron/main.cjs`) — 支援獨立桌面視窗、動態切換後端伺服器 IP 與資料磁碟機 (`Ctrl+Shift+S`)，功能鍵保留給盲打（DevTools 改用 `Ctrl+Shift+I`、單按 `F5` 不重新整理、`F11` 切換全螢幕）；桌面端沒有內建自動更新，由安裝精靈維護選單 `[4]` 重新安裝 |
 | **後端 (Backend)** | **C# .NET 8 (ASP.NET Core Web API)**<br>- 預設監聽埠號：`http://0.0.0.0:5007`<br>- 可發佈為獨立單一執行檔 (`publish/backend/Release/Wx3000.Backend.exe`) 或完整伺服器包 (`publish/Wx3000_Server/api`，內含 `wwwroot` 靜態前端)<br>- 支援註冊為 Windows 服務 (`Wx3000Api`) |
 | **資料庫與雙向同步** | 1. **PostgreSQL 16**：`Host=localhost;Port=54320;Database=w3000;Username=postgres;Password=Pg_W3000`<br>2. **Visual FoxPro DBF**：`<Drive>:\w3000\comm\*.dbf`（透過 `ISystemConfigService` 動態映射至 PostgreSQL Schema `"<drive>:/w3000/comm"`，以 `dictionary.w3000_dbf` 記錄 SHA256 Checksum 進行即時雙向同步） |
@@ -61,10 +61,10 @@ Wx3000/
 │   └── src/
 │       ├── mainmenu/              # 奇勝資訊 Wx3000 系統總入口 (四大系統分區、快捷鍵導覽)
 │       ├── components/
-│       │   ├── FoxProGrid/        # FoxProGridV2 + SearchModal + FoxProPrintModal + FoxProPrintModalv2 + AddressSelectModal
+│       │   ├── FoxProGrid/        # FoxProGridV2 + SearchModal + FoxProPrintModal + FoxProPrintModalv2 + FoxProRangePrintConditionModal + AddressSelectModal
 │       │   ├── FoxProGridCard/    # FoxProGridCard + useFoxProCardNavigation (表單盲打導覽 Hook)
 │       │   ├── FoxProGridBill/    # FoxProGridBill (單據 Header+Detail 盲打表格)
-│       │   ├── ReportPreview/     # ReportPreviewModal (現代化報表預覽系統：直橫向、邊距縮放、即時編修、穿透鑽取、PDF/JPG/Word 匯出)
+│       │   ├── ReportPreview/     # ReportPreviewModal (共用報表預覽：直橫向、邊界與縮放、預覽編修、雙擊報表追追追、直接送印、PDF/JPG/Word 匯出)
 │       │   ├── SelectXlsxField/   # FormUtilSelectXlsxFieldsList (Excel 動態欄位匯出器)
 │       │   ├── WbasePageHeader.tsx# 統一模組頂部標題列與模式徽章
 │       │   └── ServerConfigModal.tsx # 伺服器連線位址與資料磁碟機動態配置彈窗 (Ctrl+Shift+S)
@@ -94,7 +94,7 @@ Wx3000/
 │       ├── services/              # Axios API、apiConfig、addressService、localagent、validation.ts
 │       └── data/                  # 台灣縣市鄉鎮郵遞區號 (taiwanDistricts.ts) 與路名庫 (taiwan_roads.json)
 ├── localagent/                    # 本機代理服務 (Port: 5009，只監聽 127.0.0.1 / ::1)
-│   ├── agent.js                   # 整合 DBFBridge 隊列與報表 DLL 呼叫之 HTTP/WS Server
+│   ├── agent.js                   # 整合 DBFBridge 隊列、報表 DLL、Word 套印 (/api/office/*) 與報表預覽直接送印 (/api/printers、/api/print/direct) 之 HTTP/WS Server
 │   ├── agent.test.js              # node --test 單元測試 (npm test)
 │   ├── dlls.json                  # 可呼叫的報表 DLL 函數白名單與簽名
 │   ├── wbase/wbaseRP.dll          # 64-bit 報表 DLL
@@ -113,12 +113,12 @@ Wx3000/
    - 前端於啟動時透過 `ServerConfigModal`（或快捷鍵 `Ctrl+Shift+S`）設定資料來源磁碟機代號（如 `C` 或 `F`），並於每次 Axios 請求自動附帶 `X-Data-Drive` Header。
    - 後端 `AppDbContext` 搭配 `DynamicModelCacheKeyFactory` 自動將實體映射至對應之 PostgreSQL Schema（如 `"c:/w3000/comm"` 或 `"f:/w3000/comm"`）與地端 DBF 目錄（`C:\w3000\comm` 或 `F:\w3000\comm`）。
 2. **讀取快取與變更偵測 (`EnsureTableSyncedAsync(dbfPath, dbfName, schema, table, keyFields)`)**：
-   - 每次 API 讀取前，後端向 `LocalAgent` (`POST /api/dbf/checksum`) 取得地端 `.dbf` 的即時 `SHA256:FileSize` 校驗碼。
+   - 每次 API 讀取前，後端向 `LocalAgent` (`POST /api/dbf/checksum`) 取得地端 `.dbf` 的即時 `SHA256:FileSize` 校驗碼 (LocalAgent 以 Node 直接讀檔計算，讀不到才用 DBFBridge)。後端只等 1.5 秒，LocalAgent 隊列塞住時沿用既有快照，不跟著排隊。
    - 與 PostgreSQL `dictionary.w3000_dbf` 中記錄的 `checksum` 比對：相符則直接由 PostgreSQL 高速查詢（Fast-path ~2ms）；不符則透過 `LocalAgent` (`POST /api/dbf/get_pg_script`，由 32-bit `DBFBridge.exe` 產生) 取得結構與資料腳本，將最新 DBF 結構與內容整表重灌至 PostgreSQL。
    - **重灌在單一交易內完成**：先清空舊快照 (`TRUNCATE`) 並移除舊的唯一索引 (`ux_` 開頭)，再依本次 `keyFields` 重建結構與資料；任何一步失敗都整個回復，保留原本的快照。
    - `keyFields` 會成為 PostgreSQL 的唯一鍵；沒有唯一鍵的表傳 `""`。DBF 主鍵重複時，快照每個主鍵只保留 RECNO 最小的一筆（與 VFP `LOCATE` / `SEEK` 一致），重複清單記在 `dictionary.w3000_dbf_dupkey`。快照的 `_record_number` 等於實體 RECNO，已刪除列不在快照中。
 3. **權威雙寫與鎖定保護 (`WriteRecordAsync(..., operation, keyField, keyValue, fields)`)**：
-   - 當前端執行新增 (`INSERT`)、修改 (`UPDATE`)、刪除 (`DELETE`) 時，後端**優先呼叫 `LocalAgent` (`/api/dbf/write`) 寫入地端 DBF**（LocalAgent 組成 VFP `REPLACE` 腳本交給 `DBFBridge.exe` 執行），成功後才寫入 PostgreSQL 並更新 Checksum。`keyField` 可以是 VFP 運算式（例如 `"RECNO(),rno"`），日期欄傳 `{"$date":"yyyy-MM-dd"}`。
+   - 當前端執行新增 (`INSERT`)、修改 (`UPDATE`)、刪除 (`DELETE`) 時，後端**優先呼叫 `LocalAgent` (`/api/dbf/write`) 寫入地端 DBF**（LocalAgent 組成 VFP `INSERT INTO` / `REPLACE` / `DELETE` 腳本交給 `DBFBridge.exe` 執行），成功後才寫入 PostgreSQL，再以 `CommitWriteChecksumAsync` 條件式更新 Checksum (寫入期間舊系統也改了 DBF 時不更新，下次讀取重灌)。新增時 VFP 腳本先鎖檔頭 `RLOCK("0")` 再查重或取號 (`DUPLICATE_KEY` 回 409)；寫入排隊超過 45 秒回 `AGENT_BUSY` 不執行，後端等 60 秒仍無回應則回「無法確認是否已寫入」。`keyField` 可以是 VFP 運算式（例如 `"RECNO(),rno"`），日期欄傳 `{"$date":"yyyy-MM-dd"}`。
    - 若另一台傳統 FoxPro 工作站正鎖定該筆紀錄 (`RLOCK`) 或獨佔開啟該表，回傳 `LOCK_TIMEOUT` (HTTP `409 Conflict`)，後端立即中止操作並向前端顯示明確提示，**絕不單邊寫入 PostgreSQL**。
 4. **LocalAgent 存取限制**：
    - LocalAgent 只監聽 `127.0.0.1` 與 `::1`，並檢查 `Host` 標頭防 DNS rebinding。
@@ -134,9 +134,12 @@ Wx3000/
    - 對齊 Lazarus `util_hi_addr_form.pas`，內建全台縣市、鄉鎮市區郵遞區號與路名資料庫，支援智慧解析既有地址、門牌樓層速選按鈕與半形數字轉全形 (`digToBig`)。
 4. **`<FoxProPrintModal />` & `<FormUtilSelectXlsxFieldsList />`（統一列印與 Excel 動態匯出母版）**：
    - 標準化 `F7` 區間列印預覽、純淨紙張列印與雙欄式 Excel 動態欄位自訂匯出。另提供 `<FoxProPrintModalv2 />` 作為列印條件視窗母版（對應 VFP `_form_print`，支援 F7 預覽、F8 匯出、卡片式條件欄位與 `foxProPrintValidators` 檢核）。
-5. **`<ReportPreviewModal />`（現代化報表預覽系統）**：
-   - 位於 `frontend/src/components/ReportPreview/`，提供直橫向、邊距自訂、顯示比例縮放（50%~200% 或整頁/頁寬適應）、列印設定側邊欄 (`PrintSettingsSidebar`)。
-   - 支援預覽畫面直接儲存格編修 (`enableEdit`)、報表追追追雙擊穿透鑽取 (`onRowDrillDown`)，以及內建 PDF / JPG / Word / Excel 動態格式匯出與 `reportId` 個人化偏好記憶。
+5. **`<FoxProRangePrintConditionModal />`（起訖區間列印條件母版）**：
+   - 起始 / 結束代號兩欄 + `F2` 查詢 + 「匯出 xlsx 設定」，`F7` 確定、`F8` 匯出 Excel、`Esc` 離開；用於 `wbase1020`、`4010` 與 5-3 的列印條件。
+6. **`<ReportPreviewModal />`（共用報表預覽與列印）**：
+   - 位於 `frontend/src/components/ReportPreview/`，在瀏覽器內排版分頁 (不經 FastReport DLL)，提供直橫向、邊界、顯示比例 (50%~200% 或整頁/頁寬)、列印設定側邊欄 (`PrintSettingsSidebar`)。
+   - `F7` / `Ctrl+P` 直接送到側邊欄選的印表機 (Electron `printHtml`，瀏覽器經 LocalAgent `/api/print/direct`)；預覽內容可編修 (`enableEdit`，只影響這次列印與匯出)、雙擊報表追追追 (`onRowDrillDown`)；匯出 PDF / JPG / Word (`.doc`)，沒有 Excel；`reportId` 記憶欄寬、列高、字型大小與顯示比例。
+   - 使用模組：`wbase1020`、`3025`、`4010`、5-1、5-3 ~ 5-5。規格見 `docs/frontend/components/foxpro_grid_SPEC.md` 第 8 節。
 
 ### 3.3 本機報表 DLL (`LocalAgent` + `wbaseRP.dll`)
 1. **呼叫流程**：前端 `POST http://localhost:5009/report`（或 `/api/call`），LocalAgent 把 `jsonData` 寫成 `%TEMP%\Wx3000\` 暫存 JSON，再交給 64-bit `WbaseBridge.exe`（預設 `bridge` 模式；環境變數 `WBASE_MODE=koffi` 時改由 Koffi 直接載入）呼叫 `wbaseRP.dll` 的 stdcall 函數。`IsPrint`：`0` 預覽、`1` 直接列印、`999` 只 PrepareReport 不開視窗。

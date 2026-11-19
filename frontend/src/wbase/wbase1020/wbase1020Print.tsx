@@ -112,7 +112,7 @@ const CPA_XLSX_FIELDS: XlsxFieldItem[] = [
   { key: 'memberNo', label: '會員證號', customTitle: '會員證號', selected: true },
   { key: 'email', label: 'E-MAIL', customTitle: 'E-MAIL', selected: true },
   { key: 'officeName', label: '事務所名稱', customTitle: '事務所名稱', selected: false },
-  { key: 'memo', label: '備註', customTitle: '備註', selected: false },
+  // cpa.dbf 沒有備註欄 (CpaMaster.Memo 為 NotMapped)，所以不提供「備註」
 ];
 
 const CPA_XLSX_STORAGE_KEY = 'wbase1020_xlsx_export_config';

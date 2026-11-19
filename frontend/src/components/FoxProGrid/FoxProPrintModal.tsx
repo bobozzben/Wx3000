@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { Printer, FileSpreadsheet, X } from 'lucide-react';
 import { useTheme } from '../../wbase/menu/ThemeContext';
 import { printElement } from '../../utils/printUtil';
+import { localDateStamp } from '../../utils/dateUtil';
 import {
   FormUtilSelectXlsxFieldsList,
   parseXlsxConfigParams,
@@ -227,7 +228,7 @@ export function FoxProPrintModal<T extends Record<string, any>>({
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, '清冊資料');
 
-      const downloadFileName = `${xlsxFileName || reportTitle}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const downloadFileName = `${xlsxFileName || reportTitle}_${localDateStamp()}.xlsx`;
       XLSX.writeFile(workbook, downloadFileName);
     } catch (err) {
       console.error('Failed to export xlsx:', err);

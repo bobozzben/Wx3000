@@ -25,6 +25,8 @@ interface Wbase4010FormProps {
   statusBarInfo?: React.ReactNode | ((row: AccountItem | undefined, rowIndex: number) => React.ReactNode);
   customActions?: React.ReactNode;
   enterDirection?: 'right' | 'down';
+  /** 頁面開了蓋住表格的視窗 (列印、複製、尋找、刪除確認) 時為 true，表格不處理按鍵 */
+  keyboardDisabled?: boolean;
 }
 
 export const Wbase4010Form: React.FC<Wbase4010FormProps> = ({
@@ -41,6 +43,7 @@ export const Wbase4010Form: React.FC<Wbase4010FormProps> = ({
   statusBarInfo,
   customActions,
   enterDirection = 'right',
+  keyboardDisabled = false,
 }) => {
   const { isDark } = useTheme();
   const meta = ACCOUNT_MODES[mode] || ACCOUNT_MODES[1];
@@ -277,6 +280,9 @@ export const Wbase4010Form: React.FC<Wbase4010FormProps> = ({
         onDeleteRow={onDeleteRow}
         onRefreshData={onRefreshData}
         onExit={onExit}
+        // 表格的 Esc 會 preventDefault，頁面的 Esc 處理就被略過；表格的監聽比頁面早註冊時
+        // (例如剛關掉列印、複製或尋找視窗) Esc 回不了主選單，所以表格自己也要能離開
+        onShowSummary={onExit ? () => onExit() : undefined}
         statusBarInfo={statusBarInfo}
         minRows={0}
         gridId={`wbase4010-grid-mode${mode}`}
@@ -285,6 +291,7 @@ export const Wbase4010Form: React.FC<Wbase4010FormProps> = ({
         customActions={customActions}
         escLabel="儲存/離開"
         enterDirection={enterDirection}
+        keyboardDisabled={keyboardDisabled}
       />
 
       {/* F2 科目明細快選視窗 */}

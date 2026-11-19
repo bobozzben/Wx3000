@@ -112,6 +112,9 @@ backend/
 | `POST` | `/api/wbase5070/verify-password` | Body `{ password }` → `{ ok }`；轉檔列印密碼 (`TransferPasswordService`，`motherp.txt` 第 101~110 bytes) |
 | `POST` | `/api/wbase5070/sales` | Body `{ password, year, startMonth, endMonth, nos }` → `{ rows, missing }`，見下 |
 
+- 前端 (`services/wbase5070.ts`) 會檢查三個 API 的回應格式：不是預期的 JSON 時 (舊版後端沒有這個控制器，`/api/wbase5070/*` 被 SPA Fallback 回 `index.html` 200) 以錯誤訊息視窗顯示「後端沒有回應碳健檢企業名單 API (/api/wbase5070)，請確認後端已更新並重新啟動」。現行後端對不存在的 `/api/*` 回 404 JSON `{ message }`，畫面顯示該訊息。
+- `GET customers` 帶 `_=<時間戳>` 參數，避免瀏覽器沿用快取的舊 `index.html` 回應 (舊版後端回的 HTML 有 `Last-Modified` / `ETag`、沒有 `Cache-Control`)。
+
 **`POST sales`**
 
 - 每次都再比對密碼，錯誤回 403 `{ message: "密碼錯誤!" }`。

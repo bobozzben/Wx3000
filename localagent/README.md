@@ -1,6 +1,6 @@
 # Wx3000 LocalAgent (本機 DBF 雙向同步與原生報表 DLL 橋接服務)
 
-`localagent` 為運行於客戶端或伺服器本機的輕量級 Node.js 背景代理服務（固定監聽 Port `5009`，只綁定 `127.0.0.1` 與 `::1`，支援 HTTP 與 WebSocket），負責解決瀏覽器/現代後端無法直接操作地端 **32-bit Visual FoxPro COM (`w3000_dbf.dll`)** 與 **64-bit Lazarus FastReport 報表 (`wbaseRP.dll`)** 的跨架構橋接問題，並以固定範本在本機開啟或套印 **Word** 文件 (`/api/office/*`)。
+`localagent` 為運行於客戶端或伺服器本機的輕量級 Node.js 背景代理服務（固定監聽 Port `5009`，只綁定 `127.0.0.1` 與 `::1`，支援 HTTP 與 WebSocket），負責解決瀏覽器/現代後端無法直接操作地端 **32-bit Visual FoxPro COM (`w3000_dbf.dll`)** 與 **64-bit Lazarus FastReport 報表 (`wbaseRP.dll`)** 的跨架構橋接問題，並以固定範本在本機開啟或套印 **Word** 文件 (`/api/office/*`)，以及讓網頁版的共用報表預覽 (`ReportPreviewModal`) 列出本機印表機並直接送印 (`/api/printers`、`/api/print/direct`)。
 
 安裝精靈 (`publish\Install-Wx3000.ps1`) 不註冊 Windows 服務，而是寫入 `HKLM\...\Run` 的 `Wx3000LocalAgent`，在使用者登入時以無視窗的 `Start-LocalAgent-Hidden.vbs` 啟動 `Wx3000Agent.exe`，報表預覽視窗才會出現在使用者桌面。`install_service.bat` 仍可把它註冊為 `Wx3000Agent` 服務，但服務在 Session 0 執行，報表預覽視窗不會出現在使用者桌面。
 
@@ -10,7 +10,7 @@
 
 | 橋接執行檔 | 目標位元架構 | 呼叫目標 DLL | 職責說明 |
 | :--- | :---: | :--- | :--- |
-| **`DBFBridge.exe`** | **32-bit (`i386-win32`)** | `w3000_dbf.dll` (32-bit VFP COM) | 計算 DBF `SHA256:FileSize` Checksum (`CHECKSUM`)、產生 PostgreSQL 結構 / 資料腳本 (`GET_PG_SCRIPT`，由後端執行)、讀取單筆 (`READ`)，以及執行 LocalAgent 組成的 VFP 腳本 (`EXEC_VFP`：單筆 `INSERT` / `REPLACE` / `DELETE` 與客戶資料整批匯出入 `custbak.dbf`)；VFP 鎖定錯誤會回 `lockHint` |
+| **`DBFBridge.exe`** | **32-bit (`i386-win32`)** | `w3000_dbf.dll` (32-bit VFP COM) | 計算 DBF `SHA256:FileSize` Checksum (`CHECKSUM`，只在 Node 讀不到檔案時使用)、產生 PostgreSQL 結構 / 資料腳本 (`GET_PG_SCRIPT`，由後端執行)、讀取單筆 (`READ`)，以及執行 LocalAgent 組成的 VFP 腳本 (`EXEC_VFP`：單筆 `INSERT` / `REPLACE` / `DELETE` 與客戶資料整批匯出入 `custbak.dbf`)；VFP 鎖定錯誤會回 `lockHint` |
 | **`WbaseBridge.exe`** | **64-bit (`x86_64-win64`)** | `wbaseRP.dll` (64-bit FastReport) | 每次呼叫啟動一個獨立 GUI 進程載入 FastReport 報表 DLL，開啟原生預覽視窗或直接驅動印表機；依函數名稱與參數個數分派 (6 參數報表、7 參數 `wbase350_buyinv_list`、2 參數 `int, str`) |
 
 > ⚠️ **重要防呆**：`DBFBridge.exe` 必須為 **32-bit**，`WbaseBridge.exe` 必須為 **64-bit**。切勿將兩者混淆，否則載入 DLL 時將觸發 Windows `ERROR_BAD_EXE_FORMAT (Code=193)`。
@@ -29,9 +29,9 @@
 - **報表端點的瀏覽器來源**：放行 localhost、內網 IP (10/8、172.16/12、192.168/16) 與單段主機名 (如 `SERVER01`)。其他網域 (ngrok、企業內網 FQDN) 請設定環境變數 `WX3000_AGENT_ALLOWED_ORIGINS`，多筆以逗號分隔，例如 `https://erp.example.com`。
 - **DLL 白名單**：`/api/call`、`/report` (含相容路徑) 與 WebSocket 只能呼叫 `dlls.json` 登記的 DLL 與函數，未登記回 `errorType: "FORBIDDEN"`。新增報表函數時必須同步登記。
 - **Word 範本白名單 (`WORD_TEMPLATES`)**：`/api/office/word/*` 只接受範本代號與單一磁碟機字母，檔案路徑固定為 `<磁碟機>:\W3000\comm\<範本檔>`；PowerShell 腳本是固定字串，資料寫進 `%TEMP%\Wx3000\` 的暫存 JSON 後以環境變數傳路徑，不組進腳本或命令列。巨集名稱也必須在白名單內。
-- **Electron 限制**：目前 `file://` 頁面 (`webSecurity: false`) 的請求不帶 `Origin`，因此無 `Origin` 的跨站 POST 會放行；無 `Origin` 的跨站 GET 只放行唯讀端點 (`/`、`/test.html`、`/mac`、`/config`、`/dllList`、`/api/check-drive`、`/api/dbf/check_drive`、`/api/office/status`)。若日後開啟 `webSecurity`，請將實際 Origin 加入放行規則。
+- **Electron 限制**：目前 `file://` 頁面 (`webSecurity: false`) 的請求不帶 `Origin`，因此無 `Origin` 的跨站 POST 會放行；無 `Origin` 的跨站 GET 只放行唯讀端點 (`/`、`/test.html`、`/mac`、`/config`、`/dllList`、`/api/check-drive`、`/api/dbf/check_drive`、`/api/office/status`、`/api/printers`)。若日後開啟 `webSecurity`，請將實際 Origin 加入放行規則。
 
-修改後請執行 `npm test` (`localagent/agent.test.js`，共 43 項；`HTTP surface` 含 7 個子測試、`enqueueDbfWithin` 含 3 個，`node --test` 統計為 53，有 DBFBridge 時 61)。
+修改後請執行 `npm test` (`localagent/agent.test.js`，共 44 項；`HTTP surface` 含 8 個子測試、`enqueueDbfWithin` 含 3 個，`node --test` 統計為 55，有 DBFBridge 時 63)。
 
 `guarded INSERT against real VFP` 會用真的 `DBFBridge.exe` 在暫存目錄建一張表，驗證檢查主鍵、取號 (含範圍與前綴、略過已刪除記錄) 與檔頭鎖等待的 VFP 腳本，有跑時另有 8 個子測試。
 
@@ -42,9 +42,9 @@
 ## 🔌 主要 API 端點
 
 ### 1. 地端 VFP DBF 資料庫橋接 (`/api/dbf/*`)
-- 內建單一執行緒 Promise 串列隊列 (`dbfQueue`)，所有 `DBFBridge.exe` 呼叫依序執行，確保高併發請求下不會發生 DBF 檔案鎖定衝突。
+- 內建單一執行緒 Promise 串列隊列 (`dbfQueue`)，所有 `DBFBridge.exe` 呼叫與 checksum 讀檔依序執行，確保高併發請求下不會發生 DBF 檔案鎖定衝突。
 - `GET /api/dbf/ping`：檢測 `DBFBridge.exe` 與 VFP COM 元件狀態。
-- `GET` / `POST /api/dbf/checksum`：高速計算地端 `.dbf` 檔案之 `SHA256:FileSize` 校驗碼。
+- `GET` / `POST /api/dbf/checksum`：計算地端 `.dbf` 檔案的 `SHA256:FileSize` 校驗碼 (`executeDbfChecksum`)。先在隊列內以 Node 直接讀檔、用 `dbfChecksum` 計算 (約 1 ms，不必啟動 DBFBridge)，檔案讀不到 (例如被 VFP 獨佔開啟) 時才退回 DBFBridge 的 `CHECKSUM`。兩種算法格式相同。後端只等 1.5 秒，隊列塞住時沿用既有快照 (見 `docs/backend/backend_SPEC.md` 3.2)。
 - `POST /api/dbf/get_pg_script`：產生 DBF 轉 PostgreSQL 的結構 (`STRUCT`) 或資料 (`DATA`) 腳本。
 - `POST /api/dbf/write`：新增、修改、刪除 DBF 記錄（別名、欄位名與鍵值運算式會先經過識別字檢查）。
   - 由 LocalAgent 組成 VFP 腳本經 `EXEC_VFP` 執行：`INSERT` 用 `INSERT INTO`，`UPDATE` 用 `LOCATE FOR` + `REPLACE`，`DELETE` 用 `LOCATE FOR` + `DELETE`；回傳 `{ success, operation, recno, checksumBefore, checksumAfter, otherChanges }`，找不到記錄時回 `errorType: "RECORD_NOT_FOUND"`。
@@ -113,6 +113,18 @@
 - 取代方式：每一份從開頭以萬用字元 `\[[A-Z0-9]{1,}\]` 單次掃描，白名單內的巨集用 `Range.Text` 換掉；換上的文字不會再被掃描 (內容含 `[NAME]` 也不會被誤換)，也不受 `Find.Replacement.Text` 255 字與 `^p` 特殊碼的限制。
 - 錯誤：`INVALID_REQUEST` (範本、磁碟機、巨集或內容不合法)、`NOT_FOUND`、`NO_WORD` (無法建立 `Word.Application`)、`WORD_ERROR` (錯誤訊息前綴 `[open]`、`[replace]`、`[save]`、`[show]` 標示階段)、`TIMEOUT` (超過 120 秒，PowerShell 會被中止，但隱藏的 Word 可能殘留)、`POWERSHELL_FAILED`。
 - 輸出的 `.docx` 留在 `%TEMP%\Wx3000\`，LocalAgent 不會自動刪除；使用者要保留請在 Word 另存到其他位置。
+
+### 4. 本機印表機與直接列印 (`/api/printers`, `/api/print/direct`)
+供瀏覽器開啟的共用報表預覽 (`frontend/src/components/ReportPreview/ReportPreviewModal.tsx`) 使用；Electron 桌面端改走 `electronAPI.getPrinters` / `printHtml`，不呼叫這兩個端點。和 Word 一樣以固定的 PowerShell 腳本 (`System.Drawing.Printing`) 執行，結果寫成 UTF-8 JSON 暫存檔，但不排進 `officeQueue`。
+
+| 端點 | 內容 | 說明 |
+| :--- | :--- | :--- |
+| `GET /api/printers` | - | 列出已安裝的印表機，回 `{ success, printers: [{ name, displayName, isDefault }] }`；失敗回 `errorType: "PRINTER_ERROR"`。逾時 15 秒。預覽畫面只等 2.5 秒，取不到就不提供直接列印 |
+| `POST /api/print/direct` | `{ pages, deviceName?, landscape?, color?, paperSize?, jobName? }` | `pages` 是預覽畫面在瀏覽器裡畫好的每頁 JPEG (data URL 或 Base64)，1~500 頁。先寫成 `%TEMP%\Wx3000\print_page_*.jpg`，再以 `PrintDocument` 每頁一張、拉滿頁面送到 `deviceName` (空白為預設印表機)，不跳出列印對話框；`paperSize` 只認 `A4`、`Letter`、`B4`。成功回 `{ success, printedPages, printer }`，暫存影像與工作檔隨即刪除 |
+
+- 錯誤：`INVALID_REQUEST` (JSON 不合法、沒有頁面、超過 500 頁、某頁是空的，HTTP 400)、`PRINT_ERROR` (印表機名稱無效或列印失敗，HTTP 400)、`TIMEOUT` (超過 120 秒，錯誤訊息沿用 Word 的字樣)、`POWERSHELL_FAILED`。
+- 存取規則與報表端點相同：放行 localhost、內網 IP 與單段主機名的 `Origin`，其他網站回 403。
+- 送的是點陣圖，列印品質取決於前端產生影像的解析度；請求本身沒有大小上限，500 頁的 JPEG 會整包放在記憶體。
 
 ---
 

@@ -44,10 +44,10 @@ Wx3000/
 │   └── src/
 │       ├── mainmenu/                  # 奇勝資訊 Wx3000 系統總入口 (四大系統分區、快捷鍵啟動)
 │       ├── components/
-│       │   ├── FoxProGrid/            # FoxProGridV2 + SearchModal + FoxProPrintModal + FoxProPrintModalv2 + AddressSelectModal
+│       │   ├── FoxProGrid/            # FoxProGridV2 + SearchModal + FoxProPrintModal + FoxProPrintModalv2 + FoxProRangePrintConditionModal + AddressSelectModal
 │       │   ├── FoxProGridCard/        # FoxProGridCard + useFoxProCardNavigation (表單盲打導覽 Hook)
 │       │   ├── FoxProGridBill/        # FoxProGridBill (單據 Header+Detail 盲打表格)
-│       │   ├── ReportPreview/         # ReportPreviewModal (現代化報表預覽系統：直橫向、邊距縮放、即時編修、穿透鑽取、PDF/JPG/Word 匯出)
+│       │   ├── ReportPreview/         # ReportPreviewModal (共用報表預覽：直橫向、邊界與縮放、預覽編修、雙擊報表追追追、直接送印、PDF/JPG/Word 匯出)
 │       │   ├── SelectXlsxField/       # FormUtilSelectXlsxFieldsList (Excel 欄位自訂匯出器)
 │       │   ├── WbasePageHeader.tsx    # 統一模組頂部標題列與模式徽章
 │       │   └── ServerConfigModal.tsx  # 伺服器連線與資料來源磁碟機 (C:/F:) 設定視窗
@@ -79,7 +79,7 @@ Wx3000/
 | **F2 / F4** | 在瀏覽模式按 `F2` 開啟快速查詢彈窗；在地址或字軌欄位按 `F2`/`F4` 開啟 `AddressSelectModal` 台灣地址智慧快選視窗或字軌選單。 |
 | **F3** | 觸發大型開窗搜尋對話框 (`SearchModal`)，或於 `wbase2010` 切換頁籤 (`F3`~`F8`)。 |
 | **F6** | 於卡片+表單模式進入編修狀態 (`startEdit`)，或於表格模式重新整理資料 (`onRefreshData`)。 |
-| **F7 / F9** | `F7` 開啟區間報表列印與 Excel 匯出視窗 (`FoxProPrintModal`)；`F9` 或 `Ctrl+S` 執行表單/批次存檔。 |
+| **F7 / F9** | `F7` 開啟列印：區間列印與 Excel 匯出視窗 (`FoxProPrintModal`)，或列印條件視窗 (`FoxProPrintModalv2` / `FoxProRangePrintConditionModal`，`F7` 確定、`F8` 匯出 Excel) 接 `ReportPreviewModal` 預覽 (預覽中 `F7` / `Ctrl+P` 直接送印)；`F9` 或 `Ctrl+S` 執行表單/批次存檔。 |
 | **Del / F8** | 刪除目前選取之資料列（附帶鍵盤可控之確認對話框，並保護 `SUPERVISOR` 保留帳號）。 |
 | **Esc** | 取消當前編輯、觸發批次結算存檔，或退回上一層/系統主選單。 |
 | **直接打字 (Direct Typing)** | **無須先按 F2**，直接鍵入字元即可即時覆蓋當前單元格或已全選之表單輸入框內容 (`foxProFocusAndSelect`)。 |

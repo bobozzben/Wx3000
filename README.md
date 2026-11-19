@@ -9,10 +9,10 @@
 
 | 層級 | 選用技術與規格說明 |
 | :--- | :--- |
-| **Frontend (Web & Desktop)** | React 19 + TypeScript + Vite + Tailwind CSS (v4) + AG Grid Community + Zustand + Axios + SheetJS (`xlsx`)，靜態檢查使用 `oxlint`<br>- 支援瀏覽器區網連線與 **Electron 桌面端封裝**（功能鍵保留給盲打：DevTools 改用 `Ctrl+Shift+I`、單按 `F5` 不會重新整理；桌面端更新由安裝精靈維護選單 `[4]` 重新安裝）<br>- 內建現代化 **`ReportPreview` 報表預覽系統**（支援 A4/Letter/HalfLetter、直橫向、多頁排版、列印設定側邊欄、即時儲存格編修、報表追追追雙擊穿透鑽取，以及 PDF / JPG / Word / Excel 動態匯出） |
+| **Frontend (Web & Desktop)** | React 19 + TypeScript + Vite + Tailwind CSS (v4) + AG Grid Community + Zustand + Axios + SheetJS (`xlsx`)，靜態檢查使用 `oxlint`<br>- 支援瀏覽器區網連線與 **Electron 桌面端封裝**（功能鍵保留給盲打：DevTools 改用 `Ctrl+Shift+I`、單按 `F5` 不會重新整理；桌面端更新由安裝精靈維護選單 `[4]` 重新安裝）<br>- 共用 **`ReportPreviewModal` 報表預覽**（瀏覽器內排版：A4/Letter/HalfLetter/B4、直橫向、分頁、列印設定側邊欄、預覽內容編修、雙擊報表追追追；`F7` 直接送印 (Electron `printHtml` 或 LocalAgent `/api/print/direct`)；匯出 PDF / JPG / Word (`.doc`)，Excel 由條件視窗 `F8` 匯出） |
 | **Backend (API & Service)** | **C# .NET 8 (ASP.NET Core Web API / Windows Service `Wx3000Api`)**<br>- 預設監聽：`http://0.0.0.0:5007`（內建 Swagger UI 與 `wwwroot` 靜態 SPA 託管）<br>- 內建 `DbfSyncService`（VFP DBF 雙向同步、DBF 檔頭鎖查重防重、VFP 併發取號、條件式 Checksum 更新）、`SystemConfigService`（動態磁碟機 `C:`/`F:` 與 Schema 切換）、`SystemParamService` 與 `TransferPasswordService`（轉檔列印密碼，只在後端比對） |
 | **Database (Hybrid Sync)** | 1. **PostgreSQL 16** (`localhost:54320`, DB: `w3000`, 動態 Schema: `c:/w3000/comm` 或 `f:/w3000/comm` & `public`)<br>2. **Visual FoxPro DBF** (`<Drive>:\w3000\comm\*.dbf`) — 採用 **DBF 絕對權威雙向同步機制**（DBF 是權威資料，PostgreSQL 只是快照；Checksum 不符時在單一交易內清空舊快照、移除舊唯一索引後整表重灌） |
-| **LocalAgent (地端橋接服務)** | **Node.js (`localagent/agent.js`, Port `5009`, 只監聽 `127.0.0.1` 與 `::1`)**，安裝後於使用者登入時在背景自動啟動 (`Wx3000Agent.exe`)<br>- **DBF 橋接**：透過 **32-bit `DBFBridge.exe`** 呼叫 32-bit `w3000_dbf.dll` (VFP COM) 執行 SHA256 Checksum、快照腳本產生與 DBF 寫入（記錄被鎖定時回 `LOCK_TIMEOUT`，檔頭鎖查重回 `DUPLICATE_KEY`，排隊逾時回 `AGENT_BUSY`）；`/api/dbf/*` 只供後端呼叫，不接受瀏覽器請求<br>- **報表橋接**：透過 **64-bit `WbaseBridge.exe`** / `Koffi` 呼叫 64-bit Lazarus `wbaseRP.dll` 產生傳統 FastReport 預覽與中一刀列印；只能呼叫 `localagent/dlls.json` 登記的 11 個白名單函數 |
+| **LocalAgent (地端橋接服務)** | **Node.js (`localagent/agent.js`, Port `5009`, 只監聽 `127.0.0.1` 與 `::1`)**，安裝後於使用者登入時在背景自動啟動 (`Wx3000Agent.exe`)<br>- **DBF 橋接**：透過 **32-bit `DBFBridge.exe`** 呼叫 32-bit `w3000_dbf.dll` (VFP COM) 執行 SHA256 Checksum、快照腳本產生與 DBF 寫入（記錄被鎖定時回 `LOCK_TIMEOUT`，檔頭鎖查重回 `DUPLICATE_KEY`，排隊逾時回 `AGENT_BUSY`）；`/api/dbf/*` 只供後端呼叫，不接受瀏覽器請求<br>- **報表橋接**：透過 **64-bit `WbaseBridge.exe`** / `Koffi` 呼叫 64-bit Lazarus `wbaseRP.dll` 產生傳統 FastReport 預覽與中一刀列印；只能呼叫 `localagent/dlls.json` 登記的 11 個白名單函數<br>- **其他**：checksum 先由 Node 直接讀檔計算 (讀不到才用 DBFBridge)；`/api/office/*` 以 Word 範本套印委任書；`/api/printers`、`/api/print/direct` 讓瀏覽器版報表預覽直接送印 |
 | **DevOps & Deployment** | `pnpm` Workspace + `Wx3000-Manager.bat` 互動式管理選單（含報表元件編譯 `[13]` 與 GitHub 發版 `[14]`）+ `publish/` 客戶端一鍵安裝/更新/DBF 同步診斷腳本 + GitHub Actions CI（前端、Electron、後端建置）與 Release（推送 tag 建立草稿） |
 
 ---
@@ -40,17 +40,17 @@ Wx3000/
 │   └── src/
 │       ├── mainmenu/               # 奇勝資訊 Wx3000 系統總入口 (四大系統分區、快捷鍵啟動、線上客服)
 │       ├── components/
-│       │   ├── FoxProGrid/         # FoxProGridV2 (多列盲打表格) + FoxProPrintModal + FoxProPrintModalv2 + SearchModal + AddressSelectModal
+│       │   ├── FoxProGrid/         # FoxProGridV2 (多列盲打表格) + FoxProPrintModal + FoxProPrintModalv2 + FoxProRangePrintConditionModal (列印條件) + SearchModal + AddressSelectModal
 │       │   ├── FoxProGridCard/     # FoxProGridCard (主檔瀏覽卡片) + useFoxProCardNavigation (母版表單導覽 Hook)
 │       │   ├── FoxProGridBill/     # FoxProGridBill (單據 Header+Detail 盲打表格)
-│       │   ├── ReportPreview/      # ReportPreviewModal (現代化報表預覽系統：直橫向、邊距縮放、儲存格編修、穿透鑽取、PDF/JPG/Word 匯出)
+│       │   ├── ReportPreview/      # ReportPreviewModal (共用報表預覽：直橫向、邊界與縮放、預覽編修、雙擊報表追追追、直接送印、PDF/JPG/Word 匯出)
 │       │   ├── SelectXlsxField/    # FormUtilSelectXlsxFieldsList (Excel 動態欄位匯出設定器)
 │       │   ├── WbasePageHeader.tsx # 統一模組頂部標題列與模式徽章
 │       │   └── ServerConfigModal.tsx # 伺服器連線與資料來源磁碟機 (C:/F:) 設定視窗 (Ctrl+Shift+S)
 │       ├── wbase/                  # 事務所、客戶、發票統購、操作設定與管理報表 (Z-基本資料系統)
 │       │   ├── menu/               # 三階手風琴鍵盤盲打主選單 + 深淺雙色主題 (ThemeContext)
 │       │   ├── wbase1010/          # 事務所基本資料與 cstore 多資料維護 (base/cstore ⇄ FoxProGridV2 + FastReport DLL)
-│       │   ├── wbase1020/          # 會計師/記帳士資料維護 (FoxProGridCard + Wbase1020Form)
+│       │   ├── wbase1020/          # 會計師/記帳士資料維護 (FoxProGridCard + Wbase1020Form，F7 區間條件 + ReportPreviewModal)
 │       │   ├── wbase1030/          # 員工/建檔人員資料維護 (12 欄 FoxProGridV2 + w3000 密碼加解密)
 │       │   ├── wbase1050/          # 稅務人員資料維護 (7 欄 FoxProGridV2 + F2 地址快選)
 │       │   ├── wbase1060/          # 收費項目資料維護 (FoxProGridV2)
@@ -72,7 +72,7 @@ Wx3000/
 │       ├── wtaxop/PurchaseOrder/   # 進貨單盲打作業 (Header + Detail)
 │       └── services/               # Axios API、apiConfig (X-Data-Drive)、addressService、localagent、validation.ts
 ├── localagent/                     # 本機代理服務 (Port: 5009，只監聽 127.0.0.1 / ::1)
-│   ├── agent.js                    # HTTP/WS 伺服器 (處理 /api/dbf/* 與 /report, /api/call)
+│   ├── agent.js                    # HTTP/WS 伺服器 (處理 /api/dbf/*、/report、/api/call、/api/office/* 與 /api/printers、/api/print/direct)
 │   ├── agent.test.js               # node --test 單元測試 (npm test)
 │   ├── dlls.json                   # 可呼叫的 DLL 函數白名單與簽名 (wbaseRP 報表函數)
 │   ├── wbase/wbaseRP.dll           # 64-bit 報表 DLL (由 Manager [13] 編譯後覆蓋)

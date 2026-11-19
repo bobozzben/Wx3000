@@ -22,13 +22,13 @@
 
 **共通行為**
 - 頂部 `<WbasePageHeader />` (類別「管理報表」、標題為上表的畫面標題、代號 `wbase{initialTab}`、模式 `grid`)，下方直接是子頁畫面。
-- **5-1 ~ 5-5 分兩段** (操作方式與 `wbase5070` 相同)：第一段「選擇客戶」(`Wbase50CustomerSelect`，見 1.1)，`Esc` 離開；**有選擇客戶才進入第二段**「列印條件」(共用母版 `<FoxProPrintModalv2 />`，見 1.2)，沒有選擇任何客戶時直接回主選單 (VFP 5-1、5-2 刪除未選擇的客戶後 `if !eof()` 才開列印表單)。第二段 `F7` 查詢並開預覽，`Esc` 回主選單；不能回到第一段重選。
+- **5-1 ~ 5-5 分兩段** (操作方式與 `wbase5070` 相同)：第一段「選擇客戶」(`Wbase50CustomerSelect`，見 1.1)，`Esc` 離開；**有選擇客戶才進入第二段**「列印條件」(5-1、5-2、5-4、5-5 用共用母版 `<FoxProPrintModalv2 />`，5-3 用 `Wbase5030PrintConditionModal` (共用母版 `<FoxProRangePrintConditionModal />`)，見 1.2、1.5)，沒有選擇任何客戶時直接回主選單 (VFP 5-1、5-2 刪除未選擇的客戶後 `if !eof()` 才開列印表單)。第二段 `F7` 查詢並開預覽，`Esc` 回主選單；不能回到第一段重選。
 - 5-6 的 `Esc` 直接回到 wbase 主選單。
 - 格線都是 `<FoxProGridV2 />`：選擇客戶的格線除 5-2 的「列印份數」外唯讀；5-6 的條文欄位可編輯。
 - 5-1 ~ 5-5 只讀資料；5-6 讀寫 `bsdesc.dbf`。
-- 5-1 ~ 5-5 的報表在瀏覽器端輸出：5-1、5-3、5-4、5-5 用 `<FoxProPrintModal showFilter={false} />` (預覽表格、`printElement` 紙張列印、xlsx 匯出；不顯示起訖篩選列，客戶已在第一段決定)，5-2 用頁面自訂的標籤預覽視窗。本模組**沒有使用 `wbaseRP.dll`**，`localagent/dlls.json` 也沒有本模組的報表函數。
+- 5-1 ~ 5-5 的報表在瀏覽器端排版：5-1、5-3、5-4、5-5 用共用的 `<ReportPreviewModal />` (`components/ReportPreview/`，見 1.2 的「列印預覽」；送印、匯出 PDF / JPG / Word，沒有 Excel)，5-2 用頁面自訂的標籤預覽視窗。本模組**沒有使用 `wbaseRP.dll`** (不呼叫 LocalAgent `/report`)，`localagent/dlls.json` 也沒有本模組的報表函數。
 - 5-6 的 `F6` 委任書編修與 `F7` Word 委任書透過本機 LocalAgent 的 `/api/office/*` 操作 Word (見 1.8)；本機沒有 Word 或連不到 LocalAgent 時，`F7` 改開頁面自訂的網頁預覽視窗。
-- xlsx 匯出走 service 的 `exportReportToXlsx(data, fields, fileName)`：只輸出 `selected` 的欄位，以 `customTitle` (無則 `label`) 為欄名。
+- xlsx 匯出：第二段 `F8` 走 `useFoxProPrintXlsxExport` 預設的 `exportFieldsToXlsx`；5-2 標籤預覽的 `F8` 與 5-6 網頁預覽的「匯出 Excel」走 service 的 `exportReportToXlsx(data, fields, fileName)`。兩者都只輸出 `selected` 的欄位，以 `customTitle` (無則 `label`) 為欄名。
 
 ### 1.1 第一段：選擇客戶 (5-1 ~ 5-5 共用，`Wbase50CustomerSelect.tsx`)
 
@@ -58,7 +58,7 @@
 
 ### 1.2 第二段：列印條件 (`components/FoxProGrid/FoxProPrintModalv2.tsx`)
 
-各畫面以 `<FoxProPrintModalv2 />` 顯示條件視窗 (母版規格見 `docs/frontend/components/foxpro_grid_SPEC.md` 5.1)，只提供 `sections`、`values`、摘要 (`chosenSummary(家數, 補充)`，`wbase50Shared.ts`) 與 F7 / F8 / Esc 的處理；F8 匯出用 `useFoxProPrintXlsxExport`，檢核用 `foxProPrintValidators.ts`。
+5-1、5-2、5-4、5-5 以 `<FoxProPrintModalv2 />` 顯示條件視窗 (母版規格見 `docs/frontend/components/foxpro_grid_SPEC.md` 5.1)，只提供 `sections`、`values`、摘要 (`chosenSummary(家數, 補充)`，`wbase50Shared.ts`) 與 F7 / F8 / Esc 的處理；F8 匯出用 `useFoxProPrintXlsxExport`，檢核用 `foxProPrintValidators.ts`。5-3 的條件畫面改用 `Wbase5030PrintConditionModal` (見 1.5)，F7 / F8 / Esc 與下面的流程相同。
 
 - **版面比照 `wbase3020_buyinv_print`**：置中的圓角視窗 (`max-w-2xl`，深淺色主題都有)：
   - 漸層標題列：印表機圖示、標題 (VFP 表單 Caption)、「Enter/F7 列印」標籤、VFP 表單與選單函數名稱 (`formCode`)、淺色 / 深色切換鈕、關閉鈕。
@@ -67,18 +67,34 @@
   - 「匯出 xlsx 設定」勾選卡片、訊息列 (欄位錯誤或查詢 / 匯出結果)、下方按鍵列「F7. 列印預覽」「F8. 匯出」「Esc. 離開」。
 - 欄位分兩種：
   - **選項欄** (VFP optiongroup)：每個選項是一個方塊 (`1. 依客戶編號` …，選中的有勾號)；`←`/`→`/`Space` 換選項，數字鍵 `1`~`n` 直接選第 n 個，也可點選。
-  - **文字欄** (VFP textbox)：同一張卡片的文字欄排成一列，可加前後文字 (例如 5-4 的「`115` 年 `01` - `12` 月」，右側標籤顯示 `11501-12`)；只收數字或轉大寫依欄位而定；`Enter` 離開時檢核，錯誤時留在原欄並選取內容 (直接打字即覆蓋)，錯誤訊息顯示在訊息列；有選單的欄位按 `F2` 開選單。
+  - **文字欄** (VFP textbox)：同一張卡片的文字欄排成一列，可加前後文字 (例如 5-4 的「`115` 年 `01` - `12` 月」，右側標籤顯示 `11501-12`)；只收數字或轉大寫依欄位而定；`Enter` 離開時檢核，錯誤時留在原欄並選取內容 (直接打字即覆蓋)，錯誤訊息顯示在訊息列；有選單的欄位按 `F2` 開選單 (本模組用 `FoxProPrintModalv2` 的畫面都沒有這種欄位)。
 - `Enter`/`↓` 下一欄 (最後一欄之後到「匯出 xlsx 設定」，`Space` 勾選，再 `Enter` 到「F7. 列印預覽」鈕，再按 `Enter` 等於 `F7`)、`↑` 上一欄。
-- **`F7`**：依序檢核所有文字欄，錯誤時停在該欄；通過後查詢並開預覽 (5-2 為產生標籤)。預覽關閉後回到條件視窗，可改條件再印 (VFP `_form_print` 同樣可重複列印)。預覽 (`FoxProPrintModal`) 只在開啟時才掛上，每次開啟都重新讀取匯出欄位設定。
+- **`F7`**：依序檢核所有文字欄，錯誤時停在該欄；通過後查詢 (訊息列顯示「正在查詢…」)。查詢失敗時錯誤顯示在訊息列，不開預覽；成功後開 `<ReportPreviewModal />` (下方「列印預覽」)，查無資料時仍會開啟，表格區顯示「⚠️ 查無符合資料」。5-2 為產生標籤並開標籤預覽 (見 1.4)。預覽關閉後回到條件視窗，可改條件再印 (VFP `_form_print` 同樣可重複列印)。
 - **`F8`** (比照 `wbase3020_buyinv_print` 的 F8 匯出；對應 VFP `_form_print` 的「Excel列印」)：同樣先檢核，再查詢資料 (`useFoxProPrintXlsxExport`)：
   - 查無資料時訊息列顯示「查無符合資料，沒有匯出。」。
   - 沒勾「匯出 xlsx 設定」：依已儲存的欄位設定直接匯出 (沒有設定時用各畫面的預設欄位)。
   - 有勾：先開 `<FormUtilSelectXlsxFieldsList />`，`F9` 確定後儲存設定再匯出。
-  - 欄位設定存在 `localStorage`，與該畫面列印預覽的「匯出 Excel」共用同一個 key (`wbase5010_xlsx_export_config`、`wbase5020_xlsx_export_config`、`wbase5030_xlsx_export_config`、`wbase5040_xlsx_export_config`、`wbase5050_xlsx_export_config`)，設定在匯出當下才讀取。
-  - 成功時訊息列顯示「已匯出 n 筆資料：檔名.xlsx」。5-2 匯出的是份數大於 0 的客戶名冊 (`郵寄標籤列印名冊.xlsx`，不必查詢)。
-- **`Esc`**：放棄，回主選單。預覽、選單、欄位設定視窗開啟或匯出查詢中時，條件視窗不處理 `F7`/`F8`/`Esc`，按鈕也停用。
-- 共用檢核 (`components/FoxProGrid/foxProPrintValidators.ts`)：`requireYear`「年度不可空白!」、`validMonth`「請輸入1至12 月份!」(VFP `smonth.Valid` / `emonth.Valid` 寫成 `!(value>=1 OR value<=12)` 實際不會擋；照訊息原意限制 1~12，與 `wbase5070` 相同)、`validEndMonth`「結束月份比起始月份小!」、`validEndCode` (終止代號小於起始代號)。年度預設今天的民國年 3 碼 (`currentRocYear()`)。
-- VFP `_form_print` 的輸出方式 (`op1` 預覽 / 立即 / 指定 / Excel / PDF)、`F6` 設定印表機不移植；網頁版 `F7` 開預覽 (由預覽視窗紙張列印或匯出 Excel)，`F8` 直接匯出 Excel。
+  - 欄位設定存在 `localStorage` (`wbase5010_xlsx_export_config`、`wbase5020_xlsx_export_config`、`wbase5030_xlsx_export_config`、`wbase5040_xlsx_export_config`、`wbase5050_xlsx_export_config`)，只有第二段 `F8` 使用 (列印預覽沒有 Excel 匯出；5-2 標籤預覽的 `F8` 固定用預設欄位)，設定在匯出當下才讀取。
+  - 成功時訊息列顯示「已匯出 n 筆資料：檔名.xlsx」，查詢失敗時顯示「查詢失敗：…」。5-2 匯出的是份數大於 0 的客戶名冊 (`郵寄標籤列印名冊.xlsx`，不必查詢)。
+- **`Esc`**：放棄，回主選單。預覽、選單、欄位設定視窗開啟或查詢 / 匯出中時，條件視窗不處理 `F7`/`F8`/`Esc`，按鈕也停用。
+- 共用檢核 (`components/FoxProGrid/foxProPrintValidators.ts`)：`requireYear`「年度不可空白!」、`validMonth`「請輸入1至12 月份!」(VFP `smonth.Valid` / `emonth.Valid` 寫成 `!(value>=1 OR value<=12)` 實際不會擋；照訊息原意限制 1~12，與 `wbase5070` 相同)、`validEndMonth`「結束月份比起始月份小!」。年度預設今天的民國年 3 碼 (`currentRocYear()`)。5-3 也用 `requireYear` 檢核資料年度；登打人員起訖的大小檢核由 `FoxProRangePrintConditionModal` 處理 (見 1.5)。
+- VFP `_form_print` 的輸出方式 (`op1` 預覽 / 立即 / 指定 / Excel / PDF)、`F6` 設定印表機不移植；網頁版 `F7` 一律開預覽 (5-1、5-3 ~ 5-5 在預覽右側選印表機後送印，或匯出 PDF / JPG / Word；5-2 標籤預覽紙張列印或匯出 Excel)，`F8` 直接匯出 Excel。
+
+**列印預覽** (5-1、5-3 ~ 5-5，`components/ReportPreview/ReportPreviewModal.tsx`，母版規格見 `foxpro_grid_SPEC.md` 第 8 節)
+
+- 全畫面視窗，條件視窗在預覽開啟期間不處理按鍵。各畫面傳入的設定：
+
+| 畫面 | `reportId` | 報表標題 (`reportTitle`) |
+| :--- | :--- | :--- |
+| 5-1 | `wbase5010_customer_print` | `客戶管理資料表 (基本資料)` / `(詳細資料)` |
+| 5-3 | `wbase5030_keyin_stats` | `客戶登打統計表 (年度: 年度)` |
+| 5-4 | `wbase5040_business_status` | `客戶營業狀況統計表 (年度: 年度 月份: 起 ~ 迄)` |
+| 5-5 | `wbase5050_finance_status` | `客戶財務狀況參考表 (年度: 年度)` |
+
+- 共同設定：公司名稱「奇勝資訊 Wx3000」、左副標「製表日期：…」加排序 (5-1)、人員起訖 (5-3) 或客戶家數 (5-4、5-5)，中副標「已選擇 n 家客戶」；預設 A4 橫印 (`defaultOrientation="landscape"`)。欄寬、列高、字級、縮放存在 `localStorage` 的 `wx3000_report_preview_<reportId>`。
+- 工具列：首頁 / 上頁 / 下頁 / 尾頁；「編修」(`enableEdit`) 可直接改表頭與儲存格，只影響這次預覽的列印與匯出 (畫面沒有接 `onDataEdited`，不回寫資料)；「更新」(`onRefresh`) 以同樣條件重新查詢 (失敗時預覽顯示「❌ 更新失敗，畫面仍是之前的資料：…」並保留原資料)；「匯出」只有 PDF、JPG、WORD (`.doc`)，檔名為 `{xlsx 檔名}_{yyyy-MM-dd}` (本機日期，例如 `客戶資料清單_基本_2026-11-19`)。沒有資料時不能匯出或列印。
+- 列印：右側列印設定側邊欄的印表機清單由 Electron 或 LocalAgent `GET /api/printers` 讀取，預設選系統預設印表機。`F7` / `Ctrl+P` 直接送到所選印表機 (桌面版 Electron `printHtml`，瀏覽器經 LocalAgent `POST /api/print/direct`；兩者都沒有時只顯示提示)，選「Microsoft Print to PDF」或「另存為 PDF」時改為匯出 PDF；`Ctrl+Shift+P` 開系統列印對話方塊。
+- 沒有傳 `onRowDrillDown`，雙擊資料列不會開其他畫面。
 
 ### 1.3 5-1 客戶資料列印 (`Wbase5010_CustomerPrint.tsx`)
 
@@ -94,9 +110,9 @@ VFP：`wbasemenu05cmd01` → `wbase4000` 選擇客戶 → `wbase2011` 客戶資�
 | 分組排序 | `1` 依客戶編號排序 / `2` 依登打人員排序 | `groupType`，`2` 時後端先依登打人員排序 |
 
 - VFP `wbase2011` 的起始、終止編號隱藏 (客戶已在第一段選定)，網頁版也沒有。
-- **F7**：`POST /api/wbase5010/print/customer-data`，`selectedNos` 為第一段選擇的全部客戶代號。
-- 預覽欄：代號、簡稱、客戶名稱、統一編號、稅籍編號、負責人、公司電話、地址 (依列印地址)、登打人員 (姓名)。
-- Excel 預設 18 欄：客戶代號、簡稱、客戶全稱、統一編號、稅籍編號、負責人、聯絡人、電話、手機、傳真、公司地址、聯絡地址、E-mail、登打人員、人員姓名、組織類別、行業代號、資本額。在 `FoxProPrintModal` 勾選「匯出設定」可開 `<FormUtilSelectXlsxFieldsList />` 調整。
+- **F7**：`POST /api/wbase5010/print/customer-data`，`selectedNos` 為第一段選擇的全部客戶代號，成功後開 `ReportPreviewModal` (見 1.2)。
+- 預覽欄：代號、簡稱、客戶名稱、統一編號、稅籍編號、負責人、公司電話、地址 (欄名與內容依列印地址)、登打人員 (姓名)。
+- Excel (第二段 `F8`) 預設 18 欄：客戶代號、簡稱、客戶全稱、統一編號、稅籍編號、負責人、聯絡人、電話、手機、傳真、公司地址、聯絡地址、E-mail、登打人員、人員姓名、組織類別、行業代號、資本額。勾選「匯出 xlsx 設定」再按 `F8` 可開 `<FormUtilSelectXlsxFieldsList />` 調整。
 
 ### 1.4 5-2 郵寄標籤列印 (`Wbase5020_LabelPrint.tsx`)
 
@@ -121,16 +137,19 @@ VFP：`wbasemenu05cmd02` → `wbase201201` 設定各客戶列印份數 → 刪�
 
 VFP：`wbasemenu05cmd03` → `wbase5030` (VFP 沒有選擇客戶的畫面，以客戶起始、終止編號限定範圍；網頁版改由第一段選擇客戶，條件畫面不再有客戶起訖)。
 
+- 第二段為 `Wbase5030PrintConditionModal.tsx`，包一層共用母版 `<FoxProRangePrintConditionModal />` (`components/FoxProGrid/`，`overlay={false}`，顯示在頁面內)：標題「客戶登打統計表列印」、「列印對象 已選擇 n 家客戶」卡片 (`chosenSummary`)、「登打人員範圍」起訖兩欄、「資料年度」卡片 (母版的 `renderExtraContent`)、「匯出 xlsx 設定」勾選、訊息列，下方「確定 [F7]」「匯出 Excel [F8]」「離開 [Esc]」。
 - 第二段條件：
 
 | 條件 | 規則 |
 | :--- | :--- |
-| 登打人員起始編號 | 轉大寫、最多 10 碼 (VFP `InputMask "!!!!!!!!!!"`)；空白代表第一位；`F2` 開「資料處理人員選單」(`SearchModal`，`GET /api/wbase1030` 的 `fetchEmps`) |
-| 終止編號 | 同上；空白代表最後一位；比起始編號小時「終止編號比起始編號小!」 |
-| 資料年度 | 今天的民國年 3 碼，只收數字；不可空白 |
+| 登打人員起始編號 | 轉大寫、最多 10 碼 (VFP `InputMask "!!!!!!!!!!"`)；空白代表第一位；`F2` 或欄內的「F2」鈕開「資料處理人員選單」(`SearchModal`，`GET /api/wbase1030` 的 `fetchEmps`)，選單關閉後游標回到該欄 |
+| 登打人員終止編號 | 同上；空白代表最後一位；起訖都有值且終止小於起始 (字串比較) 時，訊息列立即顯示「登打人員終止編號不可小於登打人員起始編號」，`Enter` 停在終止欄，`F7` / `F8` 不執行並移到終止欄 |
+| 資料年度 | 預設今天的民國年 3 碼，只收數字；空白時 `F7` / `F8` 顯示「年度不可空白!」並移到年度欄 (`Enter` 離開時不檢核) |
 
+- 開啟時另以 `fetchEmps()` 讀人員清單，輸入的代號對得到時欄位下方顯示「代號 — 姓名」(讀取失敗不影響輸入)；摘要列顯示「人員範圍：全部登打人員」或「起 ～ 迄」，有輸入時可按「重設全部」鈕清空起訖 (只能用滑鼠)。
+- 按鍵：開啟時游標在起始編號；`Enter` / `↓` 依序到終止編號 → 資料年度 → 「匯出 xlsx 設定」(`Space` 勾選) → 「確定 [F7]」鈕 (再按 `Enter` 等於 `F7`)，`↑` 往回。`F7` / `F8` / `Esc` 在 `window` 的 capture 階段處理，流程同 1.2；人員選單、預覽、欄位設定視窗開啟或查詢 / 匯出中時不處理，欄位與按鈕停用。
 - VFP 的「營業稅申報年月」網頁版沒有提供。
-- **F7**：`POST /api/wbase5010/print/keyin-stats` `{ year, startKeyin, endKeyin, selectedNos }`：每位客戶一列 (`customer` LEFT JOIN `keyin` 取人員姓名)，依登打人員、客戶代號排序，不做筆數彙總。
+- **F7**：`POST /api/wbase5010/print/keyin-stats` `{ year, startKeyin, endKeyin, selectedNos }`：每位客戶一列 (`customer` LEFT JOIN `keyin` 取人員姓名)，依登打人員、客戶代號排序，不做筆數彙總；成功後開 `ReportPreviewModal` (見 1.2，左副標顯示「人員：起 ~ 迄」，空白為「全部」)。
 - 預覽欄：人員代號、人員姓名、客戶代號、客戶名稱、統一編號、稅籍編號、電話、地址。
 - 資料年度只出現在報表標題與 xlsx 檔名 (`客戶登打統計表_{年度}年度`)，不是查詢條件。
 
@@ -139,7 +158,7 @@ VFP：`wbasemenu05cmd03` → `wbase5030` (VFP 沒有選擇客戶的畫面，以�
 VFP：`wbasemenu05cmd04` → `wbase5040` (客戶起訖改由第一段選擇客戶決定)。
 
 - 第二段條件：資料年度 (今天的民國年 3 碼，不可空白)、營業起始月份 (預設 `01`)、結束月份 (預設 `12`)；月份須為 1~12，結束月份不可小於起始月份。
-- **F7**：`POST /api/wbase5010/print/business-status` `{ year, startMonth, endMonth, selectedNos }` (月份補成 2 碼)：只讀 `customer`，欄位為客戶代號、客戶全稱、統一編號、稅籍編號、負責人、公司電話、行業代號 (`pno`)、資本額 (千分位)、公司地址。
+- **F7**：`POST /api/wbase5010/print/business-status` `{ year, startMonth, endMonth, selectedNos }` (月份補成 2 碼)：只讀 `customer`，成功後開 `ReportPreviewModal` (見 1.2)。欄位為客戶代號、客戶全稱、統一編號、稅籍編號、負責人、公司電話、行業代號 (`pno`)、資本額 (千分位)、公司地址。
 - 目前**沒有讀取任何營業額資料**：年度只用於標題與檔名，起訖月份由後端原樣回填到每列 (`startMonth`、`endMonth`，xlsx 的「起月」「迄月」欄)。
 
 ### 1.7 5-5 客戶財務狀況參考表 (`Wbase5050_FinanceStatus.tsx`)
@@ -147,7 +166,7 @@ VFP：`wbasemenu05cmd04` → `wbase5040` (客戶起訖改由第一段選擇客�
 VFP：`wbasemenu05cmd05` → `wbase5050` (客戶起訖改由第一段選擇客戶決定)。
 
 - 第二段條件：列印結算年度 (今天的民國年 3 碼，不可空白)。
-- **F7**：`POST /api/wbase5010/print/finance-status` `{ year, selectedNos }`：只讀 `customer`，欄位為客戶代號、客戶名稱、統一編號、稅籍編號、資本額、負責人、公司電話、公司地址。
+- **F7**：`POST /api/wbase5010/print/finance-status` `{ year, selectedNos }`：只讀 `customer`，成功後開 `ReportPreviewModal` (見 1.2)。欄位為客戶代號、客戶名稱、統一編號、稅籍編號、資本額、負責人、公司電話、公司地址。
 - 目前**沒有讀取任何財務資料**：結算年度由後端原樣回填到每列 (`year`，xlsx 的「年度」欄)。
 
 ### 1.8 5-6 委任書輸入維護 (`Wbase5060_BsdescForm.tsx`)
@@ -211,9 +230,9 @@ VFP：`wbasemenu05cmd05` → `wbase5050` (客戶起訖改由第一段選擇客�
 | 按鍵 | 第一段 5-1、5-3 ~ 5-5 | 第一段 5-2 | 第二段 5-1 ~ 5-5 | 5-6 |
 | :--- | :--- | :--- | :--- | :--- |
 | `Enter` | 選擇 / 取消並移到下一列 | 編輯份數，完成後往下一列 | 下一欄 (最後一欄到 F7 鈕) | 編輯條文代號、說明 |
-| `Space` | 客戶區間 | 份數 0 / 1 切換並移到下一列 | 選項欄換選項；「匯出 xlsx 設定」勾選 | 切換指標 |
-| `←` / `→` | - | - | 選項欄換選項 | - |
-| `F2` | 指定客戶 | - | 文字欄開選單 (5-3 登打人員) | - |
+| `Space` | 客戶區間 | 份數 0 / 1 切換並移到下一列 | 選項欄換選項 (5-1、5-2)；「匯出 xlsx 設定」勾選 | 切換指標 |
+| `←` / `→` | - | - | 選項欄換選項 (5-1、5-2) | - |
+| `F2` | 指定客戶 | - | 5-3 登打人員起訖開人員選單 | - |
 | `F3` / `F4` | 全選 / 全不選 | 全部 1 份 / 全部 0 份 | - | `F4` 複製條文 |
 | `F6` | - | - | - | 以 Word 開啟委任書範本 |
 | `F7` | 查詢客戶 (只移動游標) | 查詢客戶 | 查詢並開預覽 (5-2 產生標籤) | 轉出 Word 委任書 (沒有 Word 時網頁預覽) |
@@ -221,7 +240,8 @@ VFP：`wbasemenu05cmd05` → `wbase5050` (客戶起訖改由第一段選擇客�
 | `Ins` / `Del` | - | - | - | 新增 / 刪除條文 |
 | `Esc` | 有選擇進第二段，沒有回主選單 | 有份數進第二段，沒有回主選單 | 回主選單 | 回主選單 |
 
-- `<FoxProPrintModal />` 開啟時 (5-1、5-3 ~ 5-5)：`F7` 紙張列印、`F8` 匯出 Excel、`Esc` 關閉。5-2 的標籤預覽相同 (`F7` 紙張列印、`F8` 匯出 Excel、`Esc` 關閉)。
+- `<ReportPreviewModal />` 開啟時 (5-1、5-3 ~ 5-5)：`F7` / `Ctrl+P` 送到右側所選印表機 (選「Microsoft Print to PDF」時匯出 PDF)、`Ctrl+Shift+P` 系統列印對話方塊、`PgUp` / `PgDn` / `Home` / `End` 換頁 (游標在輸入框時不換頁)、`Ctrl` + `+` / `-` 縮放、`Esc` 關閉 (匯出選單或設定視窗開著時先關閉它們，編修中先結束編修) 並回到條件視窗。預覽**沒有 `F8`**，Excel 只能在條件視窗按 `F8` 匯出。
+- 5-2 的標籤預覽：`F7` 紙張列印、`F8` 匯出 Excel、`Esc` 關閉。
 - 5-6 的委任書網頁預覽是頁面自訂視窗，只能以按鈕操作 (未綁定 `Esc`、不會自動聚焦)。
 
 ---
@@ -232,12 +252,13 @@ VFP：`wbasemenu05cmd05` → `wbase5050` (客戶起訖改由第一段選擇客�
 frontend/src/wbase/wbase5010/
 ├── index.tsx                      # Wbase5010Index：WbasePageHeader + 依 initialTab 顯示子頁 (不顯示頁籤)
 ├── Wbase50CustomerSelect.tsx      # 5-1 ~ 5-5 第一段選擇客戶 (select：VFP wbase4000；copies：VFP wbase201201)
-├── wbase50Shared.ts               # useWbase50Customers、isCustomerChosen、toCopies、chosenSummary (FoxProPrintModalv2 摘要卡片)
-├── Wbase5010_CustomerPrint.tsx    # 5-1 客戶資料列印 (條件 VFP wbase2011 + FoxProPrintModal)
+├── wbase50Shared.ts               # useWbase50Customers、isCustomerChosen、toCopies、chosenSummary (條件畫面的「列印對象」卡片)
+├── Wbase5010_CustomerPrint.tsx    # 5-1 客戶資料列印 (條件 VFP wbase2011 + ReportPreviewModal)
 ├── Wbase5020_LabelPrint.tsx       # 5-2 郵寄標籤列印 (條件 VFP wbase2012 + 標籤排版預覽)
-├── Wbase5030_KeyinStats.tsx       # 5-3 客戶登打統計表 (條件 VFP wbase5030，登打人員 F2 選單)
-├── Wbase5040_BusinessStatus.tsx   # 5-4 客戶營業狀況表 (條件 VFP wbase5040)
-├── Wbase5050_FinanceStatus.tsx    # 5-5 客戶財務狀況參考表 (條件 VFP wbase5050)
+├── Wbase5030_KeyinStats.tsx       # 5-3 客戶登打統計表 (登打人員 F2 選單、查詢 + ReportPreviewModal)
+├── Wbase5030PrintConditionModal.tsx # 5-3 條件畫面 (VFP wbase5030；包 FoxProRangePrintConditionModal，加資料年度欄)
+├── Wbase5040_BusinessStatus.tsx   # 5-4 客戶營業狀況表 (條件 VFP wbase5040 + ReportPreviewModal)
+├── Wbase5050_FinanceStatus.tsx    # 5-5 客戶財務狀況參考表 (條件 VFP wbase5050 + ReportPreviewModal)
 ├── Wbase5060_BsdescForm.tsx       # 5-6 委任書條文維護、F6 開範本、F7 轉出 Word / 網頁預覽
 └── services/
     └── wbase5010.ts               # Axios client (預設 axios，全域攔截器帶 X-Data-Drive) + exportReportToXlsx
@@ -245,8 +266,10 @@ frontend/src/wbase/wbase5010/
 
 frontend/src/services/localagent.ts    # getOfficeStatus、openWordTemplate、mergeWordTemplate (LocalAgent /api/office/*)
                                        # 另沿用 wbase5070/Wbase5070RangeModal (客戶區間)、wbase2030/Wbase2030Dialogs (MessageDialog)、
-                                       # components/FoxProGrid 的 FoxProPrintModalv2、useFoxProPrintXlsxExport、foxProPrintValidators (第二段列印條件)、
-                                       # services/wbase1030 fetchEmps (5-3 登打人員選單)
+                                       # components/FoxProGrid 的 FoxProPrintModalv2、FoxProRangePrintConditionModal (5-3)、
+                                       # useFoxProPrintXlsxExport、foxProPrintValidators (第二段列印條件)、
+                                       # components/ReportPreview 的 ReportPreviewModal (5-1、5-3 ~ 5-5 列印預覽)、
+                                       # services/wbase1030 fetchEmps (5-3 登打人員選單與姓名提示)
 localagent/agent.js                    # WORD_TEMPLATES.bsdesc = wbase001.DOC 與 Word 套印腳本
 
 backend/
@@ -311,7 +334,7 @@ backend/
 
 - 讀取前一律 `EnsureTableSyncedAsync` (keyFields 見第 2 節)。
 - DBF 寫入失敗回 500 `{ error, message }` (例如「寫入 bsdesc.dbf 失敗」)，不寫 PostgreSQL；沒有把 `LOCK_TIMEOUT` 轉成 409。其他例外回 500 `{ error }`。
-- 前端查詢失敗：5-1、5-3 ~ 5-5 顯示在預覽視窗的表格區，5-2 與客戶清單讀取失敗以訊息視窗顯示；5-6 顯示在狀態列。
+- 前端查詢失敗：5-1、5-3 ~ 5-5 顯示在條件視窗的訊息列 (`F7` 不開預覽；預覽內「更新」失敗時由預覽顯示原因)，5-2 與客戶清單讀取失敗以訊息視窗顯示；5-6 顯示在狀態列。
 
 ---
 
@@ -319,7 +342,8 @@ backend/
 
 | 項目 | VFP | Wx3000 |
 | :--- | :--- | :--- |
-| 5-1 流程 | 先開 `wbase4000` 勾選客戶，再開 `wbase2011` 列印 | 同 VFP 分兩段；列印一律開網頁預覽 (不移植 `_form_print` 的輸出方式與印表機設定) |
+| 5-1 流程 | 先開 `wbase4000` 勾選客戶，再開 `wbase2011` 列印 | 同 VFP 分兩段；列印一律開網頁預覽 (不移植 `_form_print` 的輸出方式選項與 `F6` 印表機設定) |
+| 5-1、5-3 ~ 5-5 輸出 | `_form_print` 選預覽 / 立即 / 指定印表機 / Excel / PDF | `F7` 開 `ReportPreviewModal`，在預覽右側選印表機後 `F7` 送印 (選 Microsoft Print to PDF 時匯出 PDF)，另可匯出 PDF / JPG / Word；Excel 由條件視窗 `F8` 匯出；不經 `wbaseRP.dll` |
 | 5-3 ~ 5-5 客戶範圍 | 直接開條件表單，以客戶起始、終止編號限定 | 先開與 5-1 相同的選擇客戶畫面，條件畫面不再有客戶起訖 |
 | 5-3 營業稅申報年月、5-2 起始行數 | 條件表單上有 (`tx_up`、`prncol` 1~3) | 不提供 |
 | 5-1 開啟時回寫 | `pnostd` 空白且 `pno` 在 `class107` 找得到的客戶，回寫 `pnostd = pno` | 不回寫 (唯讀) |

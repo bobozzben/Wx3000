@@ -103,6 +103,11 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
+      // 列印視窗 (wbase3020_buyinv_print) 自己處理按鍵與 Esc；它的 F4 資料預覽、F2 地點選單、
+      // Excel 欄位設定開著時不攔按鍵，頁面若接手會在背景執行 F3 轉檔，Esc 也會關掉整個列印視窗
+      if (isPrintOpen) return;
+      // 刪除確認開著時只處理下面的 Esc
+      if (isDeleteConfirmOpen && e.key !== 'Escape') return;
 
       if (e.key === 'F3') {
         e.preventDefault();
@@ -117,11 +122,6 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
       }
 
       if (e.key === 'Escape') {
-        if (isPrintOpen) {
-          e.preventDefault();
-          closePrint();
-          return;
-        }
         if (isDeleteConfirmOpen) {
           e.preventDefault();
           setIsDeleteConfirmOpen(false);
@@ -137,7 +137,7 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [openPrint, closePrint, isPrintOpen, isDeleteConfirmOpen, setIsDeleteConfirmOpen, onBackToSele]);
+  }, [openPrint, isPrintOpen, isDeleteConfirmOpen, setIsDeleteConfirmOpen, onBackToSele]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -302,6 +302,7 @@ export const Wbase3020_02: React.FC<Wbase3020_02Props> = ({ onBackToSele, onBack
           onDeleteRow={(_row, idx) => openDeleteConfirm(idx !== undefined ? idx : selectedIndex)}
           onExit={onBackToSele || onBackToMenu}
           hideKeyboardHints={true}
+          keyboardDisabled={isPrintOpen || isDeleteConfirmOpen}
           escLabel="儲存/離開"
           customActions={
             <>

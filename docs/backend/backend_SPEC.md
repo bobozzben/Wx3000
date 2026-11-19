@@ -55,7 +55,7 @@ backend/
 │   ├── TicketPlaceMaster.cs             # 購票地點主檔 (table: place)
 │   ├── InvoicePurchaseMaster.cs         # 發票購買與字軌主檔 (table: buyinv)
 │   ├── AccountMaster.cs                 # 會計科目 (table: xmaster ~ xmaster6，4010 以 ADO 依 mode 切換表名)
-│   ├── Wbase1010Models.cs / Wbase2030Models.cs / Wbase2040Models.cs / Wbase2050Models.cs / Wbase4020Models.cs / Wbase5010Models.cs / Wbase5070Models.cs  # ADO 模組的 DTO
+│   ├── Wbase1010Models.cs / Wbase2030Models.cs / Wbase2040Models.cs / Wbase2050Models.cs / Wbase3025Models.cs / Wbase4020Models.cs / Wbase5010Models.cs / Wbase5070Models.cs  # ADO 模組的 DTO
 │   ├── Product.cs / Vendor.cs           # 產品 / 廠商主檔 (table: products / vendors)
 │   └── PurchaseHeader.cs / PurchaseLine.cs # 進貨單頭與明細 (table: purchase_headers / purchase_lines)
 ├── DTOs/
@@ -86,7 +86,7 @@ backend/
     └── Products / Vendors / PurchaseController.cs
 ```
 
-> 控制器有兩種寫法：EF Core 實體 (`Models/*Master.cs` + `AppDbContext`，如 1020、1030、1050~1080、2010、3010、3020、3050、3060) 與 ADO + DTO (`GetDbConnection()`，如 1010、2030、2040、2050、4010、4020、5010、5070)。
+> 控制器有兩種寫法：EF Core 實體 (`Models/*Master.cs` + `AppDbContext`，如 1020、1030、1050~1080、2010、3010、3020、3050、3060) 與 ADO + DTO (`GetDbConnection()`，如 1010、2030、2040、2050、3025、4010、4020、5010、5070)。
 
 ---
 
@@ -122,7 +122,9 @@ PostgreSQL Table 名稱與 DBF 檔名相同；`同步 keyFields` 是呼叫 `Ensu
 
 ### 3.2 同步與鎖定處理流程
 1. **讀取前檢核 (`EnsureTableSyncedAsync(dbfPath, dbfName, schema, table, keyFields)`)**：
-   - 呼叫 `LocalAgent` (`POST /api/dbf/checksum`) 取得 `.dbf` 檔案的 `SHA256:FileSize`；取不到時回傳 `false`，保留既有快照。
+   - 呼叫 `LocalAgent` (`POST /api/dbf/checksum`) 取得 `.dbf` 檔案的 `SHA256:FileSize`；取不到時回傳 `false`，保留既有快照。LocalAgent 先在 Node 直接讀檔計算 (讀不到才退回 DBFBridge)，但仍排在同一個 DBF 隊列。
+   - `GetChecksumAsync` 只等 **1.5 秒**：LocalAgent 隊列被重灌或大量寫入塞住時，讀取不再跟著排隊，而是直接沿用既有快照 (控制器照常回 200，畫面看不出資料可能是舊的)。快照從未建立過的表 (例如第一次使用新磁碟機) 這時會因資料表不存在而失敗；會先呼叫 `EnsureTableSyncedAsync` 並檢查回傳值的控制器 (例如 1060 寫入前) 則會回 503。
+   - `dictionary` schema 與兩張字典表的 `CREATE ... IF NOT EXISTS` 每個後端程序只執行一次 (靜態旗標)；後端執行中若整個刪掉 `dictionary` schema，要重新啟動後端。只刪字典的列不受影響。
    - 與 PostgreSQL `dictionary.w3000_dbf` (欄位 `path`、`dbf`、`checksum`；`path` 為小寫且以 `\` 結尾的目錄，`dbf` 為小寫不含副檔名) 中記錄的 `checksum` 比對。
    - **一致時直接查詢 PostgreSQL**（耗時約 2ms）；**不一致時才重新載入**：呼叫 `LocalAgent` (`POST /api/dbf/get_pg_script`) 由 32-bit `DBFBridge.exe` 驅動 `w3000_dbf.dll` 產生結構腳本 (`STRUCT`，帶 keyFields) 與資料腳本 (`DATA`)。資料腳本中數值溢位的 `****` 會先換成 `0`。
    - **重新載入在單一交易內進行**：

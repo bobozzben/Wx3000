@@ -21,7 +21,7 @@ interface Wbase5010CustomerPrintProps {
   onClose?: () => void;
 }
 
-/** 匯出欄位設定 (第二段 F8 與列印預覽共用) */
+/** 匯出欄位設定 (第二段 F8 匯出 Excel 用；報表預覽沒有 Excel 匯出) */
 const XLSX_STORAGE_KEY = 'wbase5010_xlsx_export_config';
 
 const DEFAULT_XLSX_FIELDS: XlsxFieldItem[] = [
