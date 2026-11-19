@@ -268,6 +268,35 @@ export const applyServerSystemConfig = async (
 };
 
 /**
+ * ngrok 免費方案會在瀏覽器流量前插入警告頁 (interstitial)，被擋到的 API 請求會收到 HTML 而不是 JSON。
+ * 請求目標是 ngrok 網域 (ngrok-free.app、ngrok-free.dev、ngrok.app 等) 時帶上這個標頭略過；
+ * 內網後端與 LocalAgent 不帶。依「請求的目標網址」判斷而不是 getApiServerUrl()：
+ * ServerConfigModal 在儲存前就會以新填的網址測試連線、檢查磁碟機。
+ */
+export const NGROK_SKIP_WARNING_HEADER = 'ngrok-skip-browser-warning';
+
+export const isNgrokUrl = (url?: string): boolean => {
+  if (!url) return false;
+  try {
+    const base = typeof window !== 'undefined' ? window.location.href : undefined;
+    return /\.ngrok(-free)?\.[a-z]+$/i.test(new URL(url, base).hostname);
+  } catch {
+    return false;
+  }
+};
+
+const setRequestHeader = (config: InternalAxiosRequestConfig, name: string, value: string) => {
+  if (!config.headers) {
+    config.headers = {} as any;
+  }
+  if (typeof (config.headers as any).set === 'function') {
+    (config.headers as any).set(name, value);
+  } else {
+    config.headers[name] = value;
+  }
+};
+
+/**
  * ERP 後端請求攔截器：將 /api/... 請求導向當前配置之 ERP 後端伺服器，並附帶 X-Data-Drive
  *
  * 全域 axios 與 axios.create() 建立的後端 instance (例如 services/api.ts) 都必須掛上這個攔截器，
@@ -277,23 +306,21 @@ export const applyServerSystemConfig = async (
 export const backendApiRequestInterceptor = (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
   const currentServer = getApiServerUrl();
   const isRelativeApi = Boolean(config.url && config.url.startsWith('/api'));
+  const isAbsoluteUrl = Boolean(config.url?.startsWith('http://') || config.url?.startsWith('https://'));
   const isBackendApi = isRelativeApi ||
     Boolean(config.url && config.url.startsWith(currentServer)) ||
-    Boolean(!config.url?.startsWith('http://') && !config.url?.startsWith('https://'));
+    !isAbsoluteUrl;
 
   if (isRelativeApi) {
     config.baseURL = currentServer;
   }
 
+  if (isNgrokUrl(isAbsoluteUrl ? config.url : (config.baseURL || config.url))) {
+    setRequestHeader(config, NGROK_SKIP_WARNING_HEADER, '1');
+  }
+
   if (isBackendApi) {
-    if (!config.headers) {
-      config.headers = {} as any;
-    }
-    if (typeof (config.headers as any).set === 'function') {
-      (config.headers as any).set('X-Data-Drive', getDataDrive());
-    } else {
-      config.headers['X-Data-Drive'] = getDataDrive();
-    }
+    setRequestHeader(config, 'X-Data-Drive', getDataDrive());
   } else {
     // 外部服務 (例如 LocalAgent http://localhost:5009)，徹底清除 X-Data-Drive 防止觸發跨域 CORS Preflight 攔截
     if (config.headers) {
@@ -330,15 +357,6 @@ export const initApiConfig = () => {
         ? true
         : inputUrl.startsWith(currentServer);
 
-      const newInit: RequestInit = { ...init };
-      if (isBackendApi) {
-        const headers = new Headers(newInit.headers || {});
-        if (!headers.has('X-Data-Drive')) {
-          headers.set('X-Data-Drive', currentDrive);
-        }
-        newInit.headers = headers;
-      }
-
       if (typeof input === 'string') {
         if (input.startsWith('/api')) {
           input = `${currentServer}${input}`;
@@ -347,6 +365,22 @@ export const initApiConfig = () => {
         if (input.pathname.startsWith('/api')) {
           input = new URL(`${currentServer}${input.pathname}${input.search}`);
         }
+      }
+
+      const targetUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      const needsNgrokHeader = isNgrokUrl(targetUrl);
+
+      const newInit: RequestInit = { ...init };
+      if (isBackendApi || needsNgrokHeader) {
+        // 沒有另給 init.headers 時以 Request 本身的標頭為底，否則 init.headers 會整個取代掉它們
+        const headers = new Headers(newInit.headers ?? (input instanceof Request ? input.headers : undefined));
+        if (isBackendApi && !headers.has('X-Data-Drive')) {
+          headers.set('X-Data-Drive', currentDrive);
+        }
+        if (needsNgrokHeader && !headers.has(NGROK_SKIP_WARNING_HEADER)) {
+          headers.set(NGROK_SKIP_WARNING_HEADER, '1');
+        }
+        newInit.headers = headers;
       }
       return originalFetch(input, newInit);
     };
